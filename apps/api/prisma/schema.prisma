@@ -1,0 +1,603 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Locations ----------
+model Region {
+  id    String @id @default(cuid())
+  name  String
+  bases Base[]
+}
+
+model Base {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  regionId     String?
+  region       Region?  @relation(fields: [regionId], references: [id])
+  address      String?
+  city         String?
+  lat          Float?
+  lng          Float?
+  phone        String?
+  managerId    String?
+  unitCapacity Int?
+  bedCapacity  Int?
+  facilities   String[]
+  schedule     Json?
+  active       Boolean  @default(true)
+
+  sites        Site[]
+  units        Unit[]
+  employees    Employee[]
+  staffing     BaseStaffingRule[]
+  seats        Seat[]
+  workOrders   WorkOrder[]
+  recommendations Recommendation[]
+}
+
+model Site {
+  id          String @id @default(cuid())
+  name        String
+  type        String @default("well")
+  lat         Float?
+  lng         Float?
+  baseId      String
+  base        Base   @relation(fields: [baseId], references: [id])
+  client      String?
+  travelHours Float?
+  accessNotes String?
+  jobs        Job[]
+}
+
+// ---------- Catalogs ----------
+enum PositionCategory {
+  FIELD_CREW
+  BASE_STAFF
+  MANAGEMENT
+}
+
+enum WorkMode {
+  FIELD
+  BASE
+  FLEXIBLE
+}
+
+model Position {
+  id                 String           @id @default(cuid())
+  name               String           @unique
+  category           PositionCategory
+  canFillUnitSeat    Boolean          @default(false)
+  canFillBasePost    Boolean          @default(false)
+  defaultRotationId  String?
+  defaultRotation    RotationPattern? @relation(fields: [defaultRotationId], references: [id])
+  requiredQualifications Qualification[] @relation("PositionQualifications")
+  requiredCertTypes  CertificationType[] @relation("PositionCerts")
+
+  employees  Employee[]
+  staffing   BaseStaffingRule[]
+  crewSeats  CrewTemplateSeat[]
+  seats      Seat[]
+}
+
+model Qualification {
+  id        String @id @default(cuid())
+  name      String @unique
+  positions Position[] @relation("PositionQualifications")
+  employees EmployeeQualification[]
+  crewSeats CrewTemplateSeat[]
+}
+
+model CertificationType {
+  id        String @id @default(cuid())
+  name      String @unique
+  positions Position[] @relation("PositionCerts")
+  certs     Certification[]
+}
+
+model RotationPattern {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  type         String  // cycle | weekly | custom
+  daysOn       Int?
+  daysOff      Int?
+  weeklyMask   String? // e.g. "1111100"
+  travelPolicy String  @default("separate")
+  positions    Position[]
+  employees    Employee[]
+}
+
+model BaseStaffingRule {
+  id             String   @id @default(cuid())
+  baseId         String
+  base           Base     @relation(fields: [baseId], references: [id])
+  positionId     String
+  position       Position @relation(fields: [positionId], references: [id])
+  minCount       Int
+  targetCount    Int
+  scheduleWindow String?
+
+  @@unique([baseId, positionId])
+}
+
+model UnitType {
+  id         String @id @default(cuid())
+  name       String @unique
+  colorKey   String // green (OH) | amber (CH)
+  crewSeats  CrewTemplateSeat[]
+  units      Unit[]
+}
+
+model CrewTemplateSeat {
+  id                  String         @id @default(cuid())
+  unitTypeId          String
+  unitType            UnitType       @relation(fields: [unitTypeId], references: [id])
+  positionId          String
+  position            Position       @relation(fields: [positionId], references: [id])
+  count               Int
+  optional            Boolean        @default(false)
+  requiredQualId      String?
+  requiredQual        Qualification? @relation(fields: [requiredQualId], references: [id])
+  minSeniority        Seniority?
+}
+
+// ---------- People ----------
+enum Seniority {
+  NEW_RECRUIT
+  JUNIOR
+  EXPERIENCED
+  SENIOR
+}
+
+model Employee {
+  id                 String   @id @default(cuid())
+  employeeNo         String   @unique
+  firstName          String
+  lastName           String
+  photoUrl           String?
+  phone              String?
+  email              String?
+  emergencyContact   String?
+  homeCity           String?
+  positionId         String
+  position           Position @relation(fields: [positionId], references: [id])
+  workMode           WorkMode @default(FIELD)
+  hireDate           DateTime
+  contractType       String   @default("permanent")
+  homeBaseId         String
+  homeBase           Base     @relation(fields: [homeBaseId], references: [id])
+  rotationPatternId  String?
+  rotationPattern    RotationPattern? @relation(fields: [rotationPatternId], references: [id])
+  rotationAnchorDate DateTime?
+  backToBackId       String?
+  seniorityOverride  Seniority?
+  priorFieldDays     Int      @default(0) // field days worked before the system (imported history)
+  seniorityReason    String?
+  tags               String[]
+  managerNotes       String?
+  active             Boolean  @default(true)
+
+  qualifications EmployeeQualification[]
+  certifications Certification[]
+  assignments    Assignment[]
+  leaves         Leave[]
+  restrictions   Restriction[]
+  extensions     Extension[]
+  ledger         DaysOffLedger[]
+  workOrderLinks WorkOrderAssignee[]
+  user           User?
+  candidateFor   ReplacementTask[]
+}
+
+model EmployeeQualification {
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id])
+  qualificationId String
+  qualification   Qualification @relation(fields: [qualificationId], references: [id])
+  obtainedAt      DateTime
+  validatedBy     String?
+
+  @@id([employeeId, qualificationId])
+}
+
+model Certification {
+  id         String            @id @default(cuid())
+  employeeId String
+  employee   Employee          @relation(fields: [employeeId], references: [id])
+  typeId     String
+  type       CertificationType @relation(fields: [typeId], references: [id])
+  issuedAt   DateTime
+  expiresAt  DateTime
+  documentUrl String?
+}
+
+// ---------- Units & jobs ----------
+enum UnitStatus {
+  AVAILABLE
+  DEPLOYED
+  IN_TRANSIT
+  UNDER_MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+model Unit {
+  id         String     @id @default(cuid())
+  code       String     @unique
+  unitTypeId String
+  unitType   UnitType   @relation(fields: [unitTypeId], references: [id])
+  homeBaseId String
+  homeBase   Base       @relation(fields: [homeBaseId], references: [id])
+  status     UnitStatus @default(AVAILABLE) // manual override: only OUT_OF_SERVICE / IN_TRANSIT stored; rest computed
+  plate      String?
+  model      String?
+  year       Int?
+  notes      String?
+
+  seats       Seat[]
+  deployments UnitDeployment[]
+  workOrders  WorkOrder[]
+}
+
+enum JobStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  ref          String    @unique
+  wellName     String
+  rigName      String?
+  client       String?
+  siteId       String
+  site         Site      @relation(fields: [siteId], references: [id])
+  serviceType  String    // Open Hole | Cased Hole
+  plannedStart DateTime
+  plannedEnd   DateTime
+  actualStart  DateTime?
+  actualEnd    DateTime?
+  status       JobStatus @default(PLANNED)
+  deployments  UnitDeployment[]
+}
+
+model UnitDeployment {
+  id     String   @id @default(cuid())
+  unitId String
+  unit   Unit     @relation(fields: [unitId], references: [id])
+  jobId  String
+  job    Job      @relation(fields: [jobId], references: [id])
+  start  DateTime
+  end    DateTime
+}
+
+// ---------- Seats & assignments ----------
+enum SeatHolder {
+  UNIT
+  BASE
+}
+
+model Seat {
+  id           String     @id @default(cuid())
+  holderType   SeatHolder
+  unitId       String?
+  unit         Unit?      @relation(fields: [unitId], references: [id])
+  baseId       String?
+  base         Base?      @relation(fields: [baseId], references: [id])
+  positionId   String
+  position     Position   @relation(fields: [positionId], references: [id])
+  index        Int
+  requirements Json?
+  requiredFlag Boolean    @default(true)
+
+  assignments Assignment[]
+  tasks       ReplacementTask[]
+}
+
+enum AssignmentType {
+  NORMAL
+  REPLACEMENT
+  EXTENSION_COVER
+  TEMPORARY_COVER
+}
+
+enum AssignmentStatus {
+  DRAFT
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Plan {
+  id          String     @id @default(cuid())
+  scope       String[]
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String     @default("DRAFT") // DRAFT | REVIEW | APPROVED | PUBLISHED
+  version     Int        @default(1)
+  createdBy   String?
+  approvedBy  String?
+  createdAt   DateTime   @default(now())
+  publishedAt DateTime?
+  submittedBy String?
+  decisionNote String?
+  summary     Json?      // engine stats, gaps with fix options, mode
+  assignments Assignment[]
+}
+
+model Assignment {
+  id          String           @id @default(cuid())
+  employeeId  String
+  employee    Employee         @relation(fields: [employeeId], references: [id])
+  seatId      String
+  seat        Seat             @relation(fields: [seatId], references: [id])
+  start       DateTime
+  plannedEnd  DateTime
+  originalEnd DateTime?        // planned end before any approved extension
+  actualEnd   DateTime?
+  type        AssignmentType   @default(NORMAL)
+  status      AssignmentStatus @default(CONFIRMED)
+  replacesId  String?
+  planId      String?
+  plan        Plan?            @relation(fields: [planId], references: [id])
+  explanation String?
+  overrideReason String?   // a hard rule was knowingly overridden when this was placed
+
+  extensions Extension[]
+
+  @@index([employeeId, start])
+  @@index([seatId, start])
+}
+
+// ---------- Leave ----------
+model LeaveType {
+  id            String  @id @default(cuid())
+  name          String  @unique
+  category      String  // leave | medical | training | absence
+  needsApproval Boolean @default(true)
+  needsDocument Boolean @default(false)
+  leaves        Leave[]
+}
+
+model Leave {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  typeId     String
+  type       LeaveType @relation(fields: [typeId], references: [id])
+  start      DateTime
+  end        DateTime
+  status     String    @default("SUBMITTED")
+  documentUrl String?
+  enteredBy  String?
+  approvedBy String?
+  notes      String?   // restricted (HR / Ops / employee only)
+  longTerm   Boolean   @default(false)
+  decisionNote String?
+  fitForDuty FitForDuty?
+
+  @@index([employeeId, start])
+}
+
+model FitForDuty {
+  id            String       @id @default(cuid())
+  leaveId       String       @unique
+  leave         Leave        @relation(fields: [leaveId], references: [id])
+  clearedAt     DateTime
+  clearedBy     String
+  restrictionId String?      @unique
+  restriction   Restriction? @relation(fields: [restrictionId], references: [id])
+}
+
+model Restriction {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  kind       String    // base_only | no_field | no_night | custom
+  start      DateTime
+  end        DateTime?
+  source     String?
+  fitForDuty FitForDuty?
+}
+
+model Extension {
+  id             String     @id @default(cuid())
+  assignmentId   String
+  assignment     Assignment @relation(fields: [assignmentId], references: [id])
+  employeeId     String
+  employee       Employee   @relation(fields: [employeeId], references: [id])
+  days           Int
+  reason         String
+  status         String     @default("REQUESTED")
+  requestedBy    String?
+  approvedBy     String?
+  acknowledgedAt DateTime?
+  overrideReason String?
+  createdAt      DateTime   @default(now())
+}
+
+// Signed days: +owed to the employee (extension), -used (recovery days). Balance = sum.
+model DaysOffLedger {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  days       Int
+  reason     String   // extension | recovery | medical_credit | adjustment
+  refId      String?
+  note       String?
+  createdBy  String?
+  at         DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([refId])
+}
+
+model ReplacementTask {
+  id          String    @id @default(cuid())
+  seatId      String
+  seat        Seat      @relation(fields: [seatId], references: [id])
+  fromDate    DateTime
+  toDate      DateTime
+  trigger     String
+  urgency     String    // CRITICAL | HIGH | NORMAL
+  status      String    @default("OPEN")
+  candidateId String?
+  candidate   Employee? @relation(fields: [candidateId], references: [id])
+  deadline    DateTime?
+  sourceId    String?   // leave / restriction / extension that caused it
+  assignmentId String?  // the assignment that closed this task
+  escalatedAt DateTime?
+
+  @@index([sourceId])
+}
+
+// ---------- Maintenance ----------
+model WorkOrder {
+  id             String   @id @default(cuid())
+  unitId         String
+  unit           Unit     @relation(fields: [unitId], references: [id])
+  baseId         String
+  base           Base     @relation(fields: [baseId], references: [id])
+  type           String
+  priority       String   @default("normal")
+  description    String?
+  plannedStart   DateTime
+  expectedReturn DateTime
+  status         String   @default("OPEN")
+  assignees      WorkOrderAssignee[]
+}
+
+model WorkOrderAssignee {
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+
+  @@id([workOrderId, employeeId])
+}
+
+// ---------- Platform ----------
+model User {
+  id           String    @id @default(cuid())
+  login        String    @unique
+  passwordHash String
+  employeeId   String?   @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  roles        UserRole[]
+  notifications Notification[]
+  audits       AuditLog[]
+  prefs        UserPrefs?
+  files        StoredFile[]
+}
+
+model UserRole {
+  userId    String
+  user      User   @relation(fields: [userId], references: [id])
+  role      String // SUPER_ADMIN | OPS_MANAGER | DISPATCHER | HR | BASE_MANAGER | CHIEF_OF_UNIT | EMPLOYEE
+  baseScope String?
+
+  @@id([userId, role])
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  type           String
+  payload        Json
+  channel        String    @default("in_app")
+  readAt         DateTime?
+  acknowledgedAt DateTime?
+  requiresAck    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model Recommendation {
+  id              String  @id @default(cuid())
+  type            String
+  baseId          String?
+  base            Base?   @relation(fields: [baseId], references: [id])
+  data            Json
+  suggestedAction String
+  status          String  @default("OPEN") // OPEN | ACCEPTED | DISMISSED | SNOOZED
+  key             String? @unique // stable id of the finding, so re-running updates instead of duplicating
+  title           String  @default("")
+  severity        String  @default("medium")
+  snoozedUntil    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+}
+
+model Setting {
+  key   String @id
+  value Json
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  userId   String?
+  user     User?    @relation(fields: [userId], references: [id])
+  entity   String
+  entityId String
+  action   String
+  before   Json?
+  after    Json?
+  reason   String?
+  at       DateTime @default(now())
+}
+
+// ---------- notifications, files, swaps
+model UserPrefs {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lang   String @default("en")
+  inApp  Json   @default("{}")  // type -> false to mute
+  email  Json   @default("{}")  // type -> true/false overrides the default
+}
+
+// Emails are queued here; an SMTP adapter sends them (plan 19: in-app and email first).
+model EmailOutbox {
+  id        String    @id @default(cuid())
+  toEmail   String
+  userId    String?
+  type      String
+  subject   String
+  body      String
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  error     String?
+}
+
+model StoredFile {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  owner       User     @relation(fields: [ownerUserId], references: [id])
+  kind        String   // medical (restricted bucket) | general
+  name        String
+  mime        String
+  size        Int
+  path        String
+  createdAt   DateTime @default(now())
+}
+
+model SwapRequest {
+  id               String   @id @default(cuid())
+  requesterId      String   // employee
+  colleagueId      String   // employee
+  requesterAssignmentId String
+  colleagueAssignmentId String
+  status           String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | APPROVED | REJECTED | CANCELLED
+  note             String?
+  decidedBy        String?
+  decisionNote     String?
+  createdAt        DateTime @default(now())
+}

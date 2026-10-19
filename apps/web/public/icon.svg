@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CrewBoard">
+  <rect width="512" height="512" rx="112" fill="#2563eb"/>
+  <rect x="96" y="120" width="140" height="272" rx="22" fill="#ffffff" opacity=".95"/>
+  <rect x="276" y="120" width="140" height="124" rx="22" fill="#16a34a"/>
+  <rect x="276" y="268" width="140" height="124" rx="22" fill="#d97706"/>
+  <circle cx="166" cy="190" r="26" fill="#2563eb"/>
+  <rect x="126" y="236" width="80" height="14" rx="7" fill="#2563eb"/>
+  <rect x="126" y="268" width="80" height="14" rx="7" fill="#94a3b8"/>
+  <rect x="126" y="300" width="80" height="14" rx="7" fill="#94a3b8"/>
+</svg>

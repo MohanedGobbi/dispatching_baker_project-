@@ -1,0 +1,17 @@
+{
+  "name": "crewboard",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev -w @crewboard/api",
+    "dev:web": "npm run dev -w @crewboard/web",
+    "build": "npm run build -w @crewboard/api && npm run build -w @crewboard/web",
+    "seed": "npm run seed -w @crewboard/api",
+    "seed:reset": "npm run seed:reset -w @crewboard/api",
+    "db:up": "docker compose up -d db",
+    "db:migrate": "npm run -w @crewboard/api prisma:migrate",
+    "test": "npm test -w @crewboard/api"
+  }
+}

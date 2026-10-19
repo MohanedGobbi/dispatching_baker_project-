@@ -1,0 +1,74 @@
+# CrewBoard
+
+Crew rotation, dispatch and base staffing platform. The full functional plan is in
+[crew-dispatch-platform-plan.md](crew-dispatch-platform-plan.md). The platform runs on **mock data** until real data is connected.
+
+## Run it
+
+Needs Node 20+ and Docker.
+
+```bash
+npm install
+npm run db:up                       # PostgreSQL on port 5440 (Redis on 6380, not used yet)
+cd apps/api
+cp .env.example .env                # DATABASE_URL points at the container
+npx prisma migrate deploy
+npm run seed                        # catalogs, 4 bases, 16 units, ~150 people, demo users
+npm run start:dev                   # API on http://localhost:3000
+```
+
+In a second terminal: `npm run dev:web` (http://localhost:5173, proxies `/api` to the API).
+
+To fill the board with something to look at (8 units on jobs, a published four-week plan, a medical leave,
+an expired certificate, a leave starting in 5 days), with the API running:
+
+```bash
+cd apps/api && npm run demo
+```
+
+Demo accounts, password `demo1234`: `dispatcher`, `ops`, `hr`, `basemanager`, `admin`, `chief` (no employee behind it), `employee`.
+
+Every person also has a login: their employee number in lower case (for example `e1044`). Employees get the phone-first portal at `#/portal`; resize the browser to phone width to see it. Staff who are also employees reach it from \\
+
+## Checks
+
+```bash
+cd apps/api
+npm run typecheck
+npm test            # pure-logic unit tests (rules, engine, status, calendars...)
+npm run smoke       # 8 live end-to-end suites against a running API and a freshly seeded database
+cd ../web && node scripts/test-sw.mjs   # the offline service worker, with a mock cache and network
+```
+
+The smoke suites change data: run `npm run seed` afterwards to reset.
+
+## What is built
+
+| Epic | State |
+|---|---|
+| E1 setup, design tokens, i18n (EN / FR / AR with RTL) | web shell done; Storybook, Figma and usability tests not started |
+| E2 auth, roles | login, role matrix, base scope on assignments and plans; user admin and password reset not built |
+| E3 settings and catalogs | done |
+| E4 mock data | catalogs, bases, 16 units, 191 people, certificates; `npm run demo` publishes a plan, plants the 14 scenarios and adds 4 earlier rotations of history (12 months of history not seeded) |
+| E5-E8 bases, employees, units, jobs | API done |
+| E9 seats and assignments, rule validator | done, incl. atomic transfer, swap, split |
+| E10 calendars | API: personal, timeline, crew-change list, base roster. Web: timeline and crew-change list (base roster screen not built) |
+| E11 dispatch board | API and web (drag and drop, badges, draft layer, time machine, TV mode, live updates) |
+| E12-E14 leave, medical leave, extensions, balance | API done; web: leave inbox, clearance queue, overlap warnings, swap approvals (extension screens not built). Certificates are uploaded to local disk in a separate medical folder with access logging |
+| E15-E17 replacement center, planning engine, plan lifecycle | API and web screens done (replacement center, plan builder with explanations, gaps and diff) |
+| E19 maintenance and work orders | API and web board; the preventive schedule is not built |
+| E20 notifications | in-app and email (queued in an outbox, no SMTP sender yet), EN/FR/AR, acknowledgements, preferences, broadcast, a daily job that runs hourly inside the API |
+| E21 employee portal (PWA) | Today, Calendar, Requests (leave with certificate upload, swaps, work orders), Alerts, Me; installable, works offline for viewing |
+| E18 what-if | `POST /planning/what-if` runs the planner on a modified copy (deploy idle units, lose people, absences) and compares with today; web tab under Analytics |
+| E22-E25 analytics, forecast, recommendations, map | API and web: 90-day coverage forecast with heat map, 14 KPIs, 8 dashboards, recommendations (recruit, transfer, relief, spread leave, train, promote, certificates), offline-friendly map |
+| Web: extensions, settings | extension requests/approval/balances/report; settings editor |
+| E26-E27 audit views and import, user admin, password reset, SMTP | not started (deferred) |
+
+**Demo:** see [DEMO.md](DEMO.md) for logins, the planted scenarios and a click-by-click walkthrough of the 12 acceptance scenarios.
+
+## Layout
+
+```
+apps/api   NestJS + Prisma. src/domain is pure logic (no database); the rest are Nest modules.
+apps/web   React + Vite. The board lives in src/Board.tsx.
+```

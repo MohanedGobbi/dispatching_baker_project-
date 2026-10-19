@@ -1,0 +1,10 @@
+-- AlterTable
+ALTER TABLE "Recommendation" ADD COLUMN "key" TEXT,
+ADD COLUMN "title" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "severity" TEXT NOT NULL DEFAULT 'medium',
+ADD COLUMN "snoozedUntil" TIMESTAMP(3),
+ADD COLUMN "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Recommendation_key_key" ON "Recommendation"("key");

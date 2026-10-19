@@ -1,0 +1,18 @@
+/* Design tokens (plan 27.3). Single source for colors, type, spacing, radius, motion. */
+:root {
+  --font-latin: 'Inter', system-ui, sans-serif;
+  --font-arabic: 'IBM Plex Sans Arabic', 'Cairo', sans-serif;
+  --bg: #f6f7f9; --surface: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0;
+  --accent: #2563eb;
+  --oh: #16a34a; --ch: #d97706;                 /* Open Hole green, Cased Hole amber */
+  --st-unit: #2563eb; --st-base: #4f46e5; --st-standby: #0d9488; --st-off: #64748b;
+  --st-leave: #9333ea; --st-medical: #e11d48; --st-clearance: #ea580c; --st-extended: #dc2626; --st-training: #0891b2;
+  --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px;
+  --radius: 14px; --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
+  --t-fast: 150ms; --t-base: 250ms;
+}
+:root[data-theme='dark'] {
+  --bg: #0b1220; --surface: #111a2e; --text: #e5e9f2; --muted: #94a3b8; --border: #1f2a44; --accent: #60a5fa;
+}
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; --t-base: 0ms; } }
