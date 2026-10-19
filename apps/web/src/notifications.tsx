@@ -77,24 +77,18 @@ export function NoticeList({ onChanged }: { onChanged?: () => void }) {
   )
 }
 
-/** Language and which notices I want in the app or by email. Notices that need confirming cannot be switched off. */
+/** Which notices I want in the app or by email. Notices that need confirming cannot be switched off. */
 export function PreferencesPanel() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const toast = useToast()
   const prefs = useApi<Prefs>('/notifications/preferences')
   const save = async (body: unknown) => {
     try { await api('/notifications/preferences', { method: 'PUT', body }); await prefs.reload() } catch (e) { toast(errMsg(e), 'error') }
   }
-  const setLang = (l: string) => { void i18n.changeLanguage(l); void save({ lang: l }) }
   if (!prefs.data) return null
   return (
     <section className="panel" aria-label="Notification preferences">
       <h3>{t('prefsTitle', 'Notification preferences')}</h3>
-      <label className="reason">{t('language', 'Language')}
-        <select value={prefs.data.lang} onChange={e => setLang(e.target.value)}>
-          <option value="en">English</option><option value="fr">Français</option><option value="ar">العربية</option>
-        </select>
-      </label>
       <table className="table compact">
         <thead><tr><th>{t('notice', 'Notice')}</th><th>{t('inApp', 'In the app')}</th><th>{t('byEmail', 'By email')}</th></tr></thead>
         <tbody>

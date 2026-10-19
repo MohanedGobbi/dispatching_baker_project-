@@ -6,7 +6,7 @@
 .main-col { min-width: 0; }
 .side-nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: linear-gradient(180deg, #0f1b3d 0%, #172554 55%, #1e1b4b 100%); color: #e2e8f0; display: flex; flex-direction: column; padding: 12px 10px; gap: 10px; z-index: 35; }
 .side-brand { display: flex; align-items: center; gap: 10px; padding: 4px 4px 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
-.side-brand .logo { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #fff; background: linear-gradient(135deg, #3b82f6, #8b5cf6); box-shadow: 0 4px 14px rgba(59,130,246,.45); }
+.side-brand .logo { width: 34px; height: 34px; flex: none; border-radius: 9px; display: block; box-shadow: 0 4px 14px rgba(37,99,235,.35); }
 .side-brand .side-label { display: grid; line-height: 1.15; flex: 1; min-width: 0; }
 .side-brand small { color: #94a3b8; font-size: 11px; }
 .slim-toggle { border: 0; background: rgba(255,255,255,.06); color: #cbd5e1; border-radius: 8px; padding: 5px; display: grid; place-items: center; }
@@ -441,7 +441,7 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 .bd-overview .fleet-map { max-height: 300px; }
 
 /* ================= P1 fixes: phones and narrow windows ================= */
-.menu-btn, .lang-select { display: none; }
+.menu-btn { display: none; }
 .menu-scrim { display: none; }
 /* grids may shrink below their ideal column width instead of pushing the page wider than the screen */
 .unit-grid { grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); }
@@ -455,7 +455,6 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 @media (max-width: 760px) {
   .shell2, .shell2.slim { grid-template-columns: minmax(0, 1fr); }
   .side-nav { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(290px, 86vw); transform: translateX(-105%); transition: transform var(--t-base) ease-out; z-index: 60; }
-  :root[dir='rtl'] .side-nav { transform: translateX(105%); }
   .shell2.menu-open .side-nav { transform: none; box-shadow: 12px 0 40px rgba(0,0,0,.35); }
   .shell2 .side-nav .side-label { display: grid !important; }
   .shell2 .side-nav .side-group-title { display: block !important; }
@@ -463,8 +462,6 @@ p > button + button, span > button + button, div:not([class]) > button + button,
   .shell2 .side-nav a { justify-content: flex-start !important; }
   .menu-scrim { display: block; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 55; }
   .menu-btn { display: inline-grid; place-items: center; }
-  .lang-btns { display: none; }
-  .lang-select { display: inline-block; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); padding: 6px 8px; }
   .nav { padding: 0 8px; gap: 6px; height: 56px; }
   .nav .crumb { font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .page, .bd { padding: 12px; }
@@ -523,3 +520,18 @@ small, .why, .muted small { font-size: 12px; }
 .cand2 li:nth-child(2) .medal { color: #0f172a; background: linear-gradient(135deg, #e2e8f0, #94a3b8) !important; }
 .cand2 li:nth-child(3) .medal { background: linear-gradient(135deg, #c2410c, #7c2d12) !important; }
 .gantt .g-bar { text-shadow: 0 1px 1px rgba(0,0,0,.25); }
+
+/* sign-in brand */
+.login-brand { display: flex; align-items: center; gap: 12px; }
+.login-brand img { border-radius: 12px; flex: none; }
+.login-brand h1 { margin: 0; }
+.demo-note { font-size: 13px; text-align: center; margin: 0; }
+
+/* units page */
+.kpi2.on { outline: 3px solid color-mix(in srgb, var(--c) 45%, transparent); outline-offset: 2px; }
+.units-table td { vertical-align: middle; }
+.units-table .unit-note { display: block; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.units-table td.row-actions button { padding: 6px 8px; }
+.units-table td.row-actions button.danger { color: var(--bad); }
+.modal button.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
+.table-scroll { overflow-x: auto; }

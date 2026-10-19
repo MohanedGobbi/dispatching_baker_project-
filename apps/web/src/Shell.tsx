@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, UserCog, Wand2, Wrench, X } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, Truck, UserCog, Wand2, Wrench, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { api } from './api'
 import { useAuth } from './auth'
-import { isRtl } from './i18n'
 import { useRoute } from './hooks'
 import Board from './Board'
+import Units from './Units'
 import Replacements from './Replacements'
 import Plans from './Plans'
 import Leave from './Leave'
@@ -31,6 +30,7 @@ const PLANNERS = ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER']
 const GROUPS: [string, string][] = [['today', 'Today'], ['planning', 'Planning'], ['insights', 'Insights'], ['admin', 'Administration']]
 const PAGES: Page[] = [
   { group: 'today', path: 'board', key: 'nav_board', label: 'Board', Icon: LayoutGrid, color: '#2563eb', hint: 'Who is on which unit today' },
+  { group: 'today', path: 'units', key: 'nav_units', label: 'Units', Icon: Truck, color: '#0369a1', hint: 'The fleet: status, jobs, details', roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER'] },
   { group: 'today', path: 'replacements', key: 'nav_replacements', label: 'Replacements', Icon: Repeat, color: '#dc2626', hint: 'Seats that need someone', roles: PLANNERS },
   { group: 'today', path: 'crew-changes', key: 'nav_changes', label: 'Crew changes', Icon: ClipboardList, color: '#0d9488', hint: 'Who goes out and comes back' },
   { group: 'planning', path: 'plans', key: 'nav_plans', label: 'Plans', Icon: Wand2, color: '#7c3aed', hint: 'Let the planner fill the coming weeks', roles: PLANNERS },
@@ -47,7 +47,7 @@ const PAGES: Page[] = [
 const ROLE_NAME: Record<string, string> = { SUPER_ADMIN: 'Administrator', OPS_MANAGER: 'Operations manager', DISPATCHER: 'Dispatcher', BASE_MANAGER: 'Base manager', HR: 'HR', CHIEF_OF_UNIT: 'Chief of unit', EMPLOYEE: 'Employee' }
 
 export default function Shell() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { me, logout, can } = useAuth()
   const { parts } = useRoute()
   const [dark, setDark] = useState(false)
@@ -60,18 +60,7 @@ export default function Shell() {
   const unread = useUnread()
   const employeeOnly = !!me && me.roles.every(r => r.role === 'EMPLOYEE')
 
-  useEffect(() => {
-    document.documentElement.dir = isRtl(i18n.language) ? 'rtl' : 'ltr'
-    document.documentElement.lang = i18n.language
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  }, [i18n.language, dark])
-
-  // The notification language is the person's language: take it at sign-in, and save it when they change it here.
-  useEffect(() => {
-    api<{ lang: string }>('/notifications/preferences').then(p => { if (p.lang && p.lang !== i18n.language) void i18n.changeLanguage(p.lang) }).catch(() => undefined)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  const setLang = (l: string) => { void i18n.changeLanguage(l); api('/notifications/preferences', { method: 'PUT', body: { lang: l } }).catch(() => undefined) }
+  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light' }, [dark])
 
   // Employees get the phone-first portal and nothing else.
   if (employeeOnly) return <Portal />
@@ -88,7 +77,7 @@ export default function Shell() {
       {menuOpen && <div className="menu-scrim" aria-hidden onClick={() => setMenuOpen(false)} />}
       <aside className="side-nav" id="side-nav" aria-label="Screens">
         <div className="side-brand">
-          <span className="logo" aria-hidden>CB</span>
+          <img className="logo" src="/icon.svg" alt="" aria-hidden />
           <span className="side-label"><strong>{t('app')}</strong><small>{t('tagline', 'Crew rotation & dispatch')}</small></span>
           <button type="button" className="slim-toggle" aria-label={slim ? 'Expand menu' : 'Collapse menu'} onClick={() => setSlim(!slim)}>{slim ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
         </div>
@@ -125,16 +114,13 @@ export default function Shell() {
         <span className="spacer" />
         {me?.employeeId && <a className="navlink" href="#/portal/today" title={t('myPortal', 'My portal')}><Smartphone size={16} aria-hidden /> <span className="hide-sm">{t('myPortal', 'My portal')}</span></a>}
         <a className={`navlink bellink${onAlerts ? ' on' : ''}`} href="#/notifications" aria-label={t('alertsTitle', 'Notifications')} title={t('alertsTitle', 'Notifications')}><Bell_ count={unread.unread} urgent={unread.pendingAck > 0} /></a>
-        <span className="lang-btns">{['en', 'fr', 'ar'].map(l => <button key={l} type="button" className={i18n.language === l ? 'on' : ''} aria-pressed={i18n.language === l} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}</span>
-        <select className="lang-select" value={i18n.language} onChange={e => setLang(e.target.value)} aria-label={t('language', 'Language')}>
-          <option value="en">EN</option><option value="fr">FR</option><option value="ar">AR</option>
-        </select>
         <button type="button" aria-label="Theme" onClick={() => setDark(!dark)}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" className="acct" aria-label={t('pwChange', 'Change password')} title={t('pwChange', 'Change password')} onClick={() => setPwOpen(true)}><KeyRound size={16} /></button>
         <button type="button" className="acct" aria-label={t('signOut', 'Sign out')} title={me?.roles.map(r => r.role).join(', ')} onClick={logout}><LogOut size={16} /></button>
       </header>
       {onAlerts && <NotificationsPage />}
       {current?.path === 'board' && <Board />}
+      {current?.path === 'units' && <Units />}
       {current?.path === 'replacements' && <Replacements />}
       {current?.path === 'plans' && <Plans />}
       {current?.path === 'leave' && <Leave />}
