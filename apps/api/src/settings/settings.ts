@@ -1,8 +1,9 @@
 import {
-  BadRequestException, Body, Controller, Get, Inject, Injectable, Module, Param, Put,
+  BadRequestException, Body, Controller, Get, Inject, Injectable, Module, Param, Put, Req,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require } from '../auth/auth.module';
+import { Require } from '../auth/decorators';
+import { audit } from '../common/validate';
 
 // Every number in the plan is a default that Settings can change (plan header + section 22).
 export const SETTING_DEFAULTS = {
@@ -44,6 +45,8 @@ export const SETTING_DEFAULTS = {
   'org.workingDays': '1111100', // Sunday first; posts with the working_days window are only needed on these days
   'org.languages': ['en', 'fr', 'ar'],
   'org.showLeaveReasonToDispatcher': false,
+  'security.passwordMinLength': 8,
+  'security.resetLinkMinutes': 60,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -77,13 +80,18 @@ export class SettingsService {
 
 @Controller('settings')
 class SettingsController {
-  constructor(@Inject(SettingsService) private svc: SettingsService) {}
+  constructor(@Inject(SettingsService) private svc: SettingsService, @Inject(PrismaService) private prisma: PrismaService) {}
 
   @Get() @Require('settings', 'view')
   list() { return this.svc.all(); }
 
   @Put(':key') @Require('settings', 'edit')
-  update(@Param('key') key: string, @Body() body: { value: unknown }) { return this.svc.set(key, body?.value); }
+  async update(@Req() req: { user?: { sub: string } }, @Param('key') key: string, @Body() body: { value: unknown }) {
+    const before = (await this.svc.all())[key];
+    const r = await this.svc.set(key, body?.value);
+    await audit(this.prisma, req.user?.sub, 'Setting', key, 'update', { value: before }, { value: r.value });
+    return r;
+  }
 }
 
 @Module({ controllers: [SettingsController], providers: [SettingsService], exports: [SettingsService] })

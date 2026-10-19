@@ -24,6 +24,9 @@ import { MaintenanceModule } from './maintenance/maintenance';
 import { SwapsModule } from './swaps/swaps';
 import { PortalModule } from './portal/portal';
 import { AnalyticsModule } from './analytics/analytics';
+import { MailModule } from './mail/mailer';
+import { UsersModule } from './users/users';
+import { AuditModule } from './audit/audit';
 
 @Controller()
 class HealthController {
@@ -32,7 +35,7 @@ class HealthController {
 }
 
 @Module({
-  imports: [PrismaModule, AuthModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule],
+  imports: [PrismaModule, MailModule, AuthModule, UsersModule, AuditModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule],
   controllers: [HealthController],
 })
 class AppModule {}

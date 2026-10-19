@@ -213,6 +213,8 @@ async function main() {
     await prisma.user.create({
       data: {
         login, passwordHash: demoHash, employeeId: login === 'employee' ? firstOperator?.id : undefined,
+        // Staff accounts have no employee record, so they get their own address (for password reset emails).
+        email: login === 'employee' ? undefined : `${login}@crewboard.local`,
         roles: { create: { role, baseScope: role === 'BASE_MANAGER' ? 'HMD' : undefined } },
       },
     });

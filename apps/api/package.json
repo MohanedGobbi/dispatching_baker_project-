@@ -12,7 +12,7 @@
     "demo": "tsx scripts/demo-plan.ts --units=8 --publish && tsx scripts/demo-scenarios.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke": "tsx scripts/smoke-master-data.ts && tsx scripts/smoke-assignments.ts && tsx scripts/smoke-leave.ts && tsx scripts/smoke-planning.ts && tsx scripts/smoke-board.ts && tsx scripts/smoke-notifications.ts && tsx scripts/smoke-portal.ts && tsx scripts/smoke-analytics.ts",
+    "smoke": "tsx scripts/smoke-master-data.ts && tsx scripts/smoke-assignments.ts && tsx scripts/smoke-leave.ts && tsx scripts/smoke-planning.ts && tsx scripts/smoke-board.ts && tsx scripts/smoke-notifications.ts && tsx scripts/smoke-portal.ts && tsx scripts/smoke-analytics.ts && tsx scripts/smoke-users.ts",
     "prisma:migrate": "prisma migrate deploy"
   },
   "dependencies": {
@@ -21,12 +21,14 @@
     "@nestjs/core": "^12.1.3",
     "@nestjs/platform-express": "^12.1.3",
     "@prisma/client": "^6.19.3",
+    "nodemailer": "^10.1.7",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^24.19.2",
+    "@types/nodemailer": "^8.0.2",
     "prisma": "^6.19.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

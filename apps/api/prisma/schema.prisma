@@ -490,11 +490,31 @@ model User {
   passwordHash String
   employeeId   String?   @unique
   employee     Employee? @relation(fields: [employeeId], references: [id])
+  email        String?   // for staff without an employee record; otherwise the employee's email is used
+  active       Boolean   @default(true)
+  mustChangePassword Boolean @default(false)
+  passwordChangedAt  DateTime? // tokens issued before this are refused
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
   roles        UserRole[]
   notifications Notification[]
   audits       AuditLog[]
   prefs        UserPrefs?
   files        StoredFile[]
+  resetTokens  PasswordResetToken[]
+}
+
+/// Self-service password reset. Only a hash of the token is stored; the token itself goes out by email.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model UserRole {
@@ -575,6 +595,7 @@ model EmailOutbox {
   createdAt DateTime  @default(now())
   sentAt    DateTime?
   error     String?
+  attempts  Int       @default(0)
 }
 
 model StoredFile {

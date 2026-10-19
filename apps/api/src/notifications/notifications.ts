@@ -8,6 +8,7 @@ import { SettingsModule, SettingsService } from '../settings/settings';
 import { CalendarCoreModule, CalendarService } from '../calendar/calendar.service';
 import { audit, page } from '../common/validate';
 import { startOfDay } from '../domain/status';
+import { MailerService } from '../mail/mailer';
 import { CATALOG, catalogForPrefs, isType, Lang, LANGS, NotificationType, render } from './templates';
 
 const DAY = 86_400_000;
@@ -176,6 +177,7 @@ class NotificationsController {
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(NotificationsService) private svc: NotificationsService,
+    @Inject(MailerService) private mailer: MailerService,
   ) {}
 
   @Get()
@@ -279,10 +281,17 @@ class NotificationsController {
   @Post('run-daily') @Require('planning', 'edit')
   runDaily() { return this.svc.runDaily(); }
 
-  /** Queued emails (for testing and for an SMTP sender to pick up). */
+  /** Queued emails. The SMTP sender (mail/mailer.ts) sends them when SMTP_HOST is set. */
   @Get('outbox') @Require('settings', 'edit')
   async outbox(@Query('limit') limit?: string) {
     return this.prisma.emailOutbox.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(parseInt(limit ?? '50', 10) || 50, 200) });
+  }
+
+  /** Send the queue now instead of waiting for the next minute. */
+  @Post('outbox/send') @Require('settings', 'edit')
+  async sendOutbox() {
+    if (!this.mailer.enabled) return { enabled: false, sent: 0, failed: 0 };
+    return { enabled: true, ...(await this.mailer.flush()) };
   }
 }
 

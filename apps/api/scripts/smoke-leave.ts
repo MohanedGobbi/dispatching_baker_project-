@@ -1,7 +1,7 @@
 // Live smoke test for E12-E14: leave, medical leave, clearance, restrictions, extensions, days-off balance.
 // Usage: tsx scripts/smoke-leave.ts   (API running, freshly seeded)
 import '../src/env';
-import { at, call, check, day, DAY, finish, login, mkEmployee, prisma, today } from './lib';
+import { at, call, check, day, DAY, finish, login, mkEmployee, mkUser, prisma, today } from './lib';
 
 async function main() {
   const [admin, ops, hr, disp, bm, emp] = await Promise.all(['admin', 'ops', 'hr', 'dispatcher', 'basemanager', 'employee'].map(login));
@@ -62,8 +62,7 @@ async function main() {
   check('employee role only gets own rows', empList.status === 200 && empList.json.items.every((l: any) => l.employeeId === empSelf), empList.json);
 
   // ---- employee-submitted medical leave waits for HR validation
-  await prisma.user.update({ where: { login: 'employee' }, data: { employeeId: Q.id } });
-  const empTok = await login('employee');
+  const empTok = await login((await mkUser(Q.id)).login);
   check('employee needs a certificate', (await call('POST', '/leaves', empTok, { typeId: medT, start: at(16), end: at(18) })).status === 400);
   const sub = await call('POST', '/leaves', empTok, { typeId: medT, start: at(16), end: at(18), documentUrl: 'self-cert.pdf' });
   check('employee submits medical leave => SUBMITTED, no effect yet', sub.status === 201 && sub.json.leave.status === 'SUBMITTED' && sub.json.effects === null, sub.json);

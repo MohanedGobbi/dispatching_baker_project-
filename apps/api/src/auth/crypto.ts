@@ -1,4 +1,4 @@
-import { scryptSync, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
+import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from 'node:crypto';
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16);
@@ -19,6 +19,8 @@ export interface TokenPayload {
   sub: string;
   roles: { role: string; baseScope?: string | null }[];
   employeeId?: string | null;
+  /** Password version: the user's passwordChangedAt (ms) when the token was issued. A change or reset revokes older tokens. */
+  pv?: number;
   exp: number;
 }
 
@@ -37,4 +39,14 @@ export function verifyToken(token: string, secret: string, now = Date.now()): To
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
   const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as TokenPayload;
   return payload.exp * 1000 > now ? payload : null;
+}
+
+/** An unguessable token for links sent by email; store only its hash. */
+export const randomToken = () => randomBytes(32).toString('base64url');
+export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+/** A temporary password an administrator can read out: no look-alike characters. */
+export function tempPassword(length = 12): string {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from(randomBytes(length), b => alphabet[b % alphabet.length]).join('');
 }
