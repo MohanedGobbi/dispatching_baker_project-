@@ -240,6 +240,8 @@ function CalendarTab() {
   const weekdays = useMemo(() => Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2023, 0, 1 + i)).toLocaleDateString(i18n.language, { weekday: 'narrow', timeZone: 'UTC' })), [i18n.language])
   const used = [...new Set(days.map(d => d.status))]
 
+  const cells: (CalDay | null)[] = [...Array.from({ length: lead }, () => null), ...days]
+  const weeks = Array.from({ length: Math.ceil(cells.length / 7) }, (_, w) => cells.slice(w * 7, w * 7 + 7))
   return (
     <>
       <header className="cal-head">
@@ -249,17 +251,24 @@ function CalendarTab() {
       </header>
       {cal.error && <Card tone="bad"><p>{cal.error}</p></Card>}
       <div className="month" role="grid" aria-label="Month">
-        {weekdays.map((w, i) => <span key={i} className="wd" role="columnheader">{w}</span>)}
-        {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
-        {days.map(d => {
-          const m = STATUS_META[d.status]
-          return (
-            <button type="button" key={d.date} role="gridcell" className={`day${d.date === today() ? ' today' : ''}${picked?.date === d.date ? ' picked' : ''}`} onClick={() => setPicked(d)} aria-label={`${fmtDate(d.date, i18n.language)}: ${m?.label ?? d.status}${d.label ? `, ${d.label}` : ''}`}>
-              <span>{Number(d.date.slice(8))}</span>
-              <i style={{ background: m?.color ?? 'var(--border)' }} />
-            </button>
-          )
-        })}
+        {/* Rows use display: contents, so the seven-column layout is unchanged while screen readers get weeks. */}
+        <div role="row" className="month-row">{weekdays.map((w, i) => <span key={i} className="wd" role="columnheader">{w}</span>)}</div>
+        {weeks.map((week, wi) => (
+          <div role="row" className="month-row" key={wi}>
+            {week.map((d, i) => {
+              if (!d) return <span key={`b${i}`} role="gridcell" />
+              const m = STATUS_META[d.status]
+              return (
+                <span role="gridcell" key={d.date} className="month-cell">
+                  <button type="button" className={`day${d.date === today() ? ' today' : ''}${picked?.date === d.date ? ' picked' : ''}`} onClick={() => setPicked(d)} aria-label={`${fmtDate(d.date, i18n.language)}: ${m?.label ?? d.status}${d.label ? `, ${d.label}` : ''}`}>
+                    <span>{Number(d.date.slice(8))}</span>
+                    <i style={{ background: m?.color ?? 'var(--border)' }} />
+                  </button>
+                </span>
+              )
+            })}
+          </div>
+        ))}
       </div>
       {picked && <Card><p className="strong">{fmtDate(picked.date, i18n.language)}</p><p style={{ color: STATUS_META[picked.status]?.color }}>{STATUS_META[picked.status]?.label ?? picked.status}{picked.label ? ` · ${picked.label}` : ''}</p></Card>}
       <ul className="legend">{used.map(s => <li key={s}><i style={{ background: STATUS_META[s]?.color }} />{t(`status_${s}`, STATUS_META[s]?.label ?? s)}</li>)}</ul>

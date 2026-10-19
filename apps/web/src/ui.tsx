@@ -56,6 +56,8 @@ export function PersonChip({ person, drag, highlight, onOpen, compact, draft }: 
       ref={d.setNodeRef}
       {...(drag ? d.listeners : {})}
       {...(drag ? d.attributes : {})}
+      role={drag ? 'group' : undefined}
+      aria-label={drag ? person.name : undefined}
       className={`chip${highlight ? ' hit' : ''}${d.isDragging ? ' dragging' : ''}${compact ? ' compact' : ''}${draft ? ' draft' : ''}`}
       onDoubleClick={() => onOpen?.(person.id)}
       title={`${person.name} · ${SENIORITY_LABEL[person.seniority]}${draft ? ' · proposed in the draft plan' : ''}`}

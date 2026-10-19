@@ -89,8 +89,8 @@ export default function Timeline() {
       {!data.loading && (data.data?.rows.length ?? 0) === 0 && <p className="empty-note">{t('noPeople', 'Nobody matches these filters.')}</p>}
 
       {groups.length > 0 && (
-        <div className="tl tl2" style={{ ...style, marginTop: 16 }} role="table" aria-label="Team timeline">
-          <div className="tl-row tl-head" role="row">
+        <div className="tl tl2" style={{ ...style, marginTop: 16 }} role="region" aria-label="Team timeline">
+          <div className="tl-row tl-head" aria-hidden>
             <span className="tl-name" />
             {days.map((d, i) => {
               const dt = new Date(d)
@@ -99,16 +99,16 @@ export default function Timeline() {
             })}
           </div>
           {groups.map(([group, rows]) => (
-            <div key={group} role="rowgroup">
+            <div key={group} role="group" aria-label={group}>
               <div className="tl-group" style={{ ["--c" as string]: groupColor(group) }}>{group} <span style={{ opacity: .85 }}>· {rows.length}</span></div>
               {rows.map(r => (
-                <div className="tl-row" role="row" key={r.employeeId}>
+                <div className="tl-row" key={r.employeeId}>
                   <button type="button" className="tl-name" onClick={() => setFocus(r)} title={t('openTimeline', 'Show only this person')}>{r.name}<small>{r.position} · {r.base}</small></button>
                   {r.blocks.map((b, i) => {
                     const s = Math.max(0, dayIndex(from, b.from)), e = Math.min(span - 1, dayIndex(from, b.to))
                     const label = `${fmtDate(b.from, i18n.language)} → ${fmtDate(b.to, i18n.language)} · ${STATUS_META[b.status]?.label ?? b.status}${b.label ? ` · ${b.label}` : ''}${b.restrictions?.length ? ` · restricted: ${b.restrictions.join(', ')}` : ''}`
                     return (
-                      <i key={i} className={`tl-block${b.restrictions?.length ? ' restricted' : ''}`} style={{ gridColumn: `${s + 2} / ${e + 3}`, background: color(b.status) }} title={label} aria-label={label} onClick={() => setFocus(r)}>
+                      <i key={i} className={`tl-block${b.restrictions?.length ? ' restricted' : ''}`} style={{ gridColumn: `${s + 2} / ${e + 3}`, background: color(b.status) }} title={label} role="img" aria-label={label} onClick={() => setFocus(r)}>
                         {e - s >= 2 && b.label ? b.label.split(' · ')[0] : ''}
                       </i>
                     )

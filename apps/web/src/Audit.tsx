@@ -72,8 +72,8 @@ export default function Audit() {
             const diff = isOpen ? changes(r.before, r.after) : []
             return (
               <Fragment key={r.id}>
-                <tr className="click" onClick={() => setOpen(isOpen ? null : r.id)} aria-expanded={isOpen}>
-                  <td>{isOpen ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</td>
+                <tr className="click" onClick={() => setOpen(isOpen ? null : r.id)}>
+                  <td><button type="button" className="link" aria-expanded={isOpen} aria-label={t('auditDetails', 'Details')} onClick={e => { e.stopPropagation(); setOpen(isOpen ? null : r.id) }}>{isOpen ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</button></td>
                   <td>{fmtTime(r.at, i18n.language)}</td>
                   <td>{r.user?.login ?? <span className="muted">{t('auditSystem', 'system / self-service')}</span>}</td>
                   <td>{r.entity} <small className="muted">{r.entityId.length > 14 ? `…${r.entityId.slice(-8)}` : r.entityId}</small></td>

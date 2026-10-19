@@ -10,6 +10,8 @@ const prisma = new PrismaClient();
 faker.seed(process.env.SEED_RANDOM ? Date.now() : 42);
 
 const NOW = new Date('2026-10-19T00:00:00Z');
+// SEED_SCALE=5 builds five times the units and people (same four bases) for the performance test (plan E28).
+const SCALE = Math.max(1, parseInt(process.env.SEED_SCALE ?? '1', 10) || 1);
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 const daysAhead = (n: number) => daysAgo(-n);
 
@@ -124,14 +126,14 @@ async function main() {
   // ---- Units (9 OH, 7 CH) + crew seats
   const units: { id: string; code: string; type: 'OH' | 'CH'; base: string }[] = [];
   const baseCodes = BASES.map(b => b.code);
-  for (let i = 0; i < 16; i++) {
-    const type = i < 9 ? 'OH' : 'CH';
+  for (let i = 0; i < 16 * SCALE; i++) {
+    const type = i % 16 < 9 ? 'OH' : 'CH';
     const base = baseCodes[i % baseCodes.length];
     const code = `HL-${6700 + i * 7}`;
     const u = await prisma.unit.create({
       data: {
         code, unitTypeId: (type === 'OH' ? oh : ch).id, homeBaseId: bases[base].id,
-        status: i === 15 ? 'OUT_OF_SERVICE' : 'AVAILABLE', plate: `${faker.number.int({ min: 10000, max: 99999 })} 1${i} 16`, year: 2012 + (i % 10),
+        status: i % 16 === 15 ? 'OUT_OF_SERVICE' : 'AVAILABLE', plate: `${faker.number.int({ min: 10000, max: 99999 })} 1${i} 16`, year: 2012 + (i % 10),
       },
     });
     units.push({ id: u.id, code, type, base });
@@ -166,7 +168,8 @@ async function main() {
   ];
   const created: { id: string; position: string }[] = [];
   const cycleLength = (rotationId: string) => ({ [r2828.id]: 56, [r1414.id]: 28, [r217.id]: 28, [r52.id]: 7 }[rotationId] ?? 56);
-  for (const [position, count] of mix) {
+  for (const [position, perScale] of mix) {
+    const count = perScale * SCALE;
     const def = posDefs.find(p => p[0] === position)!;
     for (let i = 0; i < count; i++) {
       const base = baseCodes[i % baseCodes.length];

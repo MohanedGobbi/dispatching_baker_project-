@@ -105,7 +105,7 @@ const DAY = 86_400_000
 const isoD = (d: Date) => d.toISOString().slice(0, 10)
 const addDays = (s: string, n: number) => isoD(new Date(Date.parse(s) + n * DAY))
 const color = (s: string) => STATUS_META[s]?.color ?? 'var(--muted)'
-const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-500)', JUNIOR: 'var(--pal-sky-400)', EXPERIENCED: 'var(--pal-green-600)', SENIOR: 'var(--pal-violet-500)' }
+const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-700)', JUNIOR: 'var(--pal-sky-700)', EXPERIENCED: 'var(--pal-green-700)', SENIOR: 'var(--pal-violet-700)' }
 
 function Tabs<T extends string>({ tabs, tab, setTab }: { tabs: [T, string, typeof User][]; tab: T; setTab: (t: T) => void }) {
   return <div className="pp-tabs" role="tablist">{tabs.map(([k, l, I]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><I size={14} aria-hidden /> {l}</button>)}</div>

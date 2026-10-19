@@ -165,7 +165,7 @@ button.kpi2 { cursor: pointer; }
 .seat2.bad { background: color-mix(in srgb, var(--bad) 8%, transparent); }
 .role-pill { --c: #64748b; font-size: 11.5px; font-weight: 700; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); border-radius: 8px; padding: 6px 8px; text-align: center; white-space: nowrap; }
 .role-pill em { font-style: normal; color: #f59e0b; margin-inline-start: 2px; }
-.seat2.optional .role-pill { opacity: .65; }
+.seat2.optional .role-pill { border: 1px dashed currentColor; }
 .assign-btn { border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); color: var(--accent); border-radius: 10px; padding: 9px 12px; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; justify-content: center; width: 100%; }
 .assign-btn:hover { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-style: solid; }
 .assign-btn.req { border-color: color-mix(in srgb, var(--bad) 55%, var(--border)); color: var(--bad); background: color-mix(in srgb, var(--bad) 5%, var(--surface)); }
@@ -333,7 +333,7 @@ button.kpi2 { cursor: pointer; }
 .hist li small { color: var(--muted); }
 .pp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .pp-actions button, button.ghost { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 9px; padding: 7px 12px; display: inline-flex; gap: 6px; align-items: center; }
-button.danger { border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); color: var(--bad); }
+button.danger { border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); color: var(--ink-bad); }
 button.ghost { justify-self: start; }
 
 /* clickable names everywhere */
@@ -533,7 +533,7 @@ small, .why, .muted small { font-size: 12px; }
 .units-table td { vertical-align: middle; }
 .units-table .unit-note { display: block; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .units-table td.row-actions button { padding: 6px 8px; }
-.units-table td.row-actions button.danger { color: var(--bad); }
+.units-table td.row-actions button.danger { color: var(--ink-bad); }
 .modal button.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
 .table-scroll { overflow-x: auto; }
 
@@ -551,3 +551,10 @@ small, .why, .muted small { font-size: 12px; }
 .usage-label { font-size: 11px; fill: var(--muted); }
 .usage-val { font-size: 11px; fill: #fff; font-weight: 700; }
 .pp-full { color: inherit; text-decoration: underline; font-weight: 600; }
+
+/* contrast (WCAG AA): red and blue text use the ink shades, which pass on tints and in dark mode */
+.error, .gap-text { color: var(--ink-bad); }
+.subtabs button.on, .seg button.on, [role='tab'].on { color: var(--ink-info); }
+.month-row { display: contents; }
+.month-cell { display: contents; }
+.an-head > button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 12px; }

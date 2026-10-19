@@ -41,7 +41,7 @@ export function FleetMap({ map, units, colorOf, selected, onBase }: {
   const outline = ALGERIA.map(([lng, lat]) => proj(lng, lat).map(n => n.toFixed(1)).join(',')).join(' ')
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="fleet-map" role="img" aria-label="Map of bases, well sites and deployed units">
+    <svg viewBox={`0 0 ${W} ${H}`} className="fleet-map" role="group" aria-label="Map of bases, well sites and deployed units">
       <defs><clipPath id="mapclip"><rect width={W} height={H} rx="14" /></clipPath></defs>
       <g clipPath="url(#mapclip)">
         <polygon className="country" points={outline} />

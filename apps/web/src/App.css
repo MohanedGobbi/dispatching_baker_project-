@@ -1,5 +1,6 @@
 /* Older styles. They sit in the 'legacy' cascade layer, so look.css (unlayered) wins without !important. */
 @layer legacy {
+a { color: var(--accent); }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; line-height: 1.4; }
 button, input, select { font: inherit; color: inherit; }

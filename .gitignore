@@ -6,3 +6,5 @@ apps/api/storage/
 
 # machine-specific shortcut (points at this folder's absolute path)
 CrewBoard.lnk
+apps/web/test-results/
+apps/web/playwright-report/

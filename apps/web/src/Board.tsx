@@ -208,8 +208,8 @@ export default function Board() {
         {!tv && (
           <div className="bd-toolbar">
             <span className="seg2" role="tablist">
-              <button type="button" className={tab === 'field' ? 'on' : ''} onClick={() => setTab('field')}><Truck size={15} aria-hidden /> {t('fieldView', 'Units in the field')}</button>
-              <button type="button" className={tab === 'base' ? 'on' : ''} onClick={() => setTab('base')}><Wrench size={15} aria-hidden /> {t('baseView', 'Base staff')}</button>
+              <button type="button" role="tab" aria-selected={tab === 'field'} className={tab === 'field' ? 'on' : ''} onClick={() => setTab('field')}><Truck size={15} aria-hidden /> {t('fieldView', 'Units in the field')}</button>
+              <button type="button" role="tab" aria-selected={tab === 'base'} className={tab === 'base' ? 'on' : ''} onClick={() => setTab('base')}><Wrench size={15} aria-hidden /> {t('baseView', 'Base staff')}</button>
             </span>
             <span className="dates">
               <button type="button" aria-label="Previous day" onClick={() => setDate(addDaysIso(date, -1))}><ChevronLeft size={16} /></button>

@@ -11,7 +11,7 @@ import { PersonLink } from './profiles'
 interface Suggest { candidates: { employeeId: string; score: number; explanation: string; employee?: string }[]; ruledOut: { employeeId: string; because: string[] }[] }
 export interface FreePerson extends Person { status: string }
 
-const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-500)', JUNIOR: 'var(--pal-sky-400)', EXPERIENCED: 'var(--pal-green-600)', SENIOR: 'var(--pal-violet-500)' }
+const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-700)', JUNIOR: 'var(--pal-sky-700)', EXPERIENCED: 'var(--pal-green-700)', SENIOR: 'var(--pal-violet-700)' }
 
 /**
  * Click "Assign" on an empty seat: the planner's best picks for it, or anyone free today, searchable.
