@@ -37,6 +37,9 @@ async function main() {
   const ids = (o: Record<string, { id: string }>) => Object.values(o).map(x => x.id);
   const seatsU1 = await prisma.seat.findMany({ where: { unitId: u1.id }, include: { position: true } });
 
+  // The full review pipeline (draft -> review -> approved -> published) is tested with approval switched on.
+  await call('PUT', '/settings/workflow.requireApproval', admin, { value: true });
+
   // ================= plan a period (acceptance 6) =================
   check('employee role cannot plan', (await call('GET', '/planning/plans', emp)).status === 403);
   check('base manager cannot plan another base', (await call('POST', '/planning/plans', bm, { start: at(0), end: at(27), baseIds: ['PLN'] })).status === 403);
@@ -182,7 +185,13 @@ async function main() {
   check('a published plan cannot be discarded', (await call('DELETE', `/planning/plans/${plan1.id}`, disp)).status === 400);
   check('audit trail covers planning', (await prisma.auditLog.count({ where: { entity: 'Plan' } })) >= 8);
 
-  void admin; void C; void D;
+  // ================= default: no review step, the manager publishes a draft directly =================
+  await call('PUT', '/settings/workflow.requireApproval', admin, { value: false });
+  const quick = await call('POST', '/planning/plans', admin, { start: at(30), end: at(40), baseIds: ['PLN'] });
+  const quickPub = await call('POST', `/planning/plans/${quick.json.id}/publish`, admin, { skipInvalid: true });
+  check('without approval a draft is published directly', quick.status === 201 && quickPub.status === 201 && (await prisma.plan.findUniqueOrThrow({ where: { id: quick.json.id } })).status === 'PUBLISHED', quickPub.json);
+
+  void C; void D;
   await finish();
 }
 main().catch(e => { console.error(e); process.exit(1); });

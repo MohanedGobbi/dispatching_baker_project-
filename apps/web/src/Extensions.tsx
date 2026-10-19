@@ -5,7 +5,7 @@ import { PageGuide } from './guide'
 import { api, ApiError } from './api'
 import { useAuth } from './auth'
 import { Modal } from './dialogs'
-import { errMsg, useApi, useLive } from './hooks'
+import { errMsg, useApi, useLive, useRequireApproval } from './hooks'
 import { fmtDate } from './labels'
 import { Pill, useToast } from './ui'
 import { PersonLink, UnitLink } from './profiles'
@@ -37,6 +37,9 @@ export default function Extensions() {
   useLive(() => { void list.reload() })
   const approver = can('SUPER_ADMIN', 'OPS_MANAGER')
   const requester = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER', 'CHIEF_OF_UNIT')
+  // Without the approval step the manager extends in one go: the request is approved straight away.
+  const approval = useRequireApproval()
+  const direct = approver && !approval
 
   const approve = async (ext: Ext, overrideReason?: string, shiftSuccessor?: boolean) => {
     try {
@@ -54,11 +57,11 @@ export default function Extensions() {
       <PageGuide id="extensions" Icon={Timer} color="#ea580c" title={t('extTitle', 'Extensions')}
         purpose={t('extPurpose', 'Keeping someone on a unit past the planned end. Every extra day is owed back to them as rest.')}
         steps={[
-          t('exStep1', 'A dispatcher or chief requests extra days and says why.'),
-          t('exStep2', 'The operations manager approves; beyond the limits a reason is required.'),
+          direct ? t('exStep1direct', '"Extend": pick the person, the extra days and why. It applies at once.') : t('exStep1', 'A dispatcher or chief requests extra days and says why.'),
+          direct ? t('exStep2direct', 'Beyond the limits (days per rotation or quarter, longest stretch) a reason is required.') : t('exStep2', 'The operations manager approves; beyond the limits a reason is required.'),
           t('exStep3', '"Rest balances" shows who is owed the most rest, so their relief comes first.'),
         ]}>
-        {requester && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('extNew', 'Request extension')}</button>}
+        {requester && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {direct ? t('extNow', 'Extend') : t('extNew', 'Request extension')}</button>}
       </PageGuide>
       <div className="subtabs" role="tablist">
         {(['requests', 'balances', 'report'] as const).map(k => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`ext_${k}`, { requests: 'Requests', balances: 'Rest balances', report: 'Report' }[k])}</button>)}
@@ -106,14 +109,21 @@ export default function Extensions() {
         </section>
       )}
 
-      {creating && <RequestDialog onClose={() => setCreating(false)} onDone={() => { setCreating(false); void list.reload() }} />}
+      {creating && <RequestDialog direct={direct} onClose={() => setCreating(false)} onDone={async id => {
+        setCreating(false)
+        if (direct && id) {
+          const full = (await api<{ items: Ext[] }>('/extensions?status=REQUESTED&limit=100')).items.find(x => x.id === id)
+          if (full) await approve(full)
+        }
+        await list.reload()
+      }} />}
       {deciding && <DecideDialog {...deciding} onClose={() => setDeciding(null)} onApprove={(reason, shift) => approve(deciding.ext, reason, shift)} onDone={() => { setDeciding(null); void list.reload() }} />}
       {adjusting && <AdjustDialog who={adjusting} onClose={() => setAdjusting(null)} onDone={() => { setAdjusting(null); void balances.reload() }} />}
     </main>
   )
 }
 
-function RequestDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function RequestDialog({ direct, onClose, onDone }: { direct: boolean; onClose: () => void; onDone: (id?: string) => void }) {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const asg = useApi<{ items: Asg[] }>('/assignments?status=ACTIVE&limit=200')
@@ -121,17 +131,18 @@ function RequestDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
   const items = (asg.data?.items ?? []).filter(a => a.seat.position.name !== 'Mechanic')
   const submit = async () => {
     try {
-      const r = await api<{ needsOverride: boolean; breaches: string[] }>('/extensions', { method: 'POST', body: { assignmentId: id, days, reason } })
-      toast(r.needsOverride ? `${t('extSent', 'Request sent')} · ${r.breaches.join('; ')}` : t('extSent', 'Request sent')); onDone()
+      const r = await api<{ extension: { id: string }; needsOverride: boolean; breaches: string[] }>('/extensions', { method: 'POST', body: { assignmentId: id, days, reason } })
+      if (!direct) toast(r.needsOverride ? `${t('extSent', 'Request sent')} · ${r.breaches.join('; ')}` : t('extSent', 'Request sent'))
+      onDone(r.extension.id)
     } catch (e) { toast(errMsg(e), 'error') }
   }
   return (
-    <Modal title={t('extNew', 'Request extension')} onClose={onClose}>
+    <Modal title={direct ? t('extNow', 'Extend') : t('extNew', 'Request extension')} onClose={onClose}>
       <div className="form">
         <label>{t('person', 'Person')}<select value={id} onChange={e => setId(e.target.value)}><option value="">–</option>{items.map(a => <option key={a.id} value={a.id}>{a.employee.firstName} {a.employee.lastName} · {a.seat.unit?.code ?? a.seat.base?.code} · {t('until', 'until')} {fmtDate(a.plannedEnd, i18n.language)}</option>)}</select></label>
         <label>{t('extDays', 'Extra days')}<input type="number" min={1} max={30} value={days} onChange={e => setDays(+e.target.value)} /></label>
         <label>{t('reason', 'Reason')}<select value={reason} onChange={e => setReason(e.target.value)}>{REASONS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        <div className="actions"><button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button><button type="button" className="primary" disabled={!id} onClick={submit}>{t('send', 'Send')}</button></div>
+        <div className="actions"><button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button><button type="button" className="primary" disabled={!id} onClick={submit}>{direct ? t('extNow', 'Extend') : t('send', 'Send')}</button></div>
       </div>
     </Modal>
   )

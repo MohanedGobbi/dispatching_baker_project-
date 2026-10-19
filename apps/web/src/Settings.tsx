@@ -7,7 +7,7 @@ import { useToast } from './ui'
 
 const GROUPS: Record<string, string> = {
   rules: 'Crew rules', engine: 'Planning engine weights', seniority: 'Seniority levels', recommendations: 'Recommendations',
-  replacements: 'Replacements', planning: 'Planning', leave: 'Leave', org: 'Organisation', security: 'Sign-in and passwords',
+  replacements: 'Replacements', planning: 'Planning', leave: 'Leave', org: 'Organisation', workflow: 'Approvals', security: 'Sign-in and passwords',
 }
 const HINTS: Record<string, string> = {
   'rules.minExperiencedPerCrew': 'Experienced people required on every crew',
@@ -21,6 +21,7 @@ const HINTS: Record<string, string> = {
   'recommendations.hireLeadDays': 'Days it takes to recruit and onboard someone',
   'recommendations.shortageMinDays': 'Shortage must last this many days before it is reported',
   'recommendations.balanceThreshold': 'Rest days owed before relief is recommended',
+  'workflow.requireApproval': 'On: plans go draft → review → approved before publishing, extensions are requested then approved. Off: the manager publishes and extends directly',
   'security.passwordMinLength': 'Shortest password accepted',
   'security.resetLinkMinutes': 'How long an emailed reset link stays valid, in minutes',
 }

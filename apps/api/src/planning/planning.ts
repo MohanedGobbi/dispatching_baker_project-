@@ -403,6 +403,7 @@ export class PlanningService {
 class PlanningController {
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
+    @Inject(SettingsService) private settings: SettingsService,
     @Inject(PlanningService) private svc: PlanningService,
     @Inject(AssignmentsService) private assignments: AssignmentsService,
     @Inject(NotificationsService) private notifier: NotificationsService,
@@ -600,7 +601,10 @@ class PlanningController {
   @Post('plans/:id/publish') @Require('planning', 'full')
   async publish(@Param('id') id: string, @Body() body: { skipInvalid?: boolean }, @Req() req: AuthedRequest) {
     const plan = await this.mustPlan(id);
-    if (plan.status !== 'APPROVED') throw new BadRequestException(`Only an approved plan can be published (this one is ${plan.status.toLowerCase()})`);
+    // Without the review step (the default: one manager runs everything) a draft is published as it is.
+    const requireApproval = (await this.settings.all())['workflow.requireApproval'] === true;
+    const publishable = requireApproval ? ['APPROVED'] : ['DRAFT', 'REVIEW', 'APPROVED'];
+    if (!publishable.includes(plan.status)) throw new BadRequestException(requireApproval ? `Only an approved plan can be published (this one is ${plan.status.toLowerCase()})` : `A ${plan.status.toLowerCase()} plan cannot be published`);
     const drafts = await this.prisma.assignment.findMany({ where: { planId: id, status: 'DRAFT' }, orderBy: [{ start: 'asc' }, { seatId: 'asc' }] });
 
     const accepted: typeof drafts = [];

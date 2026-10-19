@@ -45,6 +45,8 @@ export const SETTING_DEFAULTS = {
   'org.workingDays': '1111100', // Sunday first; posts with the working_days window are only needed on these days
   'org.languages': ['en', 'fr', 'ar'],
   'org.showLeaveReasonToDispatcher': false,
+  // Off: the manager publishes a draft plan directly and extensions apply at once. On: draft -> review -> approve.
+  'workflow.requireApproval': false,
   'security.passwordMinLength': 8,
   'security.resetLinkMinutes': 60,
 } as const;

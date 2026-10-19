@@ -5,7 +5,7 @@ import { PageGuide } from './guide'
 import { api, ApiError } from './api'
 import { useAuth } from './auth'
 import { Modal, ViolationList } from './dialogs'
-import { errMsg, go, useApi, useLive, useRoute } from './hooks'
+import { errMsg, go, useApi, useLive, useRequireApproval, useRoute } from './hooks'
 import { fmtDate, FIX_LABEL, PLAN_LABEL, PLAN_STEPS, plural } from './labels'
 import { SuggestDialog } from './suggest'
 import { Pill, useToast } from './ui'
@@ -46,6 +46,7 @@ export default function Plans() {
 function PlanList() {
   const { t, i18n } = useTranslation()
   const { can } = useAuth()
+  const approval = useRequireApproval()
   const toast = useToast()
   const plans = useApi<PlanRow[]>('/planning/plans')
   const bases = useApi<{ id: string; code: string; name: string }[]>('/bases')
@@ -73,7 +74,7 @@ function PlanList() {
         steps={[
           t('plStep1', '"New plan": choose the weeks and bases. The planner fills every seat it can while following every rule.'),
           t('plStep2', 'Open the draft: each assignment says why that person was chosen; empty seats come with ways to fix them.'),
-          t('plStep3', 'Change anything by hand, then submit. A manager approves and publishes it.'),
+          approval ? t('plStep3', 'Change anything by hand, then submit. A manager approves and publishes it.') : t('plStep3direct', 'Change anything by hand, then publish it.'),
           t('plStep4', 'Publishing makes the plan live on the board and notifies everyone concerned. Until then nothing changes.'),
         ]}>
         {can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER') && <button type="button" className="primary" onClick={() => setOpen(!open)}><Plus size={15} aria-hidden /> {t('newPlan', 'New plan')}</button>}
@@ -98,7 +99,7 @@ function PlanList() {
               ))}
             </div>
           </fieldset>
-          <p className="muted">{t('planNote', 'This creates a draft. Nothing changes on the board until the plan is approved and published.')}</p>
+          <p className="muted">{t('planNote2', 'This creates a draft. Nothing changes on the board until the plan is published.')}</p>
           <div className="actions"><button type="button" className="primary" disabled={busy || end < start} onClick={() => void create()}><Wand2 size={15} aria-hidden /> {busy ? t('planning', 'Planning…') : t('suggestPlan', 'Suggest a plan')}</button></div>
         </section>
       )}
@@ -147,6 +148,8 @@ function PlanView({ id }: { id: string }) {
   const planner = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
   const manager = can('SUPER_ADMIN', 'OPS_MANAGER')
   const editable = p?.status === 'DRAFT' && planner
+  const approval = useRequireApproval()
+  const steps: readonly string[] = approval ? PLAN_STEPS : ['DRAFT', 'PUBLISHED']
 
   const act = async (path: string, body: unknown, ok: string) => {
     try { await api(path, { method: 'POST', body }); toast(ok); await plan.reload() } catch (e) { toast(errMsg(e), 'error') }
@@ -201,19 +204,20 @@ function PlanView({ id }: { id: string }) {
         <div>
           <h1>{t('plan', 'Plan')} v{p.version} <small className="muted">{fmtDate(p.periodStart, i18n.language)} → {fmtDate(p.periodEnd, i18n.language)}{p.summary?.mode === 'repair' ? ' · repair' : ''}</small></h1>
           <ol className="stepper" aria-label="Plan status">
-            {PLAN_STEPS.map((s, i) => {
-              const at = PLAN_STEPS.indexOf(p.status as (typeof PLAN_STEPS)[number])
+            {steps.map((s, i) => {
+              const at = Math.max(steps.indexOf(p.status), 0)
               return <li key={s} className={i < at ? 'done' : i === at ? 'now' : ''}>{i < at && <Check size={12} aria-hidden />} {PLAN_LABEL[s]}</li>
             })}
           </ol>
           {p.decisionNote && <p className="note">{t('lastNote', 'Last note')}: {p.decisionNote}</p>}
         </div>
         <div className="actions">
-          {p.status === 'DRAFT' && planner && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void act(`/planning/plans/${id}/submit`, {}, t('submitted', 'Sent for review'))}>{t('submit', 'Send for review')}</button>}
+          {p.status === 'DRAFT' && planner && approval && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void act(`/planning/plans/${id}/submit`, {}, t('submitted', 'Sent for review'))}>{t('submit', 'Send for review')}</button>}
+          {p.status !== 'PUBLISHED' && manager && !approval && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
           {p.status === 'DRAFT' && planner && <button type="button" onClick={async () => { try { await api(`/planning/plans/${id}`, { method: 'DELETE' }); toast(t('discarded', 'Plan discarded')); go('plans') } catch (e) { toast(errMsg(e), 'error') } }}>{t('discard', 'Discard')}</button>}
-          {p.status === 'REVIEW' && manager && <button type="button" className="primary" onClick={() => void act(`/planning/plans/${id}/approve`, {}, t('approved', 'Approved'))}>{t('approve', 'Approve')}</button>}
-          {p.status === 'APPROVED' && manager && <button type="button" className="primary" onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
-          {['REVIEW', 'APPROVED'].includes(p.status) && manager && <button type="button" onClick={() => setReasonFor('reject')}>{t('sendBack', 'Send back…')}</button>}
+          {p.status === 'REVIEW' && manager && approval && <button type="button" className="primary" onClick={() => void act(`/planning/plans/${id}/approve`, {}, t('approved', 'Approved'))}>{t('approve', 'Approve')}</button>}
+          {p.status === 'APPROVED' && manager && approval && <button type="button" className="primary" onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
+          {['REVIEW', 'APPROVED'].includes(p.status) && manager && approval && <button type="button" onClick={() => setReasonFor('reject')}>{t('sendBack', 'Send back…')}</button>}
           {p.status === 'REVIEW' && !manager && <span className="muted">{t('waitingApproval', 'Waiting for the ops manager')}</span>}
         </div>
       </header>
