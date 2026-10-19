@@ -21,7 +21,7 @@ Logins, password `demo1234`: `dispatcher`, `ops`, `hr`, `basemanager` (scoped to
 
 Windows shortcut: `start-crewboard.cmd` / `stop-crewboard.cmd` at the repo root (scripts in `scripts/`) start Docker, the database, the API and the web app and open the browser. They are Windows-only; in the cloud use the commands above.
 
-Checks: `cd apps/api && npm run typecheck && npm test` (84 unit tests), `npm run smoke` (10 live suites, needs the API running; they mutate data, so reseed afterwards; they pass as one chain on a fresh seed), `cd apps/web && node scripts/test-sw.mjs` (service worker with a mock cache).
+Checks: `cd apps/api && npm run typecheck && npm test` (89 unit tests), `npm run smoke` (12 live suites, needs the API running; they mutate data, so reseed afterwards; they pass as one chain on a fresh seed), `cd apps/web && node scripts/test-sw.mjs` (service worker with a mock cache), `cd apps/web && npm run e2e` (12 Playwright tests in a browser, including a WCAG 2.1 AA audit of every screen in light and dark; needs the API and web app running on the demo data). Performance: `docs/performance.md` (how to run it at 5x is in there).
 
 ## Where things are
 
@@ -31,7 +31,8 @@ apps/api/src/domain/        pure logic, no database, unit tested
    rules.ts       hard/soft rule validator and crew rules (15.2, 15.3)
    engine.ts      planning engine (15.4): hardest seat first, weighted scoring, gaps with fix options
    absence.ts, spans.ts, derived.ts   carving assignments around leave, span arithmetic, unit status
-apps/api/src/<module>/      one Nest module per area: auth, users, audit, mail, transfer (Excel), settings, catalogs, bases,
+apps/api/src/<module>/      one Nest module per area: auth, users, audit, mail, transfer (Excel), fleet (unit page, preventive
+                            maintenance, papers), tasks, settings, catalogs, bases,
                             employees, units, jobs, assignments, leave, extensions, planning, replacements, calendar,
                             board, notifications, files, maintenance, swaps, portal, absence (shared), prisma
 apps/api/prisma/            schema.prisma, migrations, seed.ts
@@ -46,6 +47,9 @@ apps/web/src/               Shell (nav, role routing), Board, Replacements, Plan
    unitforms.tsx  AddUnitDialog, NewJobDialog (create a job and optionally deploy a unit)
    fleetmap.tsx   SVG map of bases and active sites drawn from coordinates (no tiles)
    a11y.ts        useDialogFocus: focus in, Tab trap, focus restored to the opener (Modal and the profile panel use it)
+   UnitPage.tsx   full unit page; unitforms.tsx holds the unit dialogs, unitstatus.ts the status table
+   Tasks.tsx      manager's task list; the portal's To do tab is in Portal.tsx
+   theme.ts       remembered light/dark, following the system until chosen
    look.css       the current visual layer (sidebar, guides, cards, board, replacement center, timeline focus, profiles,
                   P1 audit fixes for contrast, 12px text floor, scroll cues, phone layout, 44px touch targets)
 apps/web/public/            manifest, icons, sw.js (service worker)
@@ -100,7 +104,8 @@ apps/web/public/            manifest, icons, sw.js (service worker)
 - Auth decorators live in `auth/decorators.ts` so modules that `auth.module.ts` imports (settings) do not form an import cycle.
 
 - Some files have Windows line endings (CRLF), some do not. Scripted search-and-replace over source must normalise line endings first or it silently misses; the editor tools handle both.
-- The web app is `look.css` on top of four older stylesheets (`App.css`, `pages.css`, `analytics.css`, `portal.css`, imported in that order from `App.tsx`). `look.css` is imported last and wins, sometimes with `!important`; change the visual layer there, not in the older files.
+- The web app is `look.css` on top of four older stylesheets (`App.css`, `pages.css`, `analytics.css`, `portal.css`). The older ones are wrapped in `@layer legacy`, so any rule in `look.css` (unlayered) wins regardless of specificity; never use `!important` there (an `!important` inside the legacy layer would beat look.css). Colours in components come from `--pal-*` / status tokens in `tokens.css`, never raw hex.
+- `prisma format` realigns the whole schema; write schema edits by hand and generate migrations with `prisma migrate diff --from-schema-datasource ... --script` (`migrate dev` refuses to run non-interactively when a column is dropped).
 
 ## UI rework and design audit (2026-10-19, local session)
 
@@ -116,17 +121,9 @@ What changed in the web app, at the user's request:
 
 An `impeccable` design audit was run (detector + rendered checks on every screen at 1366px and 375px, light and dark). Score before fixes: 11/20. **All P1 issues are fixed and re-verified:** phone layout (no page wider than 375px), dialog and panel focus, text contrast (0 failures on the checked screens in light and dark; status and identity colours were darkened in `tokens.css`, `--ink-*` tokens added for text on pale tints, `--accent-fill` for filled buttons), no text under 12px, scroll cues, shorter board header, 44px touch targets on touch screens.
 
-**Remaining audit work (P2 first), for the next session:**
-1. ~~`index.html` title "web"~~: done, "CrewBoard", with `icon.svg` as the favicon.
-2. Fonts: Inter is named in `tokens.css` but never loaded; everything falls back to system fonts. Self-host it (IBM Plex Sans Arabic is no longer needed).
-3. Theme: the light/dark choice is not remembered and ignores the system preference (`Shell.tsx` `useState(false)`).
-4. One 608 KB JS bundle: lazy-load Analytics/WhatIf, Portal, Users/Audit/DataTransfer/Settings, and the profile panel.
-5. CSS consolidation: dead rules from the old board and replacement center remain (`App.css` `.unit`, `.seat`, `.column`, `.summary`, `.kpi`, `.side-grid`, `.staffing`; `pages.css` `.task`, `.split`, `.detail`), `PersonDrawer.tsx` is unused, and `look.css` relies on `!important`. Fold everything into tokens + one component stylesheet.
-6. About 140 hard-coded hex colours in TSX inline styles (KPI tiles, urgency, role and base colours). Move them to tokens with dark-mode values.
-7. ~~FR/AR strings and RTL~~: dropped, the app is English only.
-8. ~~Dispatchers see "Repaired"~~: moot while the manager is the only user; revisit if dispatcher accounts come back.
-9. Touch: chips let the page scroll (`touch-action: pan-y`), so drag-and-drop is effectively mouse-only; "Assign someone" is the touch path. Consider a dnd-kit TouchSensor with a long press.
-10. P3: thick coloured side stripes on cards (`border-inline-start` 4-5px, flagged by the detector), very high colour volume (saturated gradients everywhere dilute the red "act now" signal; keep strong colour for state and OH/CH identity, calm the rest), and Escape in a dialog opened over the profile panel closes both.
+**Audit follow-up (2026-10-20):** all P2 items are done: title and favicon; Inter self-hosted; theme remembered and following the system; screens lazy-loaded (main script 635 kB -> 318 kB); the older stylesheets moved into a `legacy` cascade layer so `look.css` needs no `!important` (57 removed), 24 dead rules and `PersonDrawer.tsx` removed; all hex colours in components replaced by `--pal-*` tokens with dark values; touch drag on press-and-hold; Escape closes a dialog before the panel. FR/AR and the dispatcher "Repaired" item are moot. The CSS change was checked by pixel-diffing 44 screenshots before and after. An axe-core WCAG 2.1 AA audit of every screen, dialog, side panel and the phone portal, in both themes, now reports 0 violations (it runs in `npm run e2e`).
+
+Still open (P3, a matter of taste rather than a defect): the thick coloured side stripes on cards and the overall colour volume (saturated gradients everywhere dilute the red "act now" signal). The older stylesheets could still be folded into one component stylesheet; the cascade layer makes that safe to do piece by piece.
 
 There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/impeccable document` would capture the product brief and the current design system so future design work has a reference.
 
@@ -139,7 +136,7 @@ There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/im
 
 ## Product direction and plan (2026-10-20)
 
-**Who uses it.** Two kinds of user in the end: the **manager**, who monitors and runs everything, and the **employee**, who sees their own schedule and tasks. For now only the manager (super admin) is in scope; the employee side comes later. Everything in the plan is done by the manager, without the review pipeline.
+**Who uses it.** Two kinds of user: the **manager**, who monitors and runs everything, and the **employee**, who sees their own schedule and tasks in the phone portal. Everything in the plan is done by the manager, without the review pipeline; employees' own requests (leave, swaps) still come to the manager for a decision.
 
 **Done in this round**
 - CrewBoard logo (`apps/web/public/icon.svg`, the board-and-crew mark) used as the favicon, in the sidebar and on the sign-in card; page title "CrewBoard". Vite's template assets removed.
@@ -147,11 +144,15 @@ There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/im
 - Manager only: sign-in offers only `admin`; plans publish directly; extensions apply in one step (setting `workflow.requireApproval`).
 - English only: language switch, FR/AR strings and RTL rules removed from the web app.
 
+**Done in the second round (2026-10-20)**
+1. *Manager-only cleanup:* anything addressed to a staff role also reaches the manager; "escalate to the ops manager" became **Overdue**; texts no longer mention HR, ops or chiefs; the super admin is shown as **Manager**; the Users screen offers Manager and Employee; `SEED_STAFF=off` seeds only the manager and employee logins. English only on the API too (notification texts, reset email, the `lang` preference and `org.languages` removed).
+2. *Units:* a full unit page (`#/units/:id`) with a 12-month chart (on a job / workshop / idle), crew, papers (registration, insurance, inspection, with files and expiry), preventive maintenance plans, work orders, jobs and crew history. Preventive maintenance (E19): plans per unit, an hourly scheduler that opens the work order when a service comes due (after any job the unit is on), finishing it records the service. Units list: Service due tile and Next service column.
+3. *Design-review P2:* see "Audit follow-up" above.
+6. *Employee side:* tasks from the manager (Tasks screen; one task for several people; notified; done with a note; the manager is told), and a **To do** tab in the portal gathering tasks, notices to confirm, swaps to answer and assigned work orders. Employees sign in with their employee number.
+7. *E28-E30:* performance at 5x (`docs/performance.md`), WCAG 2.1 AA audit with 0 violations, Playwright end-to-end tests of the main flows (`apps/web/e2e`).
+
 **Next, in order**
-1. *Finish the manager-only cleanup:* hide what only makes sense with several roles (swap approvals in Leave, "waiting for the ops manager" texts, role-specific notification types, the Users screen's role list can default to Administrator); decide whether the production seed creates only `admin`.
-2. *Units, second step:* a unit detail page (not just the side panel) with maintenance history, utilisation over time and documents (registration, inspections); preventive maintenance schedule (plan E19, not built).
-3. *Remaining audit work:* the P2 list above (fonts, remembered theme, bundle splitting, CSS consolidation, colour tokens, touch drag-and-drop).
-4. *Before real use:* `JWT_SECRET`, `APP_URL`, SMTP; a login rate limit; demo accounts off; backups.
-5. *Real data:* import the remaining sheets (certificates, base staffing rules, sites), PDF exports.
-6. *Employee side (later):* what an employee sees (own calendar, tasks, leave requests, acknowledgements: the portal already exists and works), and whether their requests need the approval step (`workflow.requireApproval`).
-7. E28-E30: performance test at 5x volume, WCAG audit, polish.
+1. *Before real use:* `JWT_SECRET`, `APP_URL`, SMTP; a login rate limit; demo accounts off (`SEED_STAFF=off` helps); backups.
+2. *Real data:* import the remaining sheets (certificates, base staffing rules, sites, maintenance plans), PDF exports.
+3. *Polish (P3):* calmer colour volume and thinner card stripes; fold the legacy stylesheets into one.
+4. If the fleet grows well past 5x: cache per-person calendars for the day (see `docs/performance.md`).

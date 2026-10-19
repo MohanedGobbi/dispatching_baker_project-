@@ -106,6 +106,11 @@ Board → date picker (or the arrows) → go back up to three months. The same b
 * **Audit** (`admin`, `ops`, `hr`): every change with who and when; click a row for before/after. Filter by record type, e.g. *Setting* after changing one in Settings.
 * **Import / export** (`hr` or `ops`): *Export current data* for Employees, change a cell and add a row in Excel, then *Upload and check*. The report shows new, changed and unchanged rows and every error per row; nothing is written until *Import*.
 
+## Extra tour: units and the employee side
+
+* **Unit page:** Units → click a unit code. The last 12 months (on a job, in the workshop, idle), crew today, papers (one insurance is expired or expiring on some units), preventive maintenance with next due dates, work orders, jobs and crew history. *Add a service*, mark one *Done*, *Book* one now; add a paper with a PDF and download it. On the Units list, the *Service due* tile shows units whose service is due or overdue; the scheduler has already opened work orders for them (Work orders board).
+* **Tasks:** Tasks → *New task*, pick a few people, a title and a date. Then sign in as one of them (employee number, e.g. `e1001`) at phone width: the **To do** tab has the task with a badge; tap *Done* and leave a note. Back as `admin`, the task shows done with the note, and the bell has a "Task done" notice. The `employee` account already has three tasks from the demo, one overdue.
+
 ## Not built yet (on purpose)
 
-SSO, PDF export, sync with an HR/ERP system. See `HANDOFF.md`.
+SSO, PDF export, sync with an HR/ERP system, a login rate limit. See `HANDOFF.md`.

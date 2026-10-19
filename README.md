@@ -36,9 +36,12 @@ Every person also has a login: their employee number in lower case (for example 
 cd apps/api
 npm run typecheck
 npm test            # pure-logic unit tests (rules, engine, status, calendars...)
-npm run smoke       # 10 live end-to-end suites against a running API and a freshly seeded database
+npm run smoke       # 12 live end-to-end suites against a running API and a freshly seeded database
 cd ../web && node scripts/test-sw.mjs   # the offline service worker, with a mock cache and network
+npm run e2e         # (apps/web) Playwright browser tests of the main flows + WCAG 2.1 AA audit, on the demo data
 ```
+
+Performance at 5x the mock volume: see [docs/performance.md](docs/performance.md).
 
 The smoke suites change data: run `npm run seed` afterwards to reset.
 
@@ -62,13 +65,14 @@ The smoke suites change data: run `npm run seed` afterwards to reset.
 | E11 dispatch board | API and web (drag and drop, badges, draft layer, time machine, TV mode, live updates) |
 | E12-E14 leave, medical leave, extensions, balance | API done; web: leave inbox, clearance queue, overlap warnings, swap approvals (extension screens not built). Certificates are uploaded to local disk in a separate medical folder with access logging |
 | E15-E17 replacement center, planning engine, plan lifecycle | API and web screens done (replacement center, plan builder with explanations, gaps and diff) |
-| E19 maintenance and work orders | API and web board; the preventive schedule is not built |
+| E19 maintenance and work orders | work-order board, full unit page, preventive maintenance plans with an automatic scheduler, unit papers with files and expiry |
 | E20 notifications | in-app and email (outbox sent over SMTP when `SMTP_HOST` is set, otherwise kept queued), EN/FR/AR, acknowledgements, preferences, broadcast, a daily job that runs hourly inside the API |
-| E21 employee portal (PWA) | Today, Calendar, Requests (leave with certificate upload, swaps, work orders), Alerts, Me; installable, works offline for viewing |
+| E21 employee portal (PWA) | Today, To do (tasks from the manager, notices to confirm, swaps to answer, work orders), Calendar, Requests (leave, swaps, work orders), Alerts, Me; installable, works offline for viewing |
 | E18 what-if | `POST /planning/what-if` runs the planner on a modified copy (deploy idle units, lose people, absences) and compares with today; web tab under Analytics |
 | E22-E25 analytics, forecast, recommendations, map | API and web: 90-day coverage forecast with heat map, 13 KPIs, 7 dashboards, recommendations (recruit, transfer, relief, spread leave, train, promote), offline-friendly map |
 | Web: extensions, settings | extension requests/approval/balances/report; settings editor |
 | E26 audit log | audit screen with filters and field-by-field before/after; medical entries redacted for readers without medical access; setting changes audited |
+| E28-E30 testing and polish | 89 unit tests, 12 API smoke suites, 12 Playwright browser tests; performance at 5x; WCAG 2.1 AA audit with 0 violations |
 | E27 import / export | Excel templates, export, validate-first import with a row-by-row report, then commit, for employees (incl. rotation sheet), units and bases. PDF export not built |
 
 **Demo:** see [DEMO.md](DEMO.md) for logins, the planted scenarios and a click-by-click walkthrough of the 12 acceptance scenarios.
