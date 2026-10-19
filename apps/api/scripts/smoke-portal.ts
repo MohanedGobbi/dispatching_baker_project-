@@ -1,4 +1,5 @@
 // Live smoke test for E19 (work orders) and E21's API: portal today/stats/profile, files, swaps.
+import '../src/env';
 import { at, call, check, day, DAY, finish, login, mkEmployee, mkUser, prisma, today } from './lib';
 
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF').toString('base64');

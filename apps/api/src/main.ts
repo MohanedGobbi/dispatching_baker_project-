@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import './env';
 import { NestFactory } from '@nestjs/core';
 import { json } from 'express';
 import { Controller, Get, Module } from '@nestjs/common';

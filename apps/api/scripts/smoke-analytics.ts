@@ -1,5 +1,6 @@
 // Live smoke test for the analytics API: forecast shape, KPI catalog, scoping, medical privacy, recommendation lifecycle.
 // Works on whatever data exists (demo data or not); it checks structure and rules, not specific numbers.
+import '../src/env';
 import { call, check, finish, login, prisma } from './lib';
 
 async function main() {

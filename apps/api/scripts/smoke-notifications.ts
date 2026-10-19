@@ -1,4 +1,5 @@
 // Live smoke test for E20: notifications, acknowledgements, preferences, email outbox, broadcast, daily job.
+import '../src/env';
 import { at, call, check, day, DAY, finish, login, mkEmployee, mkUser, prisma, today } from './lib';
 
 async function main() {
@@ -6,7 +7,9 @@ async function main() {
   const bmHmd = await login('basemanager'); // scoped to HMD: must NOT hear about BRD2
   const medT = (await prisma.leaveType.findUniqueOrThrow({ where: { name: 'Medical leave' } })).id;
   const inbox = async (tok: string, q = '') => (await call('GET', `/notifications?limit=200${q}`, tok)).json;
-  const ofType = (box: any, type: string, f: (n: any) => boolean = () => true) => box.items.filter((n: any) => n.type === type && f(n));
+  // People made by mkEmployee are named T<n> Smoke in every suite, so only count notifications created by this run.
+  const started = new Date();
+  const ofType = (box: any, type: string, f: (n: any) => boolean = () => true) => box.items.filter((n: any) => n.type === type && new Date(n.createdAt) >= started && f(n));
 
   // ---------------- world: base BRD2, unit type with its own qualification
   const rigN = await prisma.qualification.create({ data: { name: 'Rig-N' } });

@@ -28,7 +28,7 @@ cd apps/api && npm run demo
 
 Demo accounts, password `demo1234`: `dispatcher`, `ops`, `hr`, `basemanager`, `admin`, `chief` (no employee behind it), `employee`.
 
-Every person also has a login: their employee number in lower case (for example `e1044`). Employees get the phone-first portal at `#/portal`; resize the browser to phone width to see it. Staff who are also employees reach it from \\
+Every person also has a login: their employee number in lower case (for example `e1044`). Employees get the phone-first portal at `#/portal`; resize the browser to phone width to see it. Staff who are also employees reach it from the **My portal** link in the top bar.
 
 ## Checks
 

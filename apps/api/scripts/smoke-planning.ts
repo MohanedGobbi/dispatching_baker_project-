@@ -1,5 +1,6 @@
 // Live smoke test for E15-E17: planning engine, plan lifecycle, replacement center.
 // Isolated: its own base (PLN), unit type and qualification, so only the people created here can crew it.
+import '../src/env';
 import { at, call, check, day, DAY, finish, login, mkEmployee, prisma, today } from './lib';
 
 async function main() {
@@ -96,7 +97,7 @@ async function main() {
   const scan = await call('POST', '/replacements/scan', disp, { start: at(0), end: at(27), baseIds: ['PLN'] });
   check('scan opens a task per uncovered required seat (4)', scan.status === 201 && scan.json.created === 4, scan.json);
   check('scan is idempotent', (await call('POST', '/replacements/scan', disp, { start: at(0), end: at(27), baseIds: ['PLN'] })).json.created === 0);
-  const list0 = await call('GET', '/replacements', disp);
+  const list0 = await call('GET', '/replacements?baseId=PLN', disp);
   check('replacement center lists them (trigger unit_deployed, HIGH, 5 days out)', list0.json.length === 4 && list0.json.every((t: any) => t.trigger === 'unit_deployed' && t.urgency === 'HIGH' && t.daysUntilStart === 5), list0.json[0]);
 
   const p2 = (await call('POST', '/planning/plans', disp, { start: at(0), end: at(27), baseIds: ['PLN'] })).json;
@@ -110,13 +111,13 @@ async function main() {
   check('publish re-validates: a draft that broke is reported (422)', pubBad.status === 422 && pubBad.json.problems.length === 1 && pubBad.json.problems[0].employeeId === victim.employee.id, pubBad.json);
   const pubOk = await call('POST', `/planning/plans/${p2.id}/publish`, ops, { skipInvalid: true });
   check('skipInvalid publishes the rest (3) and cancels the broken one', pubOk.status === 201 && pubOk.json.published === 3 && pubOk.json.skipped === 1, pubOk.json);
-  const afterScan = await call('GET', '/replacements', disp);
+  const afterScan = await call('GET', '/replacements?baseId=PLN', disp);
   check('tasks closed for 3 seats; the seat that lost its person is still open', afterScan.json.length === 1, afterScan.json);
 
   // ================= leave -> replacement center (acceptance 5, 3) =================
   const medA2 = await call('POST', '/leaves', hr, { employeeId: A.o2.id, typeId: medT, start: at(0), end: at(9), documentUrl: 'c.pdf' });
   check('medical leave opens a CRITICAL task', medA2.status === 201, medA2.json);
-  const c1 = await call('GET', '/replacements', disp);
+  const c1 = await call('GET', '/replacements?baseId=PLN', disp);
   check('center sorts CRITICAL first', c1.json[0].urgency === 'CRITICAL' && c1.json[0].trigger === 'medical_leave', c1.json.map((t: any) => t.urgency));
   const taskA2 = c1.json[0];
   const cand = await call('GET', `/replacements/${taskA2.id}/candidates`, disp);
@@ -132,7 +133,7 @@ async function main() {
 
   // partial confirm leaves the rest open
   const medA3 = await call('POST', '/leaves', hr, { employeeId: A.o3.id, typeId: medT, start: at(10), end: at(20), documentUrl: 'c2.pdf' });
-  const t3 = (await call('GET', '/replacements', disp)).json.find((t: any) => t.from === day(at(10)) && t.to === day(at(20)));
+  const t3 = (await call('GET', '/replacements?baseId=PLN', disp)).json.find((t: any) => t.from === day(at(10)) && t.to === day(at(20)));
   check('second leave opens an 11-day task', !!t3 && t3.days === 11, medA3.json);
   const spare = (await call('GET', `/replacements/${t3.id}/candidates`, disp)).json.candidates[0].employeeId;
   const part = await call('POST', `/replacements/${t3.id}/confirm`, disp, { employeeId: spare, start: at(10), end: at(14) });
@@ -153,7 +154,7 @@ async function main() {
   await call('POST', `/planning/plans/${rp.json.id}/approve`, ops, {});
   const pubRp = await call('POST', `/planning/plans/${rp.json.id}/publish`, ops, {});
   check('repair plan publishes', pubRp.status === 201 && pubRp.json.published === rp.json.assignments.length, pubRp.json);
-  const openAfter = (await call('GET', '/replacements', disp)).json;
+  const openAfter = (await call('GET', '/replacements?baseId=PLN', disp)).json;
   check('the tasks the repair covered are closed; the chief gap stays open', openAfter.some((t: any) => t.seat.includes('Chief')) && !openAfter.some((t: any) => t.from === day(at(15))), openAfter.map((t: any) => t.seat + ' ' + t.from));
 
   // version diff
@@ -165,7 +166,7 @@ async function main() {
   await call('POST', '/leaves', hr, { employeeId: A.o1.id, typeId: medT, start: at(1), end: at(3), documentUrl: 'c4.pdf' });
   const esc = await call('POST', '/replacements/escalate-due', disp);
   check('escalate-due escalates tasks starting within 2 days', esc.status === 201 && esc.json.escalated >= 1, esc.json);
-  const urgentTask = (await call('GET', '/replacements', disp)).json.find((t: any) => t.seat.includes('Field Operator #1') && t.from === day(at(1)));
+  const urgentTask = (await call('GET', '/replacements?baseId=PLN', disp)).json.find((t: any) => t.seat.includes('Field Operator #1') && t.from === day(at(1)));
   check('that task is ESCALATED', urgentTask?.status === 'ESCALATED', urgentTask);
   check('escalating twice is refused', (await call('POST', `/replacements/${urgentTask.id}/escalate`, disp)).status === 400);
   check('closing needs a reason', (await call('POST', `/replacements/${urgentTask.id}/close`, disp, {})).status === 400);

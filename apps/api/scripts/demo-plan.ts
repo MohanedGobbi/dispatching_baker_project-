@@ -1,5 +1,6 @@
 // Realistic-scale run: N of 16 units (default 8) get jobs starting this week, then the engine plans four weeks for every base.
 // Usage: tsx scripts/demo-plan.ts [--publish]   (API running, freshly seeded)
+import '../src/env';
 import { at, call, DAY, login, prisma } from './lib';
 
 async function main() {

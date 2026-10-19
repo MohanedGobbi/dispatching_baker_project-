@@ -1,5 +1,6 @@
 // Live smoke test for E12-E14: leave, medical leave, clearance, restrictions, extensions, days-off balance.
 // Usage: tsx scripts/smoke-leave.ts   (API running, freshly seeded)
+import '../src/env';
 import { at, call, check, day, DAY, finish, login, mkEmployee, prisma, today } from './lib';
 
 async function main() {
@@ -57,7 +58,8 @@ async function main() {
   check('ops can view medical details', (await call('GET', `/leaves/${med.json.leave.id}`, ops)).json.documentUrl === 'cert-1.pdf');
   check('HR view is written to the access log', (await prisma.auditLog.count({ where: { entityId: med.json.leave.id, action: 'medical_view' } })) >= 1);
   const empList = await call('GET', '/leaves', emp);
-  check('employee role only gets own rows (none, unlinked)', empList.status === 200 && empList.json.total === 0, empList.json);
+  const empSelf = (await prisma.user.findUniqueOrThrow({ where: { login: 'employee' } })).employeeId;
+  check('employee role only gets own rows', empList.status === 200 && empList.json.items.every((l: any) => l.employeeId === empSelf), empList.json);
 
   // ---- employee-submitted medical leave waits for HR validation
   await prisma.user.update({ where: { login: 'employee' }, data: { employeeId: Q.id } });

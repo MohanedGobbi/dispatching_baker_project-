@@ -1,5 +1,6 @@
 // Live smoke test for E5-E8 against a running API + seeded DB. Mutates data: run `npm run seed` afterwards.
 // Usage: API=http://localhost:3000 tsx scripts/smoke-master-data.ts
+import '../src/env';
 import { PrismaClient } from '@prisma/client';
 
 const API = process.env.API ?? 'http://localhost:3000';
@@ -53,7 +54,8 @@ async function main() {
 
   // ---- E6 employees
   const list = await call('GET', '/employees?limit=500', hr);
-  check('employee list (152 active)', list.status === 200 && list.json.total === 152, list.json?.total);
+  const activeCount = await prisma.employee.count({ where: { active: true } });
+  check(`employee list (${activeCount} active)`, list.status === 200 && list.json.total === activeCount, list.json?.total);
   const seniors = await call('GET', '/employees?seniority=SENIOR&limit=500', hr);
   check('seniority filter works and is computed', seniors.json.items.every((e: any) => e.seniority === 'SENIOR'), seniors.json.total);
   check('search by name', (await call('GET', '/employees?q=benali', hr)).json.items.every((e: any) => /benali/i.test(e.lastName)));

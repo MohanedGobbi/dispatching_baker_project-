@@ -1,4 +1,5 @@
 // Prints a summary of the analytics endpoints so the demo data can be tuned. Usage: tsx scripts/peek-analytics.ts
+import '../src/env';
 import { call, login } from './lib';
 
 async function main() {

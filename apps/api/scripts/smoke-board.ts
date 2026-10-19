@@ -1,4 +1,5 @@
 // Live smoke test for E10 (calendars) and E11 (dispatch board API, live updates, time machine).
+import '../src/env';
 import { at, call, check, day, DAY, finish, login, mkEmployee, prisma, today, API } from './lib';
 
 async function main() {

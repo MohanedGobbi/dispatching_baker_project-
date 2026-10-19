@@ -1,6 +1,7 @@
 // Mock data generator (plan section 28). Deterministic: same data every run unless SEED_RANDOM=1.
 // Stage A scope: catalogs, bases, sites, units, seats, employees, certifications, demo users.
 // Jobs / assignments / leave history and the 14 planted scenarios are added with E9-E16.
+import '../src/env';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { faker } from '@faker-js/faker/locale/fr';
 import { hashPassword } from '../src/auth/crypto';

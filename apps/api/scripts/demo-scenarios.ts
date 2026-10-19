@@ -1,5 +1,6 @@
 // Plants the 14 scenarios of plan section 28.2 on top of `demo-plan --publish`, so every screen has a story to tell.
 // Usage (API running, freshly seeded, after demo-plan): tsx scripts/demo-scenarios.ts
+import '../src/env';
 import { at, call, DAY, login, prisma, today } from './lib';
 
 const log = (n: number | string, text: string) => console.log(`  ${String(n).padStart(2)}. ${text}`);
