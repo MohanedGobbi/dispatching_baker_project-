@@ -4,7 +4,7 @@ Written at the end of the build session. The plan is `crew-dispatch-platform-pla
 
 ## State in one paragraph
 
-Plan epics E1-E21 are built (the demo scope), plus most of E10 and E11. The API (NestJS + Prisma + PostgreSQL) covers master data, seats and assignments with a rule validator, leave and medical leave, extensions, the planning engine and plan lifecycle, the replacement center, calendars, the dispatch board, maintenance, notifications, files, swaps, the portal, **analytics (coverage forecast, KPIs, dashboards, map), recommendations and the what-if simulator**. The web app (React + Vite) has the dispatch board, planner screens, work orders, extensions, settings, an Analytics area (overview, forecast heat map, what-if, people, leave, units, base staffing, map), person and unit profile panels opened from any name or unit code, forms to add units and jobs, and a phone-first employee portal that works offline for viewing. `DEMO.md` is the demo script. A follow-up session added **user admin, password change and reset, the SMTP sender (E2/E20), the audit log screen (E26) and Excel import/export (E27)**. A UI rework and a design audit followed (see "UI rework and design audit" below). Not started: E28-E30.
+Plan epics E1-E21 are built (the demo scope), plus most of E10 and E11. The API (NestJS + Prisma + PostgreSQL) covers master data, seats and assignments with a rule validator, leave and medical leave, extensions, the planning engine and plan lifecycle, the replacement center, calendars, the dispatch board, maintenance, notifications, files, swaps, the portal, **analytics (coverage forecast, KPIs, dashboards, map), recommendations and the what-if simulator**. The web app (React + Vite) has the dispatch board, planner screens, work orders, extensions, settings, an Analytics area (overview, forecast heat map, what-if, people, leave, units, base staffing, map), person and unit profile panels opened from any name or unit code, forms to add units and jobs, and a phone-first employee portal that works offline for viewing. `DEMO.md` is the demo script. A follow-up session added **user admin, password change and reset, the SMTP sender (E2/E20), the audit log screen (E26) and Excel import/export (E27)**. A UI rework and a design audit followed (see "UI rework and design audit" below). On 2026-10-20 the product was narrowed to **one user, the manager**, English only, with a Units (fleet) page and the CrewBoard logo; see "Product direction and plan" below. Not started: E28-E30.
 
 ## Run it
 
@@ -66,6 +66,10 @@ apps/web/public/            manifest, icons, sw.js (service worker)
 - **Swaps are for upcoming stretches only**; running ones need a dispatcher handover. Moves between seats use the atomic `POST /assignments/:id/transfer`, not release-then-assign.
 - **One live-update stream** (`GET /board/events`, server-sent events read with fetch) is shared by all web screens. A connection per component starved ordinary requests.
 - **The auth guard checks the user still exists** (cached 60 s) so tokens from before a database reset become 401, not 500.
+- **One user for now: the manager (super admin)** (user decision, 2026-10-20). The sign-in page offers only `admin`. The role matrix, base scopes and the other seeded accounts stay in the API (the smoke suites use them) so roles can be switched back on later without rework.
+- **No review step by default.** Setting `workflow.requireApproval` (default `false`): plans publish straight from DRAFT and, for a manager, "Extend" requests and approves in one go (limits still need an override reason). Turn it on to get draft → review → approved → published and request → approve back.
+- **English only** (user decision, 2026-10-20). The web app has no language switch and no FR/AR strings; components keep their English text as the `t()` default. The API's notification templates still have FR/AR and the `lang` preference, unused.
+- **Units are deleted only when they have no history** (no crew assignment, job or work order); otherwise `DELETE /units/:id` answers 409 and the page offers "Out of service".
 
 ## Known gaps and shortcuts
 
@@ -113,14 +117,14 @@ What changed in the web app, at the user's request:
 An `impeccable` design audit was run (detector + rendered checks on every screen at 1366px and 375px, light and dark). Score before fixes: 11/20. **All P1 issues are fixed and re-verified:** phone layout (no page wider than 375px), dialog and panel focus, text contrast (0 failures on the checked screens in light and dark; status and identity colours were darkened in `tokens.css`, `--ink-*` tokens added for text on pale tints, `--accent-fill` for filled buttons), no text under 12px, scroll cues, shorter board header, 44px touch targets on touch screens.
 
 **Remaining audit work (P2 first), for the next session:**
-1. `apps/web/index.html` title is still "web"; set it to "CrewBoard".
-2. Fonts: Inter and IBM Plex Sans Arabic are named in `tokens.css` but never loaded; everything falls back to system fonts. Self-host both (Arabic matters for the AR locale).
+1. ~~`index.html` title "web"~~: done, "CrewBoard", with `icon.svg` as the favicon.
+2. Fonts: Inter is named in `tokens.css` but never loaded; everything falls back to system fonts. Self-host it (IBM Plex Sans Arabic is no longer needed).
 3. Theme: the light/dark choice is not remembered and ignores the system preference (`Shell.tsx` `useState(false)`).
 4. One 608 KB JS bundle: lazy-load Analytics/WhatIf, Portal, Users/Audit/DataTransfer/Settings, and the profile panel.
 5. CSS consolidation: dead rules from the old board and replacement center remain (`App.css` `.unit`, `.seat`, `.column`, `.summary`, `.kpi`, `.side-grid`, `.staffing`; `pages.css` `.task`, `.split`, `.detail`), `PersonDrawer.tsx` is unused, and `look.css` relies on `!important`. Fold everything into tokens + one component stylesheet.
 6. About 140 hard-coded hex colours in TSX inline styles (KPI tiles, urgency, role and base colours). Move them to tokens with dark-mode values.
-7. FR/AR: every string added in the rework (sidebar, guides, board, picker, profiles, replacement center, timeline focus, unit/job forms) has only its English default. Also RTL: the profile panel slides in from the wrong side and the sidebar's active marker is drawn on the left.
-8. Dispatchers see "Repaired" in the unit panel but the API refuses it (maintenance is view-only for them); hide it for them or change the role matrix.
+7. ~~FR/AR strings and RTL~~: dropped, the app is English only.
+8. ~~Dispatchers see "Repaired"~~: moot while the manager is the only user; revisit if dispatcher accounts come back.
 9. Touch: chips let the page scroll (`touch-action: pan-y`), so drag-and-drop is effectively mouse-only; "Assign someone" is the touch path. Consider a dnd-kit TouchSensor with a long press.
 10. P3: thick coloured side stripes on cards (`border-inline-start` 4-5px, flagged by the detector), very high colour volume (saturated gradients everywhere dilute the red "act now" signal; keep strong colour for state and OH/CH identity, calm the rest), and Escape in a dialog opened over the profile panel closes both.
 
@@ -133,8 +137,21 @@ There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/im
 - To check the web app without a browser login, the API smoke suites cover behaviour; for the UI, run `npm run build` in `apps/web` and `node scripts/test-sw.mjs`. Rendered checks need the app running and a signed-in browser (token in `localStorage['crewboard.token']`, from `POST /api/auth/login`).
 - After any change: `npm run typecheck && npm test` and `npm run smoke` in `apps/api` (reseed afterwards), `npx tsc --noEmit -p tsconfig.app.json && npm run build` in `apps/web`.
 
-## Suggested next steps
+## Product direction and plan (2026-10-20)
 
-1. The P2 list above (fonts, title, theme, bundle splitting, CSS and colour tokens, FR/AR strings).
-2. Before real people use it: set `JWT_SECRET`, `APP_URL` and SMTP; add a login rate limit; turn off the demo accounts.
-3. Import the remaining sheets (certificates, base staffing rules, sites) and PDF exports; then E28-E30 (performance test at 5x volume, WCAG audit).
+**Who uses it.** Two kinds of user in the end: the **manager**, who monitors and runs everything, and the **employee**, who sees their own schedule and tasks. For now only the manager (super admin) is in scope; the employee side comes later. Everything in the plan is done by the manager, without the review pipeline.
+
+**Done in this round**
+- CrewBoard logo (`apps/web/public/icon.svg`, the board-and-crew mark) used as the favicon, in the sidebar and on the sign-in card; page title "CrewBoard". Vite's template assets removed.
+- **Units page** (sidebar → Today → Units): tiles by status that filter the list, search (code, plate, model, note), base/type/status filters, add, edit details, move to another base, out of service / back, send to the workshop (through the unit profile), delete with the history guard. API: `GET /units?q=`, list rows now carry plate, model, year, notes, job end and workshop return date; `DELETE /units/:id`.
+- Manager only: sign-in offers only `admin`; plans publish directly; extensions apply in one step (setting `workflow.requireApproval`).
+- English only: language switch, FR/AR strings and RTL rules removed from the web app.
+
+**Next, in order**
+1. *Finish the manager-only cleanup:* hide what only makes sense with several roles (swap approvals in Leave, "waiting for the ops manager" texts, role-specific notification types, the Users screen's role list can default to Administrator); decide whether the production seed creates only `admin`.
+2. *Units, second step:* a unit detail page (not just the side panel) with maintenance history, utilisation over time and documents (registration, inspections); preventive maintenance schedule (plan E19, not built).
+3. *Remaining audit work:* the P2 list above (fonts, remembered theme, bundle splitting, CSS consolidation, colour tokens, touch drag-and-drop).
+4. *Before real use:* `JWT_SECRET`, `APP_URL`, SMTP; a login rate limit; demo accounts off; backups.
+5. *Real data:* import the remaining sheets (certificates, base staffing rules, sites), PDF exports.
+6. *Employee side (later):* what an employee sees (own calendar, tasks, leave requests, acknowledgements: the portal already exists and works), and whether their requests need the approval step (`workflow.requireApproval`).
+7. E28-E30: performance test at 5x volume, WCAG audit, polish.

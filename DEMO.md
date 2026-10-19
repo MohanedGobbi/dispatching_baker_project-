@@ -8,7 +8,9 @@ npm run seed      # wipes and rebuilds 191 employees, 16 units, 4 bases
 npm run demo      # publishes a 4-week plan for 8 units, then plants the scenarios below
 ```
 
-Open http://localhost:5173. Password for every account: `demo1234`.
+Open http://localhost:5173 and sign in as **`admin` / `demo1234`**: the manager, who does everything.
+
+For now the platform has one kind of user, the manager (super admin), and no review step: plans are published straight from the draft and extensions apply at once (setting `workflow.requireApproval`, off). The walkthrough below still names the role that would do each step once more roles are switched on; as `admin` you can do all of them. The other demo accounts still exist in the seed (the automated tests use them) but are not offered on the sign-in page:
 
 | Login | Role | Use it for |
 |---|---|---|
@@ -61,8 +63,8 @@ Already planted at HMD. Analytics → Base staffing shows the red cells; `basema
 **6. "Suggest plan" for four weeks.**
 `ops` → Plans → New plan, 28 days, all bases. Every assignment has a "why" explanation; gaps are listed with fix options (extend, call back from days off, move from an idle unit, ask to postpone leave).
 
-**7. Edit, submit, approve, publish → employees acknowledge.**
-Edit a couple of assignments in the draft as `dispatcher`, Submit. As `ops`: Approve, then Publish. Open the portal as `employee` (phone width): the new rotation appears in Alerts and needs an acknowledgement.
+**7. Edit and publish → employees acknowledge.**
+Edit a couple of assignments in the draft, then Publish (with `workflow.requireApproval` on in Settings: Send for review, Approve, then Publish). Open the portal as `employee` (phone width): the new rotation appears in Alerts and needs an acknowledgement.
 
 **8. Extension approved → balance up → relief prioritised.**
 Extensions → Request extension (any active person, 3 days, "replacement late"). As `ops` approve. Rest balances shows the new total; the next plan favours that person's relief, and Analytics → Overview lists "Prioritise relief for …".
@@ -94,7 +96,7 @@ Board → date picker (or the arrows) → go back up to three months. The same b
 * **What if**: "Put an idle unit to work" and "Lose 4 experienced Field Operators" → Run. Shows uncovered days before and after, by base, and the biggest new gaps. Nothing is saved.
 * **People & fairness, Leave & absence** (HR, ops, base manager only), **Units & maintenance**, **Base staffing**, **Map** (offline-friendly, no map tiles).
 * **Settings** (`admin`): every threshold and engine weight, e.g. change *maxConsecutiveDays* and watch rules react.
-* **Languages**: EN / FR / AR buttons in the top bar; Arabic flips the layout right-to-left.
+* **Units** (sidebar → Units): the fleet by status (tiles filter the list), search by code, plate, model or note, add a unit, edit plate/model/year/notes, move it to another base, take it out of service or back, delete one entered by mistake (a unit with history is refused and offered "Out of service" instead). Unit codes open the unit profile, where it can be sent to the workshop.
 * **Phone / PWA**: log in as `employee`, resize to phone width; install from the browser menu. Today, Calendar, Requests, Alerts, Me work offline for viewing.
 
 ## Extra tour: accounts, audit, import

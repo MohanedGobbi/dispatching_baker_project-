@@ -26,7 +26,7 @@ a leave starting in 5 days), with the API running:
 cd apps/api && npm run demo
 ```
 
-Demo accounts, password `demo1234`: `dispatcher`, `ops`, `hr`, `basemanager`, `admin`, `chief` (no employee behind it), `employee`.
+Sign in as the manager: `admin` / `demo1234`. For now the manager (super admin) is the only kind of user and does everything; the other seeded accounts (`dispatcher`, `ops`, `hr`, `basemanager`, `chief`, `employee`) are kept for the automated tests.
 
 Every person also has a login: their employee number in lower case (for example `e1044`). Employees get the phone-first portal at `#/portal`; resize the browser to phone width to see it. Staff who are also employees reach it from the **My portal** link in the top bar.
 
@@ -52,7 +52,7 @@ The smoke suites change data: run `npm run seed` afterwards to reset.
 
 | Epic | State |
 |---|---|
-| E1 setup, design tokens, i18n (EN / FR / AR with RTL) | web shell done; Storybook, Figma and usability tests not started |
+| E1 setup, design tokens | web shell done, English only (French and Arabic dropped, 2026-10-20); Storybook, Figma and usability tests not started |
 | E2 auth, roles | login, role matrix, base scope on assignments and plans; user admin screen, temporary passwords, change password, reset by emailed link |
 | E3 settings and catalogs | done |
 | E4 mock data | catalogs, bases, 16 units, 191 people, certificates; `npm run demo` publishes a plan, plants the 14 scenarios and adds 4 earlier rotations of history (12 months of history not seeded) |
