@@ -342,7 +342,7 @@ function LeaveTab() {
                 })}
               </div>
               <p className="an-key">{kinds.map((k, i) => <span key={k}><i style={{ background: palette[i % palette.length] }} /> {k} </span>)}</p>
-              <p className="muted">{t('anMedPrivacy', 'Medical absence is shown as a total only; names and reasons stay with HR.')}</p>
+              <p className="muted">{t('anMedPrivacy', 'Medical absence is shown as a total only; names and reasons stay private.')}</p>
             </section>
             <section className="panel"><h2>{t('anAbsRate', 'Absence rate by base')}</h2><Bars rows={x.absenceByBase.map(r => ({ label: r.base, value: r.rate }))} color="var(--st-leave)" unit="%" /></section>
           </div>

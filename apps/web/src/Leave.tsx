@@ -278,7 +278,7 @@ function NewLeave({ onClose }: { onClose: () => void }) {
       </div>
       {type?.needsDocument && <label className="reason">{type.category === 'medical' ? t('certificate', 'Certificate') : t('document', 'Document')} (URL)<input value={doc} onChange={e => setDoc(e.target.value)} placeholder="https://…" /></label>}
       <label className="reason">{t('notes', 'Notes')}<input value={notes} onChange={e => setNotes(e.target.value)} /></label>
-      {type?.category === 'medical' && <p className="note">{t('medicalNote', 'No diagnosis is recorded. Only HR, ops and the person can see the certificate; everyone else sees "Unavailable".')}</p>}
+      {type?.category === 'medical' && <p className="note">{t('medicalNote', 'No diagnosis is recorded. Only the manager and the person can see the certificate; everyone else sees "Unavailable".')}</p>}
       <footer>
         <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
         <button type="button" className="primary" disabled={busy || !person || !typeId || end < start} onClick={() => void save()}>{t('save', 'Save')}</button>

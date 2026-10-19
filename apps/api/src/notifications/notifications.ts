@@ -44,9 +44,15 @@ export class NotificationsService {
     return e ? `${e.firstName} ${e.lastName}` : '';
   }
 
-  /** Resolve recipients to distinct user ids. A Base Manager role with a base only matches that base. */
+  /**
+   * Resolve recipients to distinct user ids. A Base Manager role with a base only matches that base.
+   * The manager (super admin) runs everything, so whatever is addressed to a staff role reaches them too.
+   */
   private async resolve(to: Recipient[], except?: string): Promise<string[]> {
     const ids = new Set<string>();
+    if (to.some(r => 'role' in r && r.role !== 'EMPLOYEE')) {
+      for (const m of await this.prisma.userRole.findMany({ where: { role: 'SUPER_ADMIN', user: { active: true } }, select: { userId: true } })) ids.add(m.userId);
+    }
     for (const r of to) {
       if ('userId' in r) ids.add(r.userId);
       else if ('employeeId' in r) {

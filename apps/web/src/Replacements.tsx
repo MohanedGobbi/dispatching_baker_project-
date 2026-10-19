@@ -70,14 +70,14 @@ export default function Replacements() {
         steps={[
           t('rcStep1', 'Tasks appear by themselves when someone goes on leave, falls sick, or a unit gets a job without a crew. "Scan" checks the next four weeks for anything missed.'),
           t('rcStep2', 'Pick a task: the right side ranks the people who can take the seat, with the reason for each and why the others cannot.'),
-          t('rcStep3', '"Confirm" puts the person on the seat and tells them, the person leaving and the chief. "Propose" only reserves them.'),
-          t('rcStep4', 'Nobody suitable? Escalate to the operations manager, or close the task with a reason.'),
+          t('rcStep3', '"Confirm" puts the person on the seat and tells them and the person leaving. "Propose" only reserves them.'),
+          t('rcStep4', 'Nobody suitable? Recall someone from days off with an override reason, or close the task with a reason. Tasks starting within 2 days with nobody are marked overdue.'),
         ]}>
         <button type="button" onClick={() => void run(t('scanned', 'Scan finished'), async () => {
           const r = await api<{ created: number }>('/replacements/scan', { method: 'POST', body: {} })
           toast(`${plural(r.created, 'new task')} found`)
         })}><Radar size={15} aria-hidden /> {t('scan', 'Scan next 4 weeks')}</button>
-        <button type="button" onClick={() => void run(t('escalatedDue', 'Escalated'), () => api('/replacements/escalate-due', { method: 'POST' }))}><Siren size={15} aria-hidden /> {t('escalateDue', 'Escalate what is due')}</button>
+        <button type="button" onClick={() => void run(t('overdueMarked', 'Overdue tasks marked'), () => api('/replacements/escalate-due', { method: 'POST' }))}><Siren size={15} aria-hidden /> {t('markOverdue', 'Mark overdue tasks')}</button>
       </PageGuide>
 
       <section className="rc-kpis" aria-label="Summary">
@@ -91,7 +91,7 @@ export default function Replacements() {
           )
         })}
         <div className="kpi2" style={{ ['--c' as string]: escalated ? '#7c3aed' : '#475569' }}>
-          <Siren size={22} className="k-icon" aria-hidden /><strong>{escalated}</strong><span>{t('escalated', 'Escalated')}</span><small>{t('escHint', 'waiting for the ops manager')}</small>
+          <Siren size={22} className="k-icon" aria-hidden /><strong>{escalated}</strong><span>{t('overdue', 'Overdue')}</span><small>{t('overdueHint', 'starts within 2 days, still nobody')}</small>
         </div>
       </section>
 
@@ -140,7 +140,7 @@ function TaskCard({ task, on, onClick }: { task: Task; on: boolean; onClick: () 
         <span className="t-meta">
           <span className="tag2" style={{ ['--c' as string]: m.color }}><m.Icon size={11} aria-hidden /> {m.label}</span>
           <span className="tag2" style={{ ['--c' as string]: '#475569' }}><Icon size={11} aria-hidden /> {TRIGGER_LABEL[task.trigger] ?? task.trigger}</span>
-          {task.status === 'ESCALATED' && <span className="tag2" style={{ ['--c' as string]: '#7c3aed' }}><Siren size={11} aria-hidden /> escalated</span>}
+          {task.status === 'ESCALATED' && <span className="tag2" style={{ ['--c' as string]: '#7c3aed' }}><Siren size={11} aria-hidden /> overdue</span>}
           {task.status === 'CANDIDATE_PROPOSED' && task.candidate && <span className="tag2" style={{ ['--c' as string]: '#2563eb' }}>→ {task.candidate.name}</span>}
         </span>
       </span>
@@ -274,7 +274,6 @@ function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean
             )}
             {canEdit && (
               <div className="row-actions end">
-                {task.status !== 'ESCALATED' && <button type="button" onClick={() => void act(`/replacements/${task.id}/escalate`, {}, t('escalatedOk', 'Escalated to the ops manager'))}><Siren size={14} aria-hidden /> {t('escalate', 'Escalate')}</button>}
                 <button type="button" onClick={() => setClosing(true)}>{t('closeNoRepl', 'Close without a replacement')}</button>
               </div>
             )}

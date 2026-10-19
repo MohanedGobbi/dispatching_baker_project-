@@ -60,6 +60,7 @@ async function main() {
   check('a base manager of another base is NOT told', ofType(await inbox(bmHmd), 'employee_unavailable', n => n.payload.employee?.includes(people.O2.firstName)).length === 0);
   check('the person themself is not spammed about their own leave', (await inbox(tok.O2)).total === 0);
   check('HR (the actor) does not notify themself', ofType(await inbox(hr), 'employee_unavailable', n => n.payload.employee?.includes(people.O2.firstName)).length === 0);
+  check('the manager hears what is addressed to staff roles', ofType(await inbox(admin), 'employee_unavailable', n => n.payload.employee?.includes(people.O2.firstName)).length === 1);
   const crit = ofType(await inbox(disp), 'task_critical', n => n.payload.seat.includes('Operator #2') && n.payload.seat.includes('HL-N1'));
   check('critical replacement task: dispatcher told', crit.length === 1, crit);
   check('critical replacement task: ops told', ofType(await inbox(ops), 'task_critical', n => n.payload.seat.includes('HL-N1')).length === 1);

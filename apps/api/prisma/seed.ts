@@ -210,7 +210,11 @@ async function main() {
   const demoHash = hashPassword('demo1234');
   const everyone = await prisma.employee.findMany({ select: { id: true, employeeNo: true, position: { select: { name: true } }, homeBase: { select: { code: true } } }, orderBy: { employeeNo: 'asc' } });
   const firstOperator = everyone.find(e => e.position.name === 'Field Operator');
+  // SEED_STAFF=off creates only the manager (admin) and the employee logins: the setup the product runs with now.
+  // The staff accounts are on by default because the smoke suites sign in with them.
+  const staffOff = process.env.SEED_STAFF === 'off';
   for (const [login, role] of roles) {
+    if (staffOff && role !== 'SUPER_ADMIN' && role !== 'EMPLOYEE') continue;
     await prisma.user.create({
       data: {
         login, passwordHash: demoHash, employeeId: login === 'employee' ? firstOperator?.id : undefined,

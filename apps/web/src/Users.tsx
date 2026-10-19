@@ -15,12 +15,14 @@ interface Account {
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: 'Administrator', OPS_MANAGER: 'Ops manager', DISPATCHER: 'Dispatcher', HR: 'HR', BASE_MANAGER: 'Base manager',
+  SUPER_ADMIN: 'Manager', OPS_MANAGER: 'Ops manager', DISPATCHER: 'Dispatcher', HR: 'HR', BASE_MANAGER: 'Base manager',
   CHIEF_OF_UNIT: 'Chief of unit', EMPLOYEE: 'Employee',
 }
 const ROLES = Object.keys(ROLE_LABEL)
+// For now the platform has two kinds of user. Other roles stay in the API and show only on accounts that already have them.
+const IN_USE = ['SUPER_ADMIN', 'EMPLOYEE']
 
-/** Accounts and roles (plan section 3). Admins edit; ops managers can look. Passwords are never shown, except a temporary one once. */
+/** Accounts (plan section 3): managers and employees. Passwords are never shown, except a temporary one once. */
 export default function Users() {
   const { t, i18n } = useTranslation()
   const { can, me } = useAuth()
@@ -51,7 +53,7 @@ export default function Users() {
       <div className="filters">
         <input value={text} onChange={e => setText(e.target.value)} placeholder={t('userSearch', 'Login, name, email or employee number')} aria-label={t('search', 'Search')} />
         <select value={role} onChange={e => setRole(e.target.value)} aria-label={t('role', 'Role')}>
-          <option value="">{t('allRoles', 'All roles')}</option>{ROLES.map(r => <option key={r} value={r}>{t(`role_${r}`, ROLE_LABEL[r])}</option>)}
+          <option value="">{t('allRoles', 'All roles')}</option>{IN_USE.map(r => <option key={r} value={r}>{t(`role_${r}`, ROLE_LABEL[r])}</option>)}
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)} aria-label={t('status', 'Status')}>
           <option value="true">{t('active', 'Active')}</option><option value="false">{t('disabled', 'Disabled')}</option><option value="">{t('all', 'All')}</option>
@@ -133,7 +135,7 @@ function UserDialog({ user, onClose, onSaved }: { user: Account | null; onClose:
       <label className="reason">{t('email', 'Email')} <small>{t('emailHint', '(for password reset links; the employee record\'s address is used when empty)')}</small><input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
       <h3>{t('roles', 'Roles')}</h3>
       <div className="role-grid">
-        {ROLES.map(r => (
+        {ROLES.filter(r => IN_USE.includes(r) || r in roles).map(r => (
           <label key={r} className="check">
             <input type="checkbox" checked={r in roles} disabled={self && r === 'SUPER_ADMIN'} onChange={() => toggle(r)} />
             {t(`role_${r}`, ROLE_LABEL[r])}

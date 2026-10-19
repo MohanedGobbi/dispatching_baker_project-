@@ -44,7 +44,7 @@ const PAGES: Page[] = [
   { group: 'admin', path: 'data', key: 'nav_data', label: 'Import / export', Icon: FileSpreadsheet, color: '#475569', hint: 'Excel in and out', roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'] },
   { group: 'admin', path: 'audit', key: 'nav_audit', label: 'Audit', Icon: History, color: '#475569', hint: 'Who changed what', roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'HR'] },
 ]
-const ROLE_NAME: Record<string, string> = { SUPER_ADMIN: 'Administrator', OPS_MANAGER: 'Operations manager', DISPATCHER: 'Dispatcher', BASE_MANAGER: 'Base manager', HR: 'HR', CHIEF_OF_UNIT: 'Chief of unit', EMPLOYEE: 'Employee' }
+const ROLE_NAME: Record<string, string> = { SUPER_ADMIN: 'Manager', OPS_MANAGER: 'Operations manager', DISPATCHER: 'Dispatcher', BASE_MANAGER: 'Base manager', HR: 'HR', CHIEF_OF_UNIT: 'Chief of unit', EMPLOYEE: 'Employee' }
 
 export default function Shell() {
   const { t } = useTranslation()
