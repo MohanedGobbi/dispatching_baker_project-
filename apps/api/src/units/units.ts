@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, Inject, Module, NotFoundException, Param, Post, Put, Query, Req,
+  BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Query, Req,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -40,10 +40,14 @@ class UnitsController {
   ) {}
 
   @Get() @Require('units', 'view')
-  async list(@Query() q: { typeId?: string; baseId?: string; status?: string; date?: string; limit?: string; offset?: string }) {
+  async list(@Query() q: { typeId?: string; baseId?: string; status?: string; q?: string; date?: string; limit?: string; offset?: string }) {
     const date = parseDate(q.date);
+    const text = q.q?.trim();
     const units = await this.prisma.unit.findMany({
-      where: { ...(q.typeId ? { unitTypeId: q.typeId } : {}), ...(q.baseId ? { homeBaseId: q.baseId } : {}) },
+      where: {
+        ...(q.typeId ? { unitTypeId: q.typeId } : {}), ...(q.baseId ? { homeBaseId: q.baseId } : {}),
+        ...(text ? { OR: ['code', 'plate', 'model', 'notes'].map(f => ({ [f]: { contains: text, mode: 'insensitive' } })) } : {}),
+      },
       orderBy: { code: 'asc' },
       include: {
         unitType: true, homeBase: { select: { code: true, name: true } }, workOrders: true,
@@ -57,9 +61,11 @@ class UnitsController {
       const current = u.deployments.find(d => startOfDay(d.start) <= startOfDay(date) && startOfDay(date) <= d.end);
       const required = u.seats.filter(s => s.requiredFlag);
       const filledRequired = required.filter(s => s.assignments.length > 0).length;
+      const openWo = u.workOrders.find(w => !['DONE', 'CANCELLED'].includes(w.status) && startOfDay(w.plannedStart) <= startOfDay(date));
       return {
-        id: u.id, code: u.code, type: u.unitType.name, typeId: u.unitTypeId, colorKey: u.unitType.colorKey, home: u.homeBase,
-        status, job: current?.job ?? null,
+        id: u.id, code: u.code, type: u.unitType.name, typeId: u.unitTypeId, colorKey: u.unitType.colorKey, home: u.homeBase, homeBaseId: u.homeBaseId,
+        plate: u.plate, model: u.model, year: u.year, notes: u.notes,
+        status, job: current?.job ?? null, jobUntil: current?.end ?? null, backBy: openWo?.expectedReturn ?? null,
         crew: { filled: filledRequired, required: required.length },
         // A deployed unit with missing required seats is a compliance problem (plan 14.1 badges).
         problem: status === 'DEPLOYED' && filledRequired < required.length,
@@ -178,6 +184,32 @@ class UnitsController {
     const after = await this.prisma.unit.update({ where: { id }, data: { status: status as UnitStatusValue } });
     await audit(this.prisma, req.user?.sub, 'Unit', id, 'status', { status: unit.status }, { status: after.status });
     return { status: after.status };
+  }
+
+  /**
+   * Delete a unit entered by mistake. A unit with any history (crew assignments, jobs, work orders) is refused:
+   * take it out of service instead, so reports and the board's time machine keep their past.
+   */
+  @Delete(':id') @Require('units', 'full')
+  async remove(@Param('id') id: string, @Req() req: AuthedRequest) {
+    const unit = await this.prisma.unit.findUnique({
+      where: { id },
+      include: { _count: { select: { deployments: true, workOrders: true } }, seats: { select: { id: true, _count: { select: { assignments: true } } } } },
+    });
+    if (!unit) throw new NotFoundException('Unit not found');
+    const assignments = unit.seats.reduce((n, s) => n + s._count.assignments, 0);
+    if (assignments || unit._count.deployments || unit._count.workOrders) {
+      const what = [assignments && `${assignments} crew assignment(s)`, unit._count.deployments && `${unit._count.deployments} job(s)`, unit._count.workOrders && `${unit._count.workOrders} work order(s)`].filter(Boolean).join(', ');
+      throw new ConflictException(`${unit.code} has history (${what}). Take it out of service instead of deleting it.`);
+    }
+    const seatIds = unit.seats.map(s => s.id);
+    await this.prisma.$transaction([
+      this.prisma.replacementTask.deleteMany({ where: { seatId: { in: seatIds } } }),
+      this.prisma.seat.deleteMany({ where: { id: { in: seatIds } } }),
+      this.prisma.unit.delete({ where: { id } }),
+    ]);
+    await audit(this.prisma, req.user?.sub, 'Unit', id, 'delete', { code: unit.code, unitTypeId: unit.unitTypeId, homeBaseId: unit.homeBaseId }, null);
+    return { deleted: true };
   }
 
   @Post(':id/transfer') @Require('units', 'full')

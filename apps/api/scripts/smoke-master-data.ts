@@ -132,6 +132,15 @@ async function main() {
   check('completed job cannot be edited', (await call('PUT', `/jobs/${job.json.id}`, disp, { wellName: 'x' })).status === 400);
   check('unit detail shows utilization + history', (await call('GET', `/units/${unit.json.id}`, disp)).json.utilization.deployedDays >= 1);
 
+  // ---- units page: search and delete
+  const found = await call('GET', '/units?q=smoke', ops);
+  check('unit search by code', found.json.items.length >= 2 && found.json.items.every((u: any) => u.code.includes('SMOKE')) && 'plate' in found.json.items[0], found.json.items.map((u: any) => u.code));
+  check('a unit with history cannot be deleted (409)', (await call('DELETE', `/units/${unit.json.id}`, ops)).status === 409);
+  const spare = await call('POST', '/units', ops, { code: 'HL-SMOKE3', unitTypeId: ohType.id, homeBaseId: hmd.id, plate: 'TMP-1' });
+  check('dispatcher cannot delete units', (await call('DELETE', `/units/${spare.json.id}`, disp)).status === 403);
+  check('a unit entered by mistake is deleted with its seats', (await call('DELETE', `/units/${spare.json.id}`, ops)).status === 200
+    && !(await prisma.unit.findUnique({ where: { id: spare.json.id } })) && (await prisma.seat.count({ where: { unitId: spare.json.id } })) === 0);
+
   // ---- archive flow (needs an assignment on a unit seat)
   const chief = ops3.find(s => s.index === 2)!;
   await prisma.assignment.create({ data: { employeeId: newEmp.json.id, seatId: chief.id, start: new Date(now.getTime() - 5 * day), plannedEnd: new Date(now.getTime() + 20 * day), status: 'ACTIVE' } });
