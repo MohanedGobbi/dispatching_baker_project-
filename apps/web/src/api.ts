@@ -90,3 +90,19 @@ export function subscribeChanges(onChange: () => void): () => void {
     setTimeout(() => { if (listeners.size === 0) { stopStream?.(); stopStream = null } }, 1500)
   }
 }
+
+/** Download a file from the API (the Authorization header rules out a plain link). */
+export async function download(path: string, fallbackName: string) {
+  const token = getToken()
+  const res = await fetch(`/api${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} })
+  if (!res.ok) {
+    let msg = res.statusText
+    try { msg = ((await res.json()) as { message?: string }).message ?? msg } catch { /* not json */ }
+    throw new ApiError(res.status, msg, null)
+  }
+  const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? fallbackName
+  const url = URL.createObjectURL(await res.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: name })
+  document.body.append(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

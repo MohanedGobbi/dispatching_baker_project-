@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, CalendarDays, CalendarRange, ClipboardList, History, KeyRound, LayoutGrid, LogOut, Moon, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, UserCog, Wand2, Wrench } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, LogOut, Moon, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, UserCog, Wand2, Wrench } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api } from './api'
 import { useAuth } from './auth'
@@ -18,6 +18,7 @@ import Extensions from './Extensions'
 import Settings from './Settings'
 import Users from './Users'
 import Audit from './Audit'
+import DataTransfer from './DataTransfer'
 import { ChangePasswordDialog } from './account'
 import Portal from './Portal'
 import NotificationsPage, { Bell_, useUnread } from './notifications'
@@ -38,6 +39,7 @@ const PAGES: Page[] = [
   { path: 'analytics', key: 'nav_analytics', label: 'Analytics', Icon: BarChart3, roles: [...PLANNERS, 'HR'] },
   { path: 'settings', key: 'nav_settings', label: 'Settings', Icon: SettingsIcon, roles: ['SUPER_ADMIN', 'OPS_MANAGER'], iconOnly: true },
   { path: 'users', key: 'nav_users', label: 'Users', Icon: UserCog, roles: ['SUPER_ADMIN', 'OPS_MANAGER'], iconOnly: true },
+  { path: 'data', key: 'nav_data', label: 'Import / export', Icon: FileSpreadsheet, roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'], iconOnly: true },
   { path: 'audit', key: 'nav_audit', label: 'Audit', Icon: History, roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'HR'], iconOnly: true },
 ]
 
@@ -104,6 +106,7 @@ export default function Shell() {
       {current?.path === 'settings' && <Settings />}
       {current?.path === 'users' && <Users />}
       {current?.path === 'audit' && <Audit />}
+      {current?.path === 'data' && <DataTransfer />}
       {pwOpen && <ChangePasswordDialog onClose={() => setPwOpen(false)} />}
     </div>
   )

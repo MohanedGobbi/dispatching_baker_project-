@@ -1,6 +1,7 @@
 import {
   BadRequestException, Body, Controller, Get, Inject, Module, NotFoundException, Param, Post, Put, Query, Req,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
@@ -10,6 +11,26 @@ import { startOfDay } from '../domain/status';
 
 const UNIT_SPEC: Spec = { code: 'string', unitTypeId: 'string', homeBaseId: 'string', plate: 'string', model: 'string', year: 'number', notes: 'string' };
 const MANUAL_STATUSES = ['AVAILABLE', 'IN_TRANSIT', 'OUT_OF_SERVICE'];
+
+type CrewType = { crewSeats: { positionId: string; count: number; optional: boolean; minSeniority: string | null; position: { name: string }; requiredQual: { name: string } | null }[] };
+
+/** Create a unit and the crew seats its type defines. Used by POST /units and the Excel import. */
+export async function createUnitWithSeats(tx: Prisma.TransactionClient, data: Record<string, unknown>, type: CrewType, minExperienced: number) {
+  const created = await tx.unit.create({ data: data as never });
+  const seats: { holderType: 'UNIT'; unitId: string; positionId: string; index: number; requiredFlag: boolean; requirements: object }[] = [];
+  for (const t of type.crewSeats) {
+    for (let i = 1; i <= t.count; i++) {
+      const isOperator = t.position.name === 'Field Operator';
+      const minSeniority = t.minSeniority ?? (isOperator && i <= minExperienced ? 'EXPERIENCED' : undefined);
+      seats.push({
+        holderType: 'UNIT', unitId: created.id, positionId: t.positionId, index: i, requiredFlag: !t.optional,
+        requirements: { ...(t.requiredQual ? { qualification: t.requiredQual.name } : {}), ...(minSeniority ? { minSeniority } : {}) },
+      });
+    }
+  }
+  await tx.seat.createMany({ data: seats });
+  return created;
+}
 
 @Controller('units')
 class UnitsController {
@@ -107,22 +128,7 @@ class UnitsController {
     const minExperienced = (await this.settings.all())['rules.minExperiencedPerCrew'] as number;
 
     try {
-      const unit = await this.prisma.$transaction(async tx => {
-        const created = await tx.unit.create({ data: data as never });
-        const seats: { holderType: 'UNIT'; unitId: string; positionId: string; index: number; requiredFlag: boolean; requirements: object }[] = [];
-        for (const t of type.crewSeats) {
-          for (let i = 1; i <= t.count; i++) {
-            const isOperator = t.position.name === 'Field Operator';
-            const minSeniority = t.minSeniority ?? (isOperator && i <= minExperienced ? 'EXPERIENCED' : undefined);
-            seats.push({
-              holderType: 'UNIT', unitId: created.id, positionId: t.positionId, index: i, requiredFlag: !t.optional,
-              requirements: { ...(t.requiredQual ? { qualification: t.requiredQual.name } : {}), ...(minSeniority ? { minSeniority } : {}) },
-            });
-          }
-        }
-        await tx.seat.createMany({ data: seats });
-        return created;
-      });
+      const unit = await this.prisma.$transaction(tx => createUnitWithSeats(tx, data, type, minExperienced));
       await audit(this.prisma, req.user?.sub, 'Unit', unit.id, 'create', null, unit);
       return unit;
     } catch (err) {

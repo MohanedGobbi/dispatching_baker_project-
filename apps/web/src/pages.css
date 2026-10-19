@@ -130,3 +130,12 @@ td.row-actions button { margin-inline-start: 6px; }
 .filters button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 12px; }
 .filters button:disabled { opacity: .5; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* import / export */
+.panel h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; }
+.upload-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--accent); color: var(--accent); background: var(--surface); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-weight: 600; }
+.upload-btn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.upload-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.import-report { display: grid; gap: var(--s2); border-top: 1px solid var(--border); padding-top: var(--s3); }
+.import-report .banner { margin: 0; }
+.warn-text { color: var(--warn); }
