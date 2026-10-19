@@ -90,6 +90,13 @@ Board → date picker (or the arrows) → go back up to three months. The same b
 * **Languages**: EN / FR / AR buttons in the top bar; Arabic flips the layout right-to-left.
 * **Phone / PWA**: log in as `employee`, resize to phone width; install from the browser menu. Today, Calendar, Requests, Alerts, Me work offline for viewing.
 
+## Extra tour: accounts, audit, import
+
+* **Users** (`admin`; `ops` can look): create an account without a password to get a temporary one, shown once. Sign in with it: CrewBoard asks for a new password before anything else. Change roles or disable an account and its open sessions follow within the request.
+* **Forgot your password?** on the sign-in page, e.g. for `hr`: the reset email lands in the outbox (no SMTP in the demo). As `admin`, `GET /api/notifications/outbox` shows it; open the link to set a new password. Reseed afterwards to get `demo1234` back.
+* **Audit** (`admin`, `ops`, `hr`): every change with who and when; click a row for before/after. Filter by record type, e.g. *Setting* after changing one in Settings.
+* **Import / export** (`hr` or `ops`): *Export current data* for Employees, change a cell and add a row in Excel, then *Upload and check*. The report shows new, changed and unchanged rows and every error per row; nothing is written until *Import*.
+
 ## Not built yet (on purpose)
 
-Password reset and user administration, sending real e-mail (messages queue in the outbox), Excel import for real data, SSO. See `HANDOFF.md`.
+SSO, PDF export, sync with an HR/ERP system. See `HANDOFF.md`.

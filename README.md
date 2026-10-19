@@ -36,18 +36,24 @@ Every person also has a login: their employee number in lower case (for example 
 cd apps/api
 npm run typecheck
 npm test            # pure-logic unit tests (rules, engine, status, calendars...)
-npm run smoke       # 8 live end-to-end suites against a running API and a freshly seeded database
+npm run smoke       # 10 live end-to-end suites against a running API and a freshly seeded database
 cd ../web && node scripts/test-sw.mjs   # the offline service worker, with a mock cache and network
 ```
 
 The smoke suites change data: run `npm run seed` afterwards to reset.
+
+## Configuration
+
+`apps/api/.env` (copy of `.env.example`) holds `DATABASE_URL`. For anything beyond the demo also set `JWT_SECRET`,
+`APP_URL` (used in password reset links) and, to send email, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+`SMTP_PASS`, `MAIL_FROM`. Without SMTP, emails stay in the outbox (`GET /notifications/outbox`, admin only).
 
 ## What is built
 
 | Epic | State |
 |---|---|
 | E1 setup, design tokens, i18n (EN / FR / AR with RTL) | web shell done; Storybook, Figma and usability tests not started |
-| E2 auth, roles | login, role matrix, base scope on assignments and plans; user admin and password reset not built |
+| E2 auth, roles | login, role matrix, base scope on assignments and plans; user admin screen, temporary passwords, change password, reset by emailed link |
 | E3 settings and catalogs | done |
 | E4 mock data | catalogs, bases, 16 units, 191 people, certificates; `npm run demo` publishes a plan, plants the 14 scenarios and adds 4 earlier rotations of history (12 months of history not seeded) |
 | E5-E8 bases, employees, units, jobs | API done |
@@ -57,12 +63,13 @@ The smoke suites change data: run `npm run seed` afterwards to reset.
 | E12-E14 leave, medical leave, extensions, balance | API done; web: leave inbox, clearance queue, overlap warnings, swap approvals (extension screens not built). Certificates are uploaded to local disk in a separate medical folder with access logging |
 | E15-E17 replacement center, planning engine, plan lifecycle | API and web screens done (replacement center, plan builder with explanations, gaps and diff) |
 | E19 maintenance and work orders | API and web board; the preventive schedule is not built |
-| E20 notifications | in-app and email (queued in an outbox, no SMTP sender yet), EN/FR/AR, acknowledgements, preferences, broadcast, a daily job that runs hourly inside the API |
+| E20 notifications | in-app and email (outbox sent over SMTP when `SMTP_HOST` is set, otherwise kept queued), EN/FR/AR, acknowledgements, preferences, broadcast, a daily job that runs hourly inside the API |
 | E21 employee portal (PWA) | Today, Calendar, Requests (leave with certificate upload, swaps, work orders), Alerts, Me; installable, works offline for viewing |
 | E18 what-if | `POST /planning/what-if` runs the planner on a modified copy (deploy idle units, lose people, absences) and compares with today; web tab under Analytics |
 | E22-E25 analytics, forecast, recommendations, map | API and web: 90-day coverage forecast with heat map, 14 KPIs, 8 dashboards, recommendations (recruit, transfer, relief, spread leave, train, promote, certificates), offline-friendly map |
 | Web: extensions, settings | extension requests/approval/balances/report; settings editor |
-| E26-E27 audit views and import, user admin, password reset, SMTP | not started (deferred) |
+| E26 audit log | audit screen with filters and field-by-field before/after; medical entries redacted for readers without medical access; setting changes audited |
+| E27 import / export | Excel templates, export, validate-first import with a row-by-row report, then commit, for employees (incl. rotation sheet), units and bases. PDF export not built |
 
 **Demo:** see [DEMO.md](DEMO.md) for logins, the planted scenarios and a click-by-click walkthrough of the 12 acceptance scenarios.
 
