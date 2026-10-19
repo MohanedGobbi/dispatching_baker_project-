@@ -29,6 +29,7 @@ import { UsersModule } from './users/users';
 import { AuditModule } from './audit/audit';
 import { TransferModule } from './transfer/transfer';
 import { FleetModule } from './fleet/fleet';
+import { TasksModule } from './tasks/tasks';
 
 @Controller()
 class HealthController {
@@ -37,7 +38,7 @@ class HealthController {
 }
 
 @Module({
-  imports: [PrismaModule, MailModule, AuthModule, UsersModule, AuditModule, TransferModule, FleetModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule],
+  imports: [PrismaModule, MailModule, AuthModule, UsersModule, AuditModule, TransferModule, FleetModule, TasksModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule],
   controllers: [HealthController],
 })
 class AppModule {}

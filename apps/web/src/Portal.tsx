@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowLeft, Bell, CalendarDays, Camera, ChevronLeft, ChevronRight, Home, Inbox, KeyRound, LogOut, MapPin, Moon, Repeat, Sun, User, Users, WifiOff, Wrench,
+  ArrowLeft, Bell, CalendarDays, Camera, CheckCircle2, ChevronLeft, ChevronRight, Circle, Home, Inbox, KeyRound, ListChecks, LogOut, MapPin, Moon, Repeat, Sun, User, Users, WifiOff, Wrench,
 } from 'lucide-react'
 import { api } from './api'
 import { useAuth } from './auth'
@@ -35,10 +35,13 @@ interface LeaveType { id: string; name: string; category: string; needsDocument:
 interface MyAssignment { id: string; start: string; plannedEnd: string; status: string; seat: { position: { name: string }; unit: { code: string } | null; base: { code: string } | null; index: number } }
 interface SwapCandidate { assignmentId: string; employee: { name: string }; seat: string; from: string; to: string }
 interface SwapRow { id: string; status: string; note: string | null; requester: { name: string }; colleague: { name: string }; a: { seat: string; from: string; to: string }; b: { seat: string; from: string; to: string }; canRespond: boolean; canCancel: boolean }
+interface Task { id: string; title: string; notes: string | null; dueDate: string | null; status: string; overdue: boolean; doneNote: string | null }
+interface Todo { tasks: Task[]; noticesToConfirm: number; swapsToAnswer: number; workOrders: { id: string; unit: string; description: string; status: string; backBy: string }[]; waitingForManager: { leave: number } }
 interface WorkOrder { id: string; unit: { code: string }; type: string; priority: string; description: string | null; status: string; expectedReturn: string }
 
 const TABS = [
   { path: 'today', key: 'tab_today', label: 'Today', Icon: Home },
+  { path: 'todo', key: 'tab_todo', label: 'To do', Icon: ListChecks },
   { path: 'calendar', key: 'tab_calendar', label: 'Calendar', Icon: CalendarDays },
   { path: 'requests', key: 'tab_requests', label: 'Requests', Icon: Inbox },
   { path: 'alerts', key: 'tab_alerts', label: 'Alerts', Icon: Bell },
@@ -64,6 +67,9 @@ export default function Portal({ onExit }: { onExit?: () => void }) {
   const online = useOnline()
   const unread = useUnread()
   const tab = TABS.find(x => x.path === parts[1]) ?? TABS[0]
+  const todo = useApi<Todo>('/tasks/todo')
+  useLive(todo.reload)
+  const todoCount = todo.data ? todo.data.tasks.length + todo.data.noticesToConfirm + todo.data.swapsToAnswer + todo.data.workOrders.length : 0
 
   return (
     <div className="portal">
@@ -71,6 +77,7 @@ export default function Portal({ onExit }: { onExit?: () => void }) {
       {onExit && <a className="exit" href="#/board"><ArrowLeft size={15} aria-hidden /> {t('staffApp', 'Staff app')}</a>}
       <main className="portal-main">
         {tab.path === 'today' && <TodayTab />}
+        {tab.path === 'todo' && <TodoTab todo={todo.data} error={todo.error} reload={todo.reload} />}
         {tab.path === 'calendar' && <CalendarTab />}
         {tab.path === 'requests' && <RequestsTab />}
         {tab.path === 'alerts' && <AlertsTab onChanged={unread.reload} />}
@@ -79,7 +86,7 @@ export default function Portal({ onExit }: { onExit?: () => void }) {
       <nav className="bottom-nav" aria-label="Portal">
         {TABS.map(x => (
           <a key={x.path} href={`#/portal/${x.path}`} className={x === tab ? 'on' : ''} aria-current={x === tab ? 'page' : undefined}>
-            <span className="ico"><x.Icon size={22} aria-hidden />{x.path === 'alerts' && unread.unread > 0 && <b className={unread.pendingAck ? 'urgent' : ''}>{unread.unread}</b>}</span>
+            <span className="ico"><x.Icon size={22} aria-hidden />{x.path === 'alerts' && unread.unread > 0 && <b className={unread.pendingAck ? 'urgent' : ''}>{unread.unread}</b>}{x.path === 'todo' && todoCount > 0 && <b className={todo.data?.tasks.some(k => k.overdue) ? 'urgent' : ''}>{todoCount}</b>}</span>
             <span>{t(x.key, x.label)}</span>
           </a>
         ))}
@@ -150,6 +157,69 @@ function TodayTab() {
           <dt>{t('backOn', 'Back on')}</dt><dd>{x.nextBackOn ? L(x.nextBackOn) : '—'}</dd>
         </dl>
       </Card>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------- To do
+
+/** Everything waiting for me: tasks from the manager, notices to confirm, swaps to answer, my work orders. */
+function TodoTab({ todo, error, reload }: { todo: Todo | null; error: string; reload: () => Promise<void> }) {
+  const { t, i18n } = useTranslation()
+  const toast = useToast()
+  const [closing, setClosing] = useState<Task | null>(null)
+  const [note, setNote] = useState('')
+  const done = useApi<Task[]>('/tasks?status=DONE')
+  if (error) return <Card tone="bad"><p>{error}</p></Card>
+  if (!todo) return <p className="loading">{t('loading', 'Loading…')}</p>
+  const L = (d: string) => fmtDate(d, i18n.language)
+  const nothing = !todo.tasks.length && !todo.noticesToConfirm && !todo.swapsToAnswer && !todo.workOrders.length
+  const finish = async () => {
+    if (!closing) return
+    try { await api(`/tasks/${closing.id}`, { method: 'PUT', body: { status: 'DONE', doneNote: note.trim() || undefined } }); toast(t('taskDone', 'Done, the manager is told')); setClosing(null); setNote(''); await reload(); await done.reload() } catch (e) { toast(errMsg(e), 'error') }
+  }
+  const reopen = async (task: Task) => {
+    try { await api(`/tasks/${task.id}`, { method: 'PUT', body: { status: 'OPEN' } }); await reload(); await done.reload() } catch (e) { toast(errMsg(e), 'error') }
+  }
+
+  return (
+    <>
+      <header className="hello"><h1>{t('tab_todo', 'To do')}</h1>{nothing && <p className="muted">{t('allDone', 'Nothing waiting for you. Well done.')}</p>}</header>
+      {todo.noticesToConfirm > 0 && <a className="pcard warn link" href="#/portal/alerts"><strong>{plural(todo.noticesToConfirm, t('noticeWord', 'notice'))} {t('toConfirm', 'to confirm')}</strong><span>{t('tapToOpen', 'Tap to open')}</span></a>}
+      {todo.swapsToAnswer > 0 && <a className="pcard warn link" href="#/portal/requests"><strong>{plural(todo.swapsToAnswer, t('swapWord', 'swap request'))} {t('fromColleague', 'from a colleague to answer')}</strong><span>{t('tapToOpen', 'Tap to open')}</span></a>}
+      {todo.tasks.length > 0 && (
+        <Card title={t('myTasks', 'Tasks from the manager')} icon={<ListChecks size={17} aria-hidden />}>
+          <ul className="rows todo-list">
+            {todo.tasks.map(k => (
+              <li key={k.id}>
+                <div>
+                  <strong>{k.title}</strong>
+                  {k.notes && <small className="muted">{k.notes}</small>}
+                  {k.dueDate && <small className={k.overdue ? 'error' : 'muted'}>{k.overdue ? t('wasDue', 'was due') : t('dueBy', 'by')} {L(k.dueDate)}</small>}
+                </div>
+                <button type="button" className="pbtn" onClick={() => setClosing(k)} aria-label={`${t('markDone', 'Done')}: ${k.title}`}><Circle size={18} aria-hidden /> {t('markDone', 'Done')}</button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+      {todo.workOrders.length > 0 && (
+        <Card title={t('myWorkOrders', 'My work orders')} icon={<Wrench size={17} aria-hidden />}>
+          <ul className="rows">{todo.workOrders.map(w => <li key={w.id}><div><strong>{w.unit} · {w.description}</strong><small className="muted">{t('backBy', 'back by')} {L(w.backBy)}</small></div><a className="pbtn" href="#/portal/requests">{t('open', 'Open')}</a></li>)}</ul>
+        </Card>
+      )}
+      {todo.waitingForManager.leave > 0 && <Card title={t('waitingManager', 'Waiting for the manager')}><p>{plural(todo.waitingForManager.leave, t('leaveRequestWord', 'leave request'))} · <a href="#/portal/requests">{t('see', 'see')}</a></p></Card>}
+      {!!done.data?.length && (
+        <Card title={t('doneRecently', 'Done')} icon={<CheckCircle2 size={17} aria-hidden />}>
+          <ul className="rows todo-list">{done.data.slice(0, 10).map(k => <li key={k.id} className="done"><div><strong>{k.title}</strong>{k.doneNote && <small className="muted">{k.doneNote}</small>}</div><button type="button" className="link" onClick={() => void reopen(k)}>{t('reopen', 'Not done')}</button></li>)}</ul>
+        </Card>
+      )}
+      {closing && (
+        <Modal title={closing.title} onClose={() => setClosing(null)}>
+          <label className="reason">{t('doneNoteLabel', 'A note for the manager (optional)')}<input value={note} onChange={e => setNote(e.target.value)} autoFocus /></label>
+          <footer><button type="button" onClick={() => setClosing(null)}>{t('cancel', 'Cancel')}</button><button type="button" className="primary" onClick={() => void finish()}>{t('markDone', 'Done')}</button></footer>
+        </Modal>
+      )}
     </>
   )
 }

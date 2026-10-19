@@ -12,7 +12,7 @@
     "demo": "tsx scripts/demo-plan.ts --units=8 --publish && tsx scripts/demo-scenarios.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke": "tsx scripts/smoke-master-data.ts && tsx scripts/smoke-assignments.ts && tsx scripts/smoke-leave.ts && tsx scripts/smoke-planning.ts && tsx scripts/smoke-board.ts && tsx scripts/smoke-notifications.ts && tsx scripts/smoke-portal.ts && tsx scripts/smoke-analytics.ts && tsx scripts/smoke-users.ts && tsx scripts/smoke-transfer.ts && tsx scripts/smoke-fleet.ts",
+    "smoke": "tsx scripts/smoke-master-data.ts && tsx scripts/smoke-assignments.ts && tsx scripts/smoke-leave.ts && tsx scripts/smoke-planning.ts && tsx scripts/smoke-board.ts && tsx scripts/smoke-notifications.ts && tsx scripts/smoke-portal.ts && tsx scripts/smoke-analytics.ts && tsx scripts/smoke-users.ts && tsx scripts/smoke-transfer.ts && tsx scripts/smoke-fleet.ts && tsx scripts/smoke-tasks.ts",
     "prisma:migrate": "prisma migrate deploy"
   },
   "dependencies": {

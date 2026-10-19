@@ -102,6 +102,16 @@ export const CATALOG = {
     p => (p.decision === 'approved' ? 'Swap approved' : p.decision === 'accepted' ? 'Swap accepted' : 'Swap declined'),
     p => s(p.note) || `${s(p.seatA)} ⇄ ${s(p.seatB)}`,
   ),
+  task_assigned: e(
+    { ack: false, email: true, label: 'A task was given to me' },
+    () => 'New task',
+    p => `${s(p.title)}${p.due ? `, by ${s(p.due)}` : ''}.`,
+  ),
+  task_done: e(
+    { ack: false, email: false, label: 'Someone finished a task' },
+    () => 'Task done',
+    p => `${s(p.employee)}: ${s(p.title)}${p.note ? ` (${s(p.note)})` : ''}.`,
+  ),
   broadcast: e(
     { ack: false, email: false, label: 'Messages from managers' },
     p => s(p.title),

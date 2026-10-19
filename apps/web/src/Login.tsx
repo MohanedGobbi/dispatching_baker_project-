@@ -32,6 +32,7 @@ export default function Login() {
         {error && <p className="error" role="alert">{error}</p>}
         <button className="primary" disabled={busy}>{busy ? '…' : t('signIn', 'Sign in')}</button>
         <button type="button" className="link" onClick={() => setForgot(true)}>{t('pwForgot', 'Forgot your password?')}</button>
+        <p className="muted demo-note">{t('employeeHint', 'Employees: sign in with your employee number, e.g. e1001.')}</p>
         <p className="muted demo-note">{t('demo')} · {t('demoAdmin', 'manager account')} <code>admin</code> / <code>demo1234</code></p>
       </form>
     </main>

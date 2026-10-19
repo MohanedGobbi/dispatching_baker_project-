@@ -183,6 +183,7 @@ model Employee {
   active             Boolean  @default(true)
 
   qualifications EmployeeQualification[]
+  tasks          EmployeeTask[]
   certifications Certification[]
   assignments    Assignment[]
   leaves         Leave[]
@@ -650,6 +651,23 @@ model StoredFile {
   path        String
   createdAt   DateTime @default(now())
   unitDocuments UnitDocument[]
+}
+
+/// Something the manager asks a person to do (bring a document, attend a training, check equipment...).
+model EmployeeTask {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  title      String
+  notes      String?
+  dueDate    DateTime?
+  status     String    @default("OPEN") // OPEN | DONE
+  doneAt     DateTime?
+  doneNote   String?
+  createdBy  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, status])
 }
 
 model SwapRequest {

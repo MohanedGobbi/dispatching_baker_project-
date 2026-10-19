@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, Truck, UserCog, Wand2, Wrench, X } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, ListChecks, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, Truck, UserCog, Wand2, Wrench, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from './auth'
 import { useRoute } from './hooks'
@@ -12,6 +12,7 @@ import NotificationsPage, { Bell_, useUnread } from './notifications'
 
 // The board is the landing screen; every other screen is loaded the first time it is opened.
 const Units = lazy(() => import('./Units'))
+const Tasks = lazy(() => import('./Tasks'))
 const Replacements = lazy(() => import('./Replacements'))
 const Plans = lazy(() => import('./Plans'))
 const Leave = lazy(() => import('./Leave'))
@@ -38,6 +39,7 @@ const PAGES: Page[] = [
   { group: 'today', path: 'crew-changes', key: 'nav_changes', label: 'Crew changes', Icon: ClipboardList, color: 'var(--pal-teal-600)', hint: 'Who goes out and comes back' },
   { group: 'planning', path: 'plans', key: 'nav_plans', label: 'Plans', Icon: Wand2, color: 'var(--pal-violet-600)', hint: 'Let the planner fill the coming weeks', roles: PLANNERS },
   { group: 'planning', path: 'timeline', key: 'nav_timeline', label: 'Timeline', Icon: CalendarRange, color: 'var(--pal-cyan-600)', hint: 'Everyone day by day' },
+  { group: 'planning', path: 'tasks', key: 'nav_tasks', label: 'Tasks', Icon: ListChecks, color: 'var(--pal-teal-700)', hint: 'What people are asked to do', roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'] },
   { group: 'planning', path: 'leave', key: 'nav_leave', label: 'Leave', Icon: CalendarDays, color: 'var(--pal-purple-600)', hint: 'Requests, medical leave, swaps', roles: [...PLANNERS, 'HR'] },
   { group: 'planning', path: 'extensions', key: 'nav_extensions', label: 'Extensions', Icon: Timer, color: 'var(--pal-orange-600)', hint: 'Keeping someone longer on a unit', roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
   { group: 'planning', path: 'work-orders', key: 'nav_workorders', label: 'Work orders', Icon: Wrench, color: 'var(--pal-amber-700)', hint: 'Units in the workshop', roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
@@ -124,6 +126,7 @@ export default function Shell() {
         {onAlerts && <NotificationsPage />}
         {current?.path === 'board' && <Board />}
         {current?.path === 'units' && <Units />}
+        {current?.path === 'tasks' && <Tasks />}
         {current?.path === 'replacements' && <Replacements />}
         {current?.path === 'plans' && <Plans />}
         {current?.path === 'leave' && <Leave />}

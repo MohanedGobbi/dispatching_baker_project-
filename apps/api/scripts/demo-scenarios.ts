@@ -197,6 +197,16 @@ async function main() {
   }
   log('H', `${pastJobs} past jobs and ${pastShop} past workshop visits recorded for the unit charts`);
 
+  // ---- tasks from the manager, so the 'employee' account's To do tab has something in it
+  const emp = await prisma.user.findUnique({ where: { login: 'employee' }, select: { employeeId: true } });
+  if (emp?.employeeId) {
+    const others = await prisma.employee.findMany({ where: { active: true, id: { not: emp.employeeId } }, orderBy: { employeeNo: 'asc' }, take: 3, select: { id: true } });
+    await call('POST', '/tasks', ops, { employeeIds: [emp.employeeId], title: 'Bring your updated H2S certificate to the base office', dueDate: d(-1).toISOString() });
+    await call('POST', '/tasks', ops, { employeeIds: [emp.employeeId, ...others.map(o => o.id)], title: 'Attend the winter driving briefing', notes: 'Meeting room, 08:00. About 45 minutes.', dueDate: d(4).toISOString() });
+    await call('POST', '/tasks', ops, { employeeIds: [emp.employeeId], title: 'Check your logging tool kit before the next rotation' });
+    log('T', 'tasks given to the employee account (one overdue) and three colleagues');
+  }
+
   // ---- let the rules look at the world and send the daily reminders
   const rec = await call('POST', '/analytics/recommendations/run', ops);
   const daily = await call('POST', '/notifications/run-daily', disp);
