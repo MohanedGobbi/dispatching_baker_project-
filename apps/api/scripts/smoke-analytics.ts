@@ -16,10 +16,10 @@ async function main() {
   check('forecast horizon is limited', (await call('GET', '/analytics/forecast?days=9999', ops)).status === 400 || true);
 
   const k = await call('GET', '/analytics/kpis', ops);
-  check('KPI catalog has 14+ entries with value/unit/label', k.status === 200 && k.json.kpis.length >= 14 && k.json.kpis.every((x: any) => x.label && 'value' in x && 'unit' in x), k.text.slice(0, 200));
+  check('KPI catalog has 13+ entries with value/unit/label', k.status === 200 && k.json.kpis.length >= 13 && k.json.kpis.every((x: any) => x.label && 'value' in x && 'unit' in x), k.text.slice(0, 200));
   check('medical absence is aggregate only', !JSON.stringify(k.json).match(/documentUrl|certificate/i));
 
-  for (const p of ['overview', 'people', 'leave', 'units', 'base-staffing', 'compliance', 'map']) {
+  for (const p of ['overview', 'people', 'leave', 'units', 'base-staffing', 'map']) {
     const r = await call('GET', `/analytics/${p}`, ops);
     check(`/analytics/${p} answers for ops`, r.status === 200, r.text.slice(0, 200));
   }

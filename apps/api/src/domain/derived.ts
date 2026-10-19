@@ -38,8 +38,3 @@ export function countFieldDays(assignments: { start: Date; end: Date }[], asOf: 
   return total;
 }
 
-/** Certifications expiring within `days` of `asOf` (already-expired ones included). */
-export function certExpiry(expiresAt: Date, asOf: Date, days = 60): 'expired' | 'expiring' | 'valid' {
-  if (expiresAt < asOf) return 'expired';
-  return expiresAt.getTime() - asOf.getTime() <= days * DAY ? 'expiring' : 'valid';
-}

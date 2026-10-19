@@ -103,12 +103,12 @@ export class NotificationsService {
     return created;
   }
 
-  // ---------- the daily job (crew changes, certificates, clearance, shortages, due escalations)
+  // ---------- the daily job (crew changes, clearance, shortages, due escalations)
 
   async runDaily(now = new Date()) {
     const today = startOfDay(now);
     const settings = await this.settings.all();
-    const result = { crewChanges: 0, certificates: 0, clearance: 0, belowMinimum: 0, escalated: 0 };
+    const result = { crewChanges: 0, clearance: 0, belowMinimum: 0, escalated: 0 };
 
     // 1. crew change within 48 hours: the day after an assignment ends
     const ending = await this.prisma.assignment.findMany({
@@ -124,17 +124,7 @@ export class NotificationsService {
       if (next) result.crewChanges += await this.notify({ type: 'crew_change_48h', to: [{ employeeId: next.employeeId }], payload: { seat, date: iso(changeDate), role: 'incoming' }, key: `cc48:${a.id}:in` });
     }
 
-    // 2. certificates expiring in 60 / 30 / 7 days: one notice per threshold crossed
-    const horizon = addDays(today, 60);
-    const certs = await this.prisma.certification.findMany({ where: { expiresAt: { gte: today, lte: horizon }, employee: { active: true } }, include: { type: true, employee: { select: { id: true, firstName: true, lastName: true } } } });
-    for (const c of certs) {
-      const left = Math.round((c.expiresAt.getTime() - today.getTime()) / DAY);
-      const threshold = [7, 30, 60].find(t => left <= t)!;
-      const payload = { cert: c.type.name, days: left, expires: iso(c.expiresAt), employee: `${c.employee.firstName} ${c.employee.lastName}` };
-      result.certificates += await this.notify({ type: 'cert_expiring', to: [{ employeeId: c.employeeId }, { role: 'HR' }], payload, key: `cert:${c.id}:${threshold}` });
-    }
-
-    // 3. long medical leave ended, nobody cleared the person yet
+    // 2. long medical leave ended, nobody cleared the person yet
     const clearanceAfter = settings['rules.clearanceRequiredAfterDays'] as number;
     const ended = await this.prisma.leave.findMany({ where: { type: { category: 'medical' }, status: 'RECORDED', end: { lt: today }, fitForDuty: null }, include: { employee: { select: { firstName: true, lastName: true } } } });
     for (const l of ended) {
@@ -142,7 +132,7 @@ export class NotificationsService {
       result.clearance += await this.notify({ type: 'awaiting_clearance', to: [{ role: 'HR' }], payload: { employee: `${l.employee.firstName} ${l.employee.lastName}`, endedOn: iso(l.end) }, key: `clr:${l.id}` });
     }
 
-    // 4. base posts below their minimum today
+    // 3. base posts below their minimum today
     const workingDays = settings['org.workingDays'] as string;
     const rules = await this.prisma.baseStaffingRule.findMany({ include: { base: { select: { id: true, code: true, active: true } }, position: { select: { name: true } } } });
     for (const r of rules) {
@@ -159,7 +149,7 @@ export class NotificationsService {
       }
     }
 
-    // 5. replacement tasks whose first uncovered day is close become escalated
+    // 4. replacement tasks whose first uncovered day is close become escalated
     const within = settings['replacements.escalateWithinDays'] as number;
     const due = await this.prisma.replacementTask.findMany({ where: { status: { in: OPEN_TASK }, deadline: { lte: addDays(today, within) } } });
     for (const t of due) {

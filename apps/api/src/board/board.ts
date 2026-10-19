@@ -171,14 +171,11 @@ class BoardController {
               issues.push({ code: 'seniority', severity: 'bad', text: `Needs ${req_.minSeniority.toLowerCase().replace('_', ' ')} or above` });
             }
             for (const ct of s.position.requiredCertTypes) {
-              const best = p.certifications.filter(c => c.typeId === ct.id).sort((x, y) => y.expiresAt.getTime() - x.expiresAt.getTime())[0];
-              if (!best) issues.push({ code: 'cert', severity: 'bad', text: 'Mandatory certificate missing' });
-              else if (best.expiresAt < D) issues.push({ code: 'cert', severity: 'bad', text: 'Certificate expired' });
-              else if (best.expiresAt.getTime() - D.getTime() <= 30 * DAY) issues.push({ code: 'cert_soon', severity: 'warn', text: `Certificate expires in ${Math.round((best.expiresAt.getTime() - D.getTime()) / DAY)} days` });
+              if (!p.certifications.some(c => c.typeId === ct.id)) issues.push({ code: 'cert', severity: 'bad', text: 'Mandatory certificate missing' });
             }
           }
         } else if (deployed && s.requiredFlag) issues.push({ code: 'empty', severity: 'warn', text: 'Needs someone' });
-        // Two expired certificates give the same message twice; show it once.
+        // Two missing certificates give the same message twice; show it once.
         const uniqueIssues = [...new Map(issues.map(i => [`${i.code}|${i.text}`, i])).values()];
         return { seatId: s.id, position: s.position.name, index: s.index, required: s.requiredFlag, requirements: req_, holder, issues: uniqueIssues };
       });
@@ -200,8 +197,6 @@ class BoardController {
         const hit = seatCards.flatMap(s => s.issues).find(i => i.code === code);
         if (hit) badges.push({ code, severity: 'bad', text: hit.text });
       }
-      const soonCert = seatCards.flatMap(s => s.issues).find(i => i.code === 'cert_soon');
-      if (soonCert) badges.push({ code: 'cert_soon', severity: 'warn', text: soonCert.text });
       // Crew change: the earliest day a current holder leaves (assignment end + 1).
       const seatIds = new Set(u.seats.map(s => s.id));
       const nextEnd = upcoming.filter(a => seatIds.has(a.seatId)).sort((x, y) => x.plannedEnd.getTime() - y.plannedEnd.getTime())[0];

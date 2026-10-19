@@ -192,11 +192,12 @@ async function main() {
         },
       });
       created.push({ id: e.id, position });
-      // Certifications: ~8% expiring within 60 days, ~2% already expired
+      // Certifications are held or not; they never expire. The random draws are kept so the rest of the seed
+      // (names, mixes) stays the same as before expiry was removed.
       for (const typeId of def[6]) {
         const r = faker.number.float({ min: 0, max: 1 });
-        const expiresAt = r < 0.02 ? daysAgo(faker.number.int({ min: 1, max: 30 })) : r < 0.10 ? daysAhead(faker.number.int({ min: 5, max: 60 })) : daysAhead(faker.number.int({ min: 120, max: 700 }));
-        await prisma.certification.create({ data: { employeeId: e.id, typeId, issuedAt: daysAgo(400), expiresAt } });
+        void (r < 0.02 ? daysAgo(faker.number.int({ min: 1, max: 30 })) : r < 0.10 ? daysAhead(faker.number.int({ min: 5, max: 60 })) : daysAhead(faker.number.int({ min: 120, max: 700 })));
+        await prisma.certification.create({ data: { employeeId: e.id, typeId, issuedAt: daysAgo(400) } });
       }
     }
   }

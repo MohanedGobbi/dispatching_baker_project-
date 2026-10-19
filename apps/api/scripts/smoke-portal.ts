@@ -68,7 +68,7 @@ async function main() {
   const st = (await call('GET', '/portal/stats', tok.O1)).json;
   check('stats: field days this year counted from the assignment (6 days: -5..today)', st.fieldDaysYear === 6 && st.year === today.getUTCFullYear() && st.extensionDaysYear === 0 && st.annualLeave.entitled === 30 && st.daysOffBalance === 0, st);
   const pr = await call('GET', '/portal/profile', tok.O1);
-  check('profile: contact, qualifications and certificates with validity', pr.json.qualifications.some((q: any) => q.name === 'Rig-P') && pr.json.certifications.length > 0 && pr.json.certifications.every((c: any) => c.validity === 'valid'), pr.json);
+  check('profile: contact, qualifications and certificates held', pr.json.qualifications.some((q: any) => q.name === 'Rig-P') && pr.json.certifications.length > 0 && pr.json.certifications.every((c: any) => c.name && !('validity' in c)), pr.json);
   const upd = await call('PUT', '/portal/profile', tok.O1, { phone: '0555123456', emergencyContact: 'Sister 0555999888', position: 'Chief of Unit', hireDate: '2000-01-01' });
   check('profile: contact details can be edited', upd.status === 200 && upd.json.phone === '0555123456' && upd.json.emergencyContact.includes('Sister'), upd.json);
   check('profile: other fields are ignored, not applied', upd.json.position === 'Field Operator' && upd.json.hireDate !== '2000-01-01');

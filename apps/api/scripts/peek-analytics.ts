@@ -26,7 +26,7 @@ async function main() {
   for (const r of list.slice(0, 20)) console.log(`  [${r.severity}] ${r.type.padEnd(22)} ${r.title}`);
   const ov = (await call('GET', '/analytics/overview', ops)).json;
   console.log('overview:', JSON.stringify({ headcount: ov.headcount, crews: { deployed: ov.crews.deployed, compliant: ov.crews.compliant }, below: ov.basePostsBelowMin.length, tasks: ov.openTasks }));
-  for (const p of ['people', 'leave', 'units', 'base-staffing', 'compliance', 'map']) {
+  for (const p of ['people', 'leave', 'units', 'base-staffing', 'map']) {
     const r = await call('GET', `/analytics/${p}`, ops);
     console.log(`  /analytics/${p} -> ${r.status} (${r.text.length} bytes)`);
   }

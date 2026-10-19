@@ -23,7 +23,7 @@ export interface CandidateFacts {
   backToBackId: string | null;
   seniority: Seniority;
   qualifications: string[];                  // qualification names
-  certs: { typeId: string; expiresAt: Date }[];
+  certs: { typeId: string }[];
   restrictions: { kind: string; start: Date; end: Date | null }[];
   rotation: Pattern | null;
   rotationAnchor: Date | null;
@@ -71,11 +71,9 @@ export function personViolations(c: CandidateFacts, seat: SeatFacts, range: Rang
     hard('seat_seniority', `Seat requires ${seat.requirements.minSeniority.toLowerCase().replace('_', ' ')} or above`);
   }
 
-  // 5. mandatory certifications valid for every day of the assignment
+  // 5. mandatory certifications: held or not (certificates do not expire in this product)
   for (const typeId of seat.positionCertTypeIds) {
-    const cert = c.certs.filter(x => x.typeId === typeId).sort((a, b) => b.expiresAt.getTime() - a.expiresAt.getTime())[0];
-    if (!cert) hard('certification', 'Missing a mandatory certification');
-    else if (cert.expiresAt < range.end) hard('certification', `A mandatory certification expires on ${fmt(cert.expiresAt)}, before the assignment ends`, cert.expiresAt);
+    if (!c.certs.some(x => x.typeId === typeId)) hard('certification', 'Missing a mandatory certification');
   }
 
   // 6. availability: leave, medical leave, awaiting clearance

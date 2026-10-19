@@ -59,7 +59,6 @@ async function main() {
   const seniors = await call('GET', '/employees?seniority=SENIOR&limit=500', hr);
   check('seniority filter works and is computed', seniors.json.items.every((e: any) => e.seniority === 'SENIOR'), seniors.json.total);
   check('search by name', (await call('GET', '/employees?q=benali', hr)).json.items.every((e: any) => /benali/i.test(e.lastName)));
-  check('expiring-cert filter returns people', (await call('GET', '/employees?certIssue=expiring', hr)).json.total > 0);
   check('employee role cannot list', (await call('GET', '/employees', emp)).status === 403);
 
   const op = await prisma.employee.findFirstOrThrow({ where: { position: { name: 'Field Operator' }, active: true }, include: { qualifications: true } });

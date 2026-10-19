@@ -46,7 +46,7 @@ async function main() {
         hireDate: new Date(today.getTime() - 900 * DAY), seniorityOverride: level,
         rotationPatternId: (await prisma.rotationPattern.findUniqueOrThrow({ where: { name: '28/28' } })).id, rotationAnchorDate: new Date(today.getTime() - 2 * DAY),
         qualifications: { create: quals.map(q => ({ qualificationId: q.id, obtainedAt: today })) },
-        certifications: { create: position.requiredCertTypes.map(c => ({ typeId: c.id, issuedAt: today, expiresAt: new Date(today.getTime() + 400 * DAY) })) },
+        certifications: { create: position.requiredCertTypes.map(c => ({ typeId: c.id, issuedAt: today })) },
       },
     });
     return e;
@@ -174,7 +174,7 @@ async function main() {
       employeeNo: 'E9-BASE', firstName: 'Base', lastName: 'Guy', positionId: bp.positionId, homeBaseId: hmd.id, workMode: 'BASE', hireDate: new Date(today.getTime() - 900 * DAY),
       rotationPatternId: (await prisma.rotationPattern.findUniqueOrThrow({ where: { name: '5/2 weekly' } })).id, rotationAnchorDate: today,
       qualifications: { create: bp.position.requiredQualifications.map(q => ({ qualificationId: q.id, obtainedAt: today })) },
-      certifications: { create: bp.position.requiredCertTypes.map(c => ({ typeId: c.id, issuedAt: today, expiresAt: new Date(today.getTime() + 400 * DAY) })) },
+      certifications: { create: bp.position.requiredCertTypes.map(c => ({ typeId: c.id, issuedAt: today })) },
     },
   });
   check('base manager can fill a base post at own base', (await call('POST', '/assignments', bm, body(baseGuy, bp.id, 0, 6))).status === 201);

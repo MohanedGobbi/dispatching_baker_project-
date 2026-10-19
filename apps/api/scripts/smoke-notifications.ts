@@ -112,13 +112,12 @@ async function main() {
   await call('PUT', '/notifications/preferences', tok.S, { lang: 'fr' });
 
   // ================= daily job =================
-  // a crew change tomorrow on the driver seat, certificates expiring, a clearance wait, a short base, a task due tomorrow
+  // a crew change tomorrow on the driver seat, a clearance wait, a short base, a task due tomorrow
   const out = await P('Field Driver', 'JUNIOR'), inc = await P('Field Driver', 'JUNIOR');
   const uOut = await mkUser(out.id, [{ role: 'EMPLOYEE' }], `n-out-${Date.now() % 1e5}`), uInc = await mkUser(inc.id, [{ role: 'EMPLOYEE' }], `n-inc-${Date.now() % 1e5}`);
   await live(out, seat('Field Driver'), -10, 0);
   await live(inc, seat('Field Driver'), 1, 10, 'CONFIRMED');
   await call('PUT', '/notifications/preferences', await login(uOut.login), { inApp: { crew_change_48h: true } });
-  await prisma.certification.updateMany({ where: { employeeId: people.S.id }, data: { expiresAt: new Date(today.getTime() + 5 * DAY) } });
   const other = await P('Field Operator', 'JUNIOR');
   await prisma.leave.create({ data: { employeeId: other.id, typeId: medT, start: new Date(today.getTime() - 30 * DAY), end: new Date(today.getTime() - 10 * DAY), status: 'RECORDED' } });
   await call('PUT', `/bases/${base.id}/staffing/${mechP.id}`, ops, { minCount: 1, targetCount: 1 });
@@ -126,23 +125,24 @@ async function main() {
 
   check('run-daily is for planners only', (await call('POST', '/notifications/run-daily', tok.S)).status === 403);
   const run1 = await call('POST', '/notifications/run-daily', disp);
-  check('daily job ran', run1.status === 201 && run1.json.crewChanges >= 2 && run1.json.certificates >= 2 && run1.json.clearance >= 1 && run1.json.belowMinimum >= 1 && run1.json.escalated >= 1, run1.json);
+  check('daily job ran', run1.status === 201 && run1.json.crewChanges >= 2 && run1.json.clearance >= 1 && run1.json.belowMinimum >= 1 && run1.json.escalated >= 1, run1.json);
   check('crew change: outgoing told', ofType(await inbox(await login(uOut.login)), 'crew_change_48h', n => n.payload.role === 'outgoing').length === 1);
   check('crew change: incoming told', ofType(await inbox(await login(uInc.login)), 'crew_change_48h', n => n.payload.role === 'incoming').length === 1);
-  const sCerts = ofType(await inbox(tok.S), 'cert_expiring');
-  check('certificate expiring in 5 days: the person is told (7-day notice) in French', sCerts.length >= 1 && sCerts[0].title.includes('Certificat') && sCerts[0].payload.days === 5, sCerts[0]);
-  check('HR is told too', ofType(await inbox(hr, '&unread=false'), 'cert_expiring', n => n.payload.employee?.includes(people.S.firstName)).length >= 1);
   check('HR is told about the clearance wait', ofType(await inbox(hr), 'awaiting_clearance', n => n.payload.employee?.includes(other.firstName)).length === 1);
   check('base below minimum: that base manager and ops are told', ofType(await inbox(bm2Tok), 'base_below_min', n => n.payload.base === 'BRD2').length === 1 && ofType(await inbox(ops), 'base_below_min', n => n.payload.base === 'BRD2').length === 1);
   check('the HMD base manager is not told about BRD2', ofType(await inbox(bmHmd), 'base_below_min', n => n.payload.base === 'BRD2').length === 0);
   check('due task escalated and ops told', ofType(await inbox(ops), 'task_escalated', n => n.payload.seat.includes('HL-N1')).length === 1);
   const run2 = await call('POST', '/notifications/run-daily', disp);
-  check('running the job again creates nothing new (de-duplicated)', run2.json.crewChanges === 0 && run2.json.certificates === 0 && run2.json.clearance === 0 && run2.json.belowMinimum === 0 && run2.json.escalated === 0, run2.json);
+  check('running the job again creates nothing new (de-duplicated)', run2.json.crewChanges === 0 && run2.json.clearance === 0 && run2.json.belowMinimum === 0 && run2.json.escalated === 0, run2.json);
 
   // ================= email outbox =================
+  // S (French) asks for leave and HR decides: the decision is a type that emails by default
+  const annualT = (await prisma.leaveType.findUniqueOrThrow({ where: { name: 'Annual leave' } })).id;
+  const req = await call('POST', '/leaves', tok.S, { typeId: annualT, start: at(80), end: at(84) });
+  await call('POST', `/leaves/${req.json.leave?.id ?? req.json.id}/approve`, hr, {});
   const outbox = await call('GET', '/notifications/outbox?limit=200', admin);
   const mail = outbox.json.filter((m: any) => m.toEmail === people.S.employeeNo.toLowerCase() + '@crewboard.test');
-  check('emails are queued for types that email by default, rendered in the person\'s language', mail.some((m: any) => m.type === 'cert_expiring' && m.subject.includes('Certificat')), mail.map((m: any) => m.subject));
+  check('emails are queued for types that email by default, rendered in the person\'s language', mail.some((m: any) => m.type === 'leave_decided' && /cong/i.test(m.subject)), mail.map((m: any) => m.subject));
   check('types that do not email by default queue nothing (replacement confirmed)', !mail.some((m: any) => m.type === 'replacement_confirmed'));
   check('the extension notice was queued by email too', outbox.json.some((m: any) => m.type === 'extension_approved' && m.toEmail === people.O1.employeeNo.toLowerCase() + '@crewboard.test'));
   check('only an admin can read the outbox', (await call('GET', '/notifications/outbox', disp)).status === 403);

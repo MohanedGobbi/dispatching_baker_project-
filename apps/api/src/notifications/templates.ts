@@ -119,15 +119,6 @@ export const CATALOG = {
       ar: `${p.employee ? `${s(p.employee)}: ` : ''}${s(p.kind)}${p.until ? ` حتى ${s(p.until)}` : ''}.`,
     }),
   ),
-  cert_expiring: e(
-    { ack: false, email: true, label: { en: 'Certificate expiring', fr: 'Certificat bientôt expiré', ar: 'شهادة على وشك الانتهاء' } },
-    p => ({ en: `Certificate expires in ${s(p.days)} days`, fr: `Certificat expire dans ${s(p.days)} jours`, ar: `تنتهي صلاحية شهادة خلال ${s(p.days)} يوماً` }),
-    p => ({
-      en: `${p.employee ? `${s(p.employee)}: ` : ''}${s(p.cert)} expires on ${s(p.expires)}.`,
-      fr: `${p.employee ? `${s(p.employee)} : ` : ''}${s(p.cert)} expire le ${s(p.expires)}.`,
-      ar: `${p.employee ? `${s(p.employee)}: ` : ''}${s(p.cert)} تنتهي في ${s(p.expires)}.`,
-    }),
-  ),
   task_critical: e(
     { ack: false, email: true, label: { en: 'Critical replacement needed', fr: 'Remplacement critique', ar: 'بديل عاجل مطلوب' } },
     () => ({ en: 'Critical: a seat needs someone today', fr: 'Critique : un poste doit être pourvu aujourd’hui', ar: 'عاجل: منصب يحتاج شخصاً اليوم' }),

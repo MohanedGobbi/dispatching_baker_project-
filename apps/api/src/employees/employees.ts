@@ -8,7 +8,6 @@ import { can } from '../auth/permissions';
 import { EmployeeInsightsService, InsightsModule } from './insights';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
 import { startOfDay, Seniority } from '../domain/status';
-import { certExpiry } from '../domain/derived';
 
 const FULL_SPEC: Spec = {
   employeeNo: 'string', firstName: 'string', lastName: 'string', photoUrl: 'string', phone: 'string', email: 'string',
@@ -35,7 +34,7 @@ class EmployeesController {
   async list(
     @Req() req: AuthedRequest,
     @Query() q: { baseId?: string; positionId?: string; q?: string; active?: string; seniority?: string; qualificationId?: string;
-      certIssue?: string; status?: string; date?: string; limit?: string; offset?: string },
+      status?: string; date?: string; limit?: string; offset?: string },
   ) {
     if (employeeOnly(rolesOf(req))) throw new ForbiddenException('Employees can only view their own profile');
     const asOf = parseDate(q.date);
@@ -43,10 +42,6 @@ class EmployeesController {
     if (q.baseId) where.homeBaseId = q.baseId;
     if (q.positionId) where.positionId = q.positionId;
     if (q.qualificationId) where.qualifications = { some: { qualificationId: q.qualificationId } };
-    if (q.certIssue === 'expiring' || q.certIssue === 'expired') {
-      const horizon = new Date(asOf.getTime() + 60 * 86_400_000);
-      where.certifications = { some: q.certIssue === 'expired' ? { expiresAt: { lt: asOf } } : { expiresAt: { gte: asOf, lte: horizon } } };
-    }
     if (q.q) {
       where.OR = ['firstName', 'lastName', 'employeeNo'].map(f => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
     }
@@ -73,7 +68,7 @@ class EmployeesController {
       include: {
         position: true, homeBase: true, rotationPattern: true,
         qualifications: { include: { qualification: true } },
-        certifications: { include: { type: true }, orderBy: { expiresAt: 'asc' } },
+        certifications: { include: { type: true }, orderBy: { issuedAt: 'desc' } },
         restrictions: { where: { OR: [{ end: null }, { end: { gte: asOf } }] } },
         extensions: { select: { days: true, status: true } },
         leaves: { include: { type: true }, orderBy: { start: 'desc' }, take: 50 },
@@ -98,9 +93,12 @@ class EmployeesController {
     const canSeeNotes = can(roles, 'employees', 'full') || roles.includes('BASE_MANAGER');
     return {
       ...e, managerNotes: canSeeNotes ? e.managerNotes : undefined, leaves,
-      certifications: e.certifications.map(c => ({ ...c, validity: certExpiry(c.expiresAt, asOf) })),
+      certifications: e.certifications.map(c => ({ id: c.id, typeId: c.typeId, type: c.type, issuedAt: c.issuedAt, documentUrl: c.documentUrl })),
       extensionDays: e.extensions.filter(x => x.status === 'APPROVED').reduce((n, x) => n + x.days, 0),
       ...computed,
+      // others only ever see "Unavailable", never that it is medical
+      status: !medicalAccess && computed.status === 'MEDICAL_LEAVE' ? 'UNAVAILABLE' : computed.status,
+      daysOffBalance: (await this.prisma.daysOffLedger.aggregate({ where: { employeeId: id }, _sum: { days: true } }))._sum.days ?? 0,
     };
   }
 
@@ -174,8 +172,7 @@ class EmployeesController {
 
   @Post(':id/certifications') @Require('employees', 'full')
   async addCertification(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
-    const data = pickFields({ typeId: 'string', issuedAt: 'date', expiresAt: 'date', documentUrl: 'string' }, body, ['typeId', 'issuedAt', 'expiresAt']);
-    if ((data.expiresAt as Date) <= (data.issuedAt as Date)) throw new BadRequestException('expiresAt must be after issuedAt');
+    const data = pickFields({ typeId: 'string', issuedAt: 'date', documentUrl: 'string' }, body, ['typeId', 'issuedAt']);
     try {
       const cert = await this.prisma.certification.create({ data: { ...data, employeeId: id } as never });
       await audit(this.prisma, req.user?.sub, 'Employee', id, 'certification_add', null, cert);

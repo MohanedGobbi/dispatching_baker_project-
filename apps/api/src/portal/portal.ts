@@ -5,7 +5,7 @@ import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { CalendarCoreModule, CalendarService, addDays, iso } from '../calendar/calendar.service';
 import { LeaveModule, LeaveService } from '../leave/leave';
 import { audit, pickFields } from '../common/validate';
-import { certExpiry, countFieldDays } from '../domain/derived';
+import { countFieldDays } from '../domain/derived';
 import { startOfDay } from '../domain/status';
 
 const LIVE = ['CONFIRMED', 'ACTIVE'] as const;
@@ -136,7 +136,7 @@ class PortalController {
     const today = startOfDay(new Date());
     const e = await this.prisma.employee.findUnique({
       where: { id },
-      include: { position: true, homeBase: true, rotationPattern: true, qualifications: { include: { qualification: true } }, certifications: { include: { type: true }, orderBy: { expiresAt: 'asc' } }, restrictions: { where: { OR: [{ end: null }, { end: { gte: today } }] } } },
+      include: { position: true, homeBase: true, rotationPattern: true, qualifications: { include: { qualification: true } }, certifications: { include: { type: true }, orderBy: { issuedAt: 'desc' } }, restrictions: { where: { OR: [{ end: null }, { end: { gte: today } }] } } },
     });
     if (!e) throw new NotFoundException('Employee not found');
     return {
@@ -144,7 +144,7 @@ class PortalController {
       phone: e.phone, email: e.email, emergencyContact: e.emergencyContact, homeCity: e.homeCity,
       rotation: e.rotationPattern?.name ?? null, restrictions: e.restrictions.map(r => ({ kind: r.kind, until: r.end ? iso(r.end) : null })),
       qualifications: e.qualifications.map(q => ({ name: q.qualification.name, obtained: iso(q.obtainedAt) })),
-      certifications: e.certifications.map(c => ({ id: c.id, name: c.type.name, expires: iso(c.expiresAt), validity: certExpiry(c.expiresAt, today) })),
+      certifications: e.certifications.map(c => ({ id: c.id, name: c.type.name, issued: iso(c.issuedAt) })),
     };
   }
 

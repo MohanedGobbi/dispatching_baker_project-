@@ -42,7 +42,7 @@ export async function mkEmployee(opts: { position: string; level: 'NEW_RECRUIT' 
       employeeNo: `S${Date.now() % 1e6}-${seq}`, firstName: `T${seq}`, lastName: 'Smoke', positionId: pos.id, homeBaseId: base.id, workMode: 'FIELD',
       hireDate: new Date(today.getTime() - 900 * DAY), seniorityOverride: opts.level, rotationPatternId: rot.id, rotationAnchorDate: new Date(today.getTime() + (opts.anchorOffset ?? -2) * DAY),
       qualifications: { create: quals.map(q => ({ qualificationId: q.id, obtainedAt: today })) },
-      certifications: { create: pos.requiredCertTypes.map(c => ({ typeId: c.id, issuedAt: today, expiresAt: new Date(today.getTime() + 400 * DAY) })) },
+      certifications: { create: pos.requiredCertTypes.map(c => ({ typeId: c.id, issuedAt: today })) },
     },
   });
 }

@@ -6,7 +6,7 @@ const settings = { maxConsecutiveDays: 35 };
 
 const op: CandidateFacts = {
   id: 'e1', positionId: 'pOp', workMode: 'FIELD', homeBaseId: 'hmd', backToBackId: null, seniority: 'EXPERIENCED',
-  qualifications: ['Open Hole'], certs: [{ typeId: 'h2s', expiresAt: d('2027-12-31') }], restrictions: [],
+  qualifications: ['Open Hole'], certs: [{ typeId: 'h2s' }], restrictions: [],
   rotation: { type: 'cycle', daysOn: 28, daysOff: 28 }, rotationAnchor: d('2026-10-01'),
   unavailable: [], otherAssignments: [],
 };
@@ -21,8 +21,8 @@ const rules = (c: Partial<CandidateFacts> = {}, s: Partial<SeatFacts> = {}, r = 
 describe('personViolations (hard rules)', () => {
   it('a valid candidate has no hard violations', () => expect(rules()).toEqual([]));
   it('rule 4: wrong qualification (CH-only on an OH seat)', () => expect(rules({ qualifications: ['Cased Hole'] })).toContain('qualification'));
-  it('rule 5: certification expiring mid-assignment', () => {
-    expect(rules({ certs: [{ typeId: 'h2s', expiresAt: d('2026-10-10') }] })).toContain('certification');
+  it('rule 5: a mandatory certification must be held (certificates never expire)', () => {
+    expect(rules({ certs: [{ typeId: 'h2s' }] })).not.toContain('certification');
     expect(rules({ certs: [] })).toContain('certification');
   });
   it('rule 6: leave, medical and clearance block; message hides the medical reason', () => {

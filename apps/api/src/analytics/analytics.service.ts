@@ -4,7 +4,7 @@ import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { CalendarCoreModule, CalendarService, DayCell, addDays, iso } from '../calendar/calendar.service';
 import { buildForecast, Counts, Forecast, profileLabel, profilesOf } from '../domain/forecast';
-import { computeUnitStatus, certExpiry } from '../domain/derived';
+import { computeUnitStatus } from '../domain/derived';
 import { overlapDays } from '../domain/absence';
 import { mergeSpans, spanDays } from '../domain/spans';
 import { Seniority, startOfDay } from '../domain/status';
@@ -20,7 +20,7 @@ const TYPE_KEY: Record<string, string> = { 'Open Hole': 'oh', 'Cased Hole': 'ch'
 export interface Person {
   id: string; name: string; employeeNo: string; baseId: string; baseCode: string; position: string; category: string
   qualifications: string[]; seniority: Seniority; fieldDays: number; fieldDaysYear: number; yearsOfService: number
-  profiles: string[]; mandatoryCertTypeIds: string[]; certs: { typeId: string; expiresAt: Date }[]
+  profiles: string[]; mandatoryCertTypeIds: string[]; certs: { typeId: string }[]
 }
 
 @Injectable()
@@ -48,7 +48,7 @@ export class AnalyticsService {
         fieldDaysYear: c.fieldDaysYear, yearsOfService: c.yearsOfService,
         profiles: profilesOf({ position: r.position.name, category: r.position.category, qualifications: quals, experienced: seniorityAtLeast(c.seniority, 'EXPERIENCED') }),
         mandatoryCertTypeIds: r.position.requiredCertTypes.map(t => t.id),
-        certs: r.certifications.map(x => ({ typeId: x.typeId, expiresAt: x.expiresAt })),
+        certs: r.certifications.map(x => ({ typeId: x.typeId })),
       };
     });
   }
@@ -259,8 +259,6 @@ export class AnalyticsService {
     const crewSeats = await this.prisma.seat.count({ where: { holderType: 'UNIT', requiredFlag: true, unit: { status: { not: 'OUT_OF_SERVICE' }, ...(opts.baseId ? { homeBaseId: opts.baseId } : {}) } } });
     const crewPeople = people.filter(p => p.position === 'Chief of Unit' || p.position === 'Field Operator').length;
 
-    // certificates
-    const compliant = people.filter(p => p.mandatoryCertTypeIds.every(t => p.certs.some(c => c.typeId === t && c.expiresAt >= today))).length;
     const fc = await this.forecast({ days: 90, baseId: opts.baseId });
 
     const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
@@ -278,7 +276,6 @@ export class AnalyticsService {
       { key: 'utilization', label: 'Unit utilization', value: r1(avg(util) * 100), unit: '%', detail: `${units.length} units, ${periodDays} days` },
       { key: 'downtime', label: 'Unit downtime', value: r1(avg(down) * 100), unit: '%' },
       { key: 'baseStaffing', label: 'Base staffing rate', value: pct(staffing.reduce((n, s) => n + Math.min(s.present, s.min), 0), staffing.reduce((n, s) => n + s.min, 0)), unit: '%' },
-      { key: 'certCompliance', label: 'Certification compliance', value: pct(compliant, people.length), unit: '%', detail: `${compliant} of ${people.length} people` },
     ];
     // Medical absence is shown only as an aggregate rate, and only to those allowed to see medical statistics.
     if (opts.includeMedical) list.splice(7, 0, { key: 'medicalAbsence', label: 'Medical absence rate (aggregate)', value: pct(byCat['medical'] ?? 0, scheduled), unit: '%' });
@@ -387,29 +384,6 @@ export class AnalyticsService {
       return { base: r.base.code, position: r.position.name, min: r.minCount, target: r.targetCount, series };
     });
     return { from: iso(from), to: iso(to), rows: out };
-  }
-
-  async compliancePage(opts: { baseId?: string }) {
-    const today = startOfDay(new Date());
-    const people = await this.people(opts.baseId);
-    const types = new Map((await this.prisma.certificationType.findMany()).map(t => [t.id, t.name]));
-    const expiring: { name: string; base: string; cert: string; expires: string; days: number }[] = [];
-    const blocked: { name: string; base: string; position: string; problem: string }[] = [];
-    for (const p of people) {
-      for (const typeId of p.mandatoryCertTypeIds) {
-        const best = p.certs.filter(c => c.typeId === typeId).sort((a, b) => b.expiresAt.getTime() - a.expiresAt.getTime())[0];
-        if (!best) { blocked.push({ name: p.name, base: p.baseCode, position: p.position, problem: `${types.get(typeId)}: missing` }); continue; }
-        const st = certExpiry(best.expiresAt, today, 60);
-        if (st === 'expired') blocked.push({ name: p.name, base: p.baseCode, position: p.position, problem: `${types.get(typeId)}: expired ${iso(best.expiresAt)}` });
-        else if (st === 'expiring') expiring.push({ name: p.name, base: p.baseCode, cert: types.get(typeId) ?? '?', expires: iso(best.expiresAt), days: Math.round((best.expiresAt.getTime() - today.getTime()) / DAY) });
-      }
-    }
-    expiring.sort((a, b) => a.days - b.days);
-    const compliant = people.filter(p => p.mandatoryCertTypeIds.every(t => p.certs.some(c => c.typeId === t && c.expiresAt >= today))).length;
-    return {
-      compliancePct: people.length ? Math.round((compliant / people.length) * 1000) / 10 : null, people: people.length,
-      expiring30: expiring.filter(e => e.days <= 30).length, expiring60: expiring.length, expiring, blocked,
-    };
   }
 
   /** Bases, sites and unit pins for the Algeria map (20.1 page 8). */

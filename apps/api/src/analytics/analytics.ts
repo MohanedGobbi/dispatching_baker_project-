@@ -158,19 +158,6 @@ export class RecommendationsService {
       });
     }
 
-    // 7. certificates that will block people within 30 days
-    const compliance = await this.analytics.compliancePage({});
-    for (const code of [...new Set(compliance.expiring.filter(e => e.days <= 30).map(e => e.base))]) {
-      const mine = compliance.expiring.filter(e => e.base === code && e.days <= 30);
-      const names = [...new Set(mine.map(e => e.name))];
-      out.push({
-        key: `certs:${code}`, type: 'certificates', baseId: baseId(code), severity: names.length >= 5 ? 'high' : 'medium',
-        title: `Renew certifications: ${names.length} people at ${code} will be blocked within 30 days`,
-        action: 'Book renewals now. Anyone whose mandatory certificate expires cannot be assigned.',
-        data: { base: code, people: names.length, items: mine.slice(0, 20) },
-      });
-    }
-
     // 8. mechanics: work-order backlog at a base
     const orders = await this.prisma.workOrder.findMany({ where: { status: { in: OPEN_WO } }, include: { base: { select: { id: true, code: true } } } });
     for (const b of bases) {
@@ -288,8 +275,6 @@ class AnalyticsController {
   @Get('base-staffing') @Require('analytics', 'view')
   async baseStaffing(@Req() req: AuthedRequest, @Query('baseId') baseId?: string) { return this.svc.baseStaffingPage({ baseId: await this.scope(req, baseId) }); }
 
-  @Get('compliance') @Require('analytics', 'view')
-  async compliance(@Req() req: AuthedRequest, @Query('baseId') baseId?: string) { return this.svc.compliancePage({ baseId: await this.scope(req, baseId) }); }
 
   @Get('map') @Require('analytics', 'view')
   async map(@Req() req: AuthedRequest) { await this.scope(req); return this.svc.map(); }

@@ -120,10 +120,6 @@ async function main() {
   }
   log(11, `${n} operators are owed 8-11 rest days after repeated extensions`);
 
-  // ---- 12. certificates that expire during a planned assignment
-  const longRunning = (await prisma.assignment.findMany({ where: { status: 'ACTIVE', plannedEnd: { gte: d(20) }, start: { lte: today }, seat: { holderType: 'UNIT', position: { name: 'Field Operator' } } }, take: 12, include: { employee: true } })).slice(5, 8);
-  for (const a of longRunning) await prisma.certification.updateMany({ where: { employeeId: a.employeeId }, data: { expiresAt: d(10 + Math.floor(Math.random() * 6)) } });
-  log(12, `${longRunning.length} operators' certificates expire in about 2 weeks, in the middle of their rotation`);
 
   // ---- 13. a unit back from maintenance in 3 days
   const wu = await unit('HL-6791');

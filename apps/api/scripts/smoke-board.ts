@@ -57,15 +57,16 @@ async function main() {
   check('the seat that needs an Experienced person flags it', noExp.seats.find((s: any) => s.position === 'Field Operator' && s.index === 1).issues.some((i: any) => i.code === 'seniority'));
   await prisma.employee.update({ where: { id: o1.id }, data: { seniorityOverride: 'EXPERIENCED' } });
 
-  await prisma.certification.updateMany({ where: { employeeId: o2.id }, data: { expiresAt: new Date(today.getTime() - 5 * DAY) } });
+  const o2Certs = await prisma.certification.findMany({ where: { employeeId: o2.id } });
+  await prisma.certification.deleteMany({ where: { employeeId: o2.id } });
   await prisma.employeeQualification.deleteMany({ where: { employeeId: o3.id, qualificationId: rigY.id } });
   const bad = (await call('GET', `/board?baseId=${base.id}`, disp)).json.units.find((u: any) => u.code === 'HL-B1');
-  check('"Certificate expired" badge', bad.badges.some((b: any) => b.code === 'cert' && b.text === 'Certificate expired'), bad.badges);
+  check('"Mandatory certificate missing" badge', bad.badges.some((b: any) => b.code === 'cert' && b.text === 'Mandatory certificate missing'), bad.badges);
   check('"Missing qualification" badge names the qualification', bad.badges.some((b: any) => b.code === 'qualification' && b.text.includes('Rig-Y')), bad.badges);
 
   const only = await call('GET', `/board?baseId=${base.id}&problemsOnly=true`, disp);
   check('problems-only keeps units needing attention', only.json.units.some((u: any) => u.code === 'HL-B1') && only.json.units.some((u: any) => u.code === 'HL-B2'));
-  await prisma.certification.updateMany({ where: { employeeId: o2.id }, data: { expiresAt: new Date(today.getTime() + 300 * DAY) } });
+  await prisma.certification.createMany({ data: o2Certs.map(({ id: _id, ...c }) => c) });
   await prisma.employeeQualification.create({ data: { employeeId: o3.id, qualificationId: rigY.id, obtainedAt: today } });
   await prisma.employee.update({ where: { id: chief.id }, data: { seniorityOverride: 'EXPERIENCED' } });
   const healthy = await call('GET', `/board?baseId=${base.id}&problemsOnly=true`, disp);

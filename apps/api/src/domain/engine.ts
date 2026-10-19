@@ -89,10 +89,6 @@ export function createEngine(input: EngineInput) {
     c.unavailable.forEach(u => cut(u.start));
     c.otherAssignments.forEach(o => cut(o.start));
     c.restrictions.forEach(r => cut(r.start));
-    for (const typeId of seat.positionCertTypeIds) {
-      const cert = c.certs.filter(x => x.typeId === typeId).sort((a, b) => b.expiresAt.getTime() - a.expiresAt.getTime())[0];
-      if (cert && cert.expiresAt >= cur && cert.expiresAt < end) end = cert.expiresAt;
-    }
     return end;
   };
 

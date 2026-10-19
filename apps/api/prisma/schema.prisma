@@ -212,7 +212,7 @@ model Certification {
   typeId     String
   type       CertificationType @relation(fields: [typeId], references: [id])
   issuedAt   DateTime
-  expiresAt  DateTime
+  expiresAt  DateTime? // unused: certificates do not expire in this product
   documentUrl String?
 }
 

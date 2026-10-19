@@ -10,7 +10,7 @@ export interface EmployeeRow {
   id: string; positionId: string; workMode: 'FIELD' | 'BASE' | 'FLEXIBLE'; homeBaseId: string; backToBackId: string | null;
   rotationAnchorDate: Date | null;
   qualifications: { qualification: { name: string } }[];
-  certifications: { typeId: string; expiresAt: Date }[];
+  certifications: { typeId: string }[];
   restrictions: { kind: string; start: Date; end: Date | null }[];
   rotationPattern: { type: string; daysOn: number | null; daysOff: number | null; weeklyMask: string | null } | null;
 }
@@ -33,7 +33,7 @@ export function buildCandidate(
   return {
     id: e.id, positionId: e.positionId, workMode: e.workMode, homeBaseId: e.homeBaseId, backToBackId: e.backToBackId, seniority,
     qualifications: e.qualifications.map(q => q.qualification.name),
-    certs: e.certifications.map(c => ({ typeId: c.typeId, expiresAt: c.expiresAt })),
+    certs: e.certifications.map(c => ({ typeId: c.typeId })),
     restrictions: e.restrictions.map(r => ({ kind: r.kind, start: r.start, end: r.end })),
     rotation: e.rotationPattern ? {
       type: e.rotationPattern.type as Pattern['type'], daysOn: e.rotationPattern.daysOn ?? undefined,

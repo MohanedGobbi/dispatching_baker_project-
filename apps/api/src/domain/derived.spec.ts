@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeUnitStatus, countFieldDays, certExpiry } from './derived';
+import { computeUnitStatus, countFieldDays } from './derived';
 
 const d = (s: string) => new Date(s + 'T00:00:00Z');
 
@@ -33,14 +33,5 @@ describe('countFieldDays', () => {
   });
   it('ignores future assignments', () => {
     expect(countFieldDays([{ start: d('2027-01-01'), end: d('2027-01-28') }], d('2026-10-19'))).toBe(0);
-  });
-});
-
-describe('certExpiry', () => {
-  it('classifies', () => {
-    const now = d('2026-10-19');
-    expect(certExpiry(d('2026-10-01'), now)).toBe('expired');
-    expect(certExpiry(d('2026-11-30'), now)).toBe('expiring');
-    expect(certExpiry(d('2027-06-01'), now)).toBe('valid');
   });
 });
