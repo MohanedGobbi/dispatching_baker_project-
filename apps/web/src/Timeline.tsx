@@ -51,13 +51,13 @@ export default function Timeline() {
   }, [data.data])
   const used = useMemo(() => [...new Set((data.data?.rows ?? []).flatMap(r => r.blocks.map(b => b.status)))], [data.data])
   const style = { '--n': span } as CSSProperties
-  const groupColor = (g: string) => groupBy === 'base' && codes.includes(g) ? BASE_COLORS[codes.indexOf(g) % BASE_COLORS.length] : '#475569'
+  const groupColor = (g: string) => groupBy === 'base' && codes.includes(g) ? BASE_COLORS[codes.indexOf(g) % BASE_COLORS.length] : 'var(--pal-slate-600)'
 
   if (focus) return <main className="page wide"><Focus row={focus} codes={codes} onBack={() => setFocus(null)} /></main>
 
   return (
     <main className="page wide">
-      <PageGuide id="timeline" Icon={CalendarRange} color="#0891b2" title={t('timelineTitle', 'Timeline')}
+      <PageGuide id="timeline" Icon={CalendarRange} color="var(--pal-cyan-600)" title={t('timelineTitle', 'Timeline')}
         purpose={t('timelinePurpose', 'Everyone\'s next weeks at a glance: one line per person, one colour per kind of day.')}
         steps={[
           t('tlStep1', 'Blue blocks are days on a unit, teal is standby, grey is days off, purple is leave. The legend below lists every colour shown.'),
@@ -79,7 +79,7 @@ export default function Timeline() {
         </div>
         <div className="chips">
           <span className="chips-label">{t('fBase', 'Base')}</span>
-          <button type="button" className={`fchip${!baseId ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setBaseId('')}>{t('allBases', 'All bases')}</button>
+          <button type="button" className={`fchip${!baseId ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--pal-slate-700)' }} onClick={() => setBaseId('')}>{t('allBases', 'All bases')}</button>
           {bases.data?.map(b => <button key={b.id} type="button" className={`fchip${baseId === b.id ? ' on' : ''}`} style={{ ['--c' as string]: BASE_COLORS[codes.indexOf(b.code) % BASE_COLORS.length] }} onClick={() => setBaseId(baseId === b.id ? '' : b.id)}><i />{b.code}</button>)}
         </div>
         <Legend items={used.map(s => ({ color: color(s), label: STATUS_META[s]?.label ?? s, shape: 'bar' as const }))} />
@@ -150,7 +150,7 @@ function Focus({ row, codes, onBack }: { row: Row; codes: string[]; onBack: () =
   }, [days])
   const now = cal.data?.summary.today
   const nowMeta = now ? STATUS_META[now.status] : undefined
-  const baseCol = codes.includes(row.base) ? BASE_COLORS[codes.indexOf(row.base) % BASE_COLORS.length] : '#0891b2'
+  const baseCol = codes.includes(row.base) ? BASE_COLORS[codes.indexOf(row.base) % BASE_COLORS.length] : 'var(--pal-cyan-600)'
   const months = useMemo(() => {
     const m = new Map<string, typeof days>()
     for (const d of days) { const k = d.date.slice(0, 7); (m.get(k) ?? m.set(k, []).get(k)!).push(d) }

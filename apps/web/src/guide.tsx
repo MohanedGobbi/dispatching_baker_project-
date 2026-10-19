@@ -71,13 +71,13 @@ export function Donut({ slices, size = 150, center, caption, onPick, active }: {
   return (
     <div className="donut" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" role="img" aria-label={slices.map(s => `${s.label} ${s.value}`).join(', ')}>
-        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--border)" strokeWidth="12" />
+        <circle style={{ stroke: 'var(--border)' }} cx="50" cy="50" r={r} fill="none" strokeWidth="12" />
         {slices.filter(s => s.value > 0).map(s => {
           const len = (s.value / total) * c
           const el = (
-            <circle key={s.key} cx="50" cy="50" r={r} fill="none" stroke={s.color} strokeWidth={active === s.key ? 16 : 12}
+            <circle key={s.key} cx="50" cy="50" r={r} fill="none" strokeWidth={active === s.key ? 16 : 12}
               strokeDasharray={`${Math.max(0, len - 1)} ${c}`} strokeDashoffset={-acc} transform="rotate(-90 50 50)"
-              style={{ cursor: onPick ? 'pointer' : undefined, opacity: active && active !== s.key ? 0.35 : 1, transition: 'opacity .2s' }}
+              style={{ stroke: s.color, cursor: onPick ? 'pointer' : undefined, opacity: active && active !== s.key ? 0.35 : 1, transition: 'opacity .2s' }}
               onClick={() => onPick?.(s.key)}><title>{`${s.label}: ${s.value}`}</title></circle>
           )
           acc += len
@@ -95,12 +95,12 @@ export function Ring({ value, max, size = 40, color }: { value: number; max: num
   return (
     <svg width={size} height={size} viewBox="0 0 36 36" className="ring" role="img" aria-label={`${value} of ${max}`}>
       <circle cx="18" cy="18" r={r} fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="4" />
-      <circle cx="18" cy="18" r={r} fill="none" stroke={color} strokeWidth="4" strokeDasharray={`${p * c} ${c}`} transform="rotate(-90 18 18)" strokeLinecap="round" />
+      <circle style={{ stroke: color }} cx="18" cy="18" r={r} fill="none" strokeWidth="4" strokeDasharray={`${p * c} ${c}`} transform="rotate(-90 18 18)" strokeLinecap="round" />
       <text x="18" y="21.5" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor">{value}/{max}</text>
     </svg>
   )
 }
 
 /** Distinct colours for bases, used everywhere a base appears (board, map, charts). */
-export const BASE_COLORS = ['#1d4ed8', '#7e22ce', '#0f766e', '#be185d', '#c2410c', '#4338ca']
+export const BASE_COLORS = ['var(--pal-blue-700)', 'var(--pal-purple-700)', 'var(--pal-teal-700)', 'var(--pal-pink-700)', 'var(--pal-orange-700)', 'var(--pal-indigo-700)']
 export const baseColor = (codes: string[], code: string) => BASE_COLORS[Math.max(0, codes.indexOf(code)) % BASE_COLORS.length]

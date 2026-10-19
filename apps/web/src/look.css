@@ -25,13 +25,13 @@
 .side-me span:last-child { display: grid; line-height: 1.2; }
 .side-me small { color: #94a3b8; font-size: 11px; }
 .avatar-sm { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #334155; font-size: 11px; font-weight: 700; }
-.shell2.slim .side-label { display: none !important; }
+.shell2.slim .side-label { display: none; }
 .shell2.slim .side-brand { flex-direction: column; }
 .shell2.slim .side-nav a { justify-content: center; }
 .nav .crumb { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--c); }
 @media (max-width: 900px) {
   .shell2, .shell2.slim { grid-template-columns: 58px minmax(0, 1fr); }
-  .shell2 .side-label { display: none !important; }
+  .shell2 .side-label { display: none; }
   .shell2 .side-brand { flex-direction: column; }
   .shell2 .side-nav a { justify-content: center; }
   .slim-toggle { display: none; }
@@ -48,7 +48,7 @@
 .guide-text p { margin: 2px 0 0; color: var(--muted); }
 .guide-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .guide-actions button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 9px; padding: 7px 12px; display: inline-flex; gap: 6px; align-items: center; }
-.guide-actions button.primary { border-color: var(--accent); }
+.guide-actions button.primary { border-color: var(--accent-fill); }
 .guide-help .flip { transform: rotate(180deg); }
 .guide-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; position: relative; z-index: 1; }
 .guide-steps li { display: flex; gap: 10px; align-items: flex-start; background: color-mix(in srgb, var(--surface) 80%, transparent); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
@@ -76,7 +76,7 @@
 .bd-toolbar .seg2 button { border: 0; background: none; display: inline-flex; gap: 6px; align-items: center; }
 .bd-toolbar .seg2 button.on { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .bd-toolbar .spacer { flex: 1; }
-.bd-toolbar .dates { gap: 4px; align-items: center; }
+.bd-toolbar .dates { gap: 10px; align-items: center; }
 
 .bd-overview { display: grid; grid-template-columns: minmax(320px, 1.5fr) minmax(260px, 1fr) minmax(280px, 1fr); gap: var(--s4); }
 @media (max-width: 1200px) { .bd-overview { grid-template-columns: 1fr 1fr; } .bd-overview > :first-child { grid-column: 1 / -1; } }
@@ -333,7 +333,7 @@ button.kpi2 { cursor: pointer; }
 .hist li small { color: var(--muted); }
 .pp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .pp-actions button, button.ghost { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 9px; padding: 7px 12px; display: inline-flex; gap: 6px; align-items: center; }
-button.danger { border-color: color-mix(in srgb, var(--bad) 50%, var(--border)) !important; color: var(--bad) !important; }
+button.danger { border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); color: var(--bad); }
 button.ghost { justify-self: start; }
 
 /* clickable names everywhere */
@@ -355,13 +355,13 @@ html, body, * { scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* ---------- consistent spacing between buttons and controls */
-.actions, .row-actions, .filters, .guide-actions, .pp-actions, .chips, .dates, .handover, .picked, .wi-rule { gap: 10px !important; }
-.subtabs, .picker-tabs, .pp-tabs, .seg-days { gap: 8px !important; }
-.modal footer, .form2 footer, .pw-form footer, .row-actions.end { gap: 10px !important; flex-wrap: wrap; }
+.actions, .row-actions, .filters, .guide-actions, .pp-actions, .chips, .dates, .handover, .picked, .wi-rule { gap: 10px; }
+.subtabs, .picker-tabs, .pp-tabs, .seg-days { gap: 8px; }
+.modal footer, .form2 footer, .pw-form footer, .row-actions.end { gap: 10px; flex-wrap: wrap; }
 td.row-actions button { margin-inline-start: 8px; margin-block: 2px; }
 td.row-actions button:first-child { margin-inline-start: 0; }
 .cand-list li, .cand2 li { gap: 12px; }
-.cand-list li .row-actions, .cand2 .acts { gap: 8px !important; }
+.cand-list li .row-actions, .cand2 .acts { gap: 8px; }
 .page-head { gap: 16px; }
 .page-head .actions { margin-top: 4px; }
 /* any plain container with buttons side by side gets a gap too */
@@ -370,42 +370,43 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 .subtabs button, .filters button, .filters select, .filters input, .actions button, .row-actions button { min-height: 34px; }
 .banner { line-height: 1.45; }
 .panel .row-actions, .detail .row-actions { margin-top: 6px; }
-.seg > button + button { margin-inline-start: -1px !important; }
-.seg2 > button + button { margin-inline-start: 0 !important; }
+.seg > button + button { margin-inline-start: -1px; }
+.seg2 > button + button { margin-inline-start: 0; }
 .on-color .name-link, .rc-detail-head .name-link, .focus-head .name-link { color: #fff; border-bottom-color: rgba(255,255,255,.6); }
 
 /* ================= P1 fixes: contrast (WCAG AA 4.5:1 for text, 3:1 for large text) ================= */
 /* text on pale status tints uses the darker "ink" shade of that status (lighter shade in dark mode) */
-.badge.sev-ok, .ucard-state.sev-ok { color: var(--ink-ok) !important; }
-.badge.sev-warn, .ucard-state.sev-warn { color: var(--ink-warn) !important; }
-.badge.sev-bad, .ucard-state.sev-bad { color: var(--ink-bad) !important; }
-.badge.sev-info { color: var(--ink-info) !important; }
-.ucard-state.sev-info { color: var(--muted) !important; }
-.tag-OH { color: var(--ink-ok) !important; }
-.tag-CH { color: var(--ink-warn) !important; }
-.tag-restr { color: var(--ink-warn) !important; }
-.tag2 { color: color-mix(in srgb, var(--c) 72%, #000) !important; }
-.role-pill { color: var(--c) !important; }
-.role-pill em { color: var(--ink-warn) !important; }
-.st-dot { color: color-mix(in srgb, var(--c) 72%, #000) !important; }
-.reason-row > div i { background: #c2410c !important; }
-:root[data-theme='dark'] .tag2, :root[data-theme='dark'] .st-dot, :root[data-theme='dark'] .role-pill { color: color-mix(in srgb, var(--c) 45%, #fff) !important; }
-:root[data-theme='dark'] .role-pill { background: color-mix(in srgb, var(--c) 28%, transparent) !important; }
+.badge.sev-ok, .ucard-state.sev-ok { color: var(--ink-ok); }
+.badge.sev-warn, .ucard-state.sev-warn { color: var(--ink-warn); }
+.badge.sev-bad, .ucard-state.sev-bad { color: var(--ink-bad); }
+.badge.sev-info { color: var(--ink-info); }
+.ucard-state.sev-info { color: var(--muted); }
+.tag-OH { color: var(--ink-ok); }
+.tag-CH { color: var(--ink-warn); }
+.tag-restr { color: var(--ink-warn); }
+.tag2 { color: color-mix(in srgb, var(--c) 72%, #000); }
+.role-pill { color: var(--c); }
+.role-pill em { color: var(--ink-warn); }
+.st-dot { color: color-mix(in srgb, var(--c) 72%, #000); }
+.reason-row > div i { background: #c2410c; }
+:root[data-theme='dark'] .tag2, :root[data-theme='dark'] .st-dot, :root[data-theme='dark'] .role-pill { color: color-mix(in srgb, var(--c) 45%, #fff); }
+:root[data-theme='dark'] .role-pill { background: color-mix(in srgb, var(--c) 28%, transparent); }
 /* the page name in the top bar: coloured icon, readable text */
-.nav .crumb { color: var(--text) !important; }
+.nav .crumb { color: var(--text); }
 .nav .crumb svg { color: var(--c); }
 /* filled controls always use the strong accent so white text stays readable in dark mode */
-.primary, .picker-tabs button.on, .seg-days button.on, .bell b { background: var(--accent-fill) !important; border-color: var(--accent-fill) !important; color: #fff !important; }
-.bell b.urgent { background: var(--bad) !important; }
+/* .primary is doubled to outrank container rules such as .guide-actions button without !important. */
+.primary.primary, .picker-tabs button.on, .seg-days button.on, .bell b { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+.bell b.urgent { background: var(--bad); }
 :root[data-theme='dark'] .assign-btn { color: #bfdbfe; }
 :root[data-theme='dark'] .assign-btn.req { color: var(--ink-bad); }
 /* coloured surfaces with white text: the lightest end of every gradient is darkened enough for white text */
-.kpi2 { background: linear-gradient(135deg, color-mix(in srgb, var(--c) 82%, #000), color-mix(in srgb, var(--c) 55%, #000)) !important; }
-.ucard-head { background: linear-gradient(120deg, color-mix(in srgb, var(--u) 88%, #000), color-mix(in srgb, var(--u) 55%, #0f172a)) !important; }
-.lane-head, .base-banner, .rc-detail-head, .focus-head, .pp-head { background: linear-gradient(120deg, color-mix(in srgb, var(--c) 85%, #000), color-mix(in srgb, var(--c) 50%, #0f172a)) !important; }
-.tcard .count { background: linear-gradient(135deg, color-mix(in srgb, var(--c) 85%, #000), color-mix(in srgb, var(--c) 55%, #000)) !important; }
-.guide-steps b { background: color-mix(in srgb, var(--g) 78%, #000) !important; }
-.tl-group { color: #fff !important; background: color-mix(in srgb, var(--c, #475569) 85%, #000) !important; }
+.kpi2 { background: linear-gradient(135deg, color-mix(in srgb, var(--c) 82%, #000), color-mix(in srgb, var(--c) 55%, #000)); }
+.ucard-head { background: linear-gradient(120deg, color-mix(in srgb, var(--u) 88%, #000), color-mix(in srgb, var(--u) 55%, #0f172a)); }
+.lane-head, .base-banner, .rc-detail-head, .focus-head, .pp-head { background: linear-gradient(120deg, color-mix(in srgb, var(--c) 85%, #000), color-mix(in srgb, var(--c) 50%, #0f172a)); }
+.tcard .count { background: linear-gradient(135deg, color-mix(in srgb, var(--c) 85%, #000), color-mix(in srgb, var(--c) 55%, #000)); }
+.guide-steps b { background: color-mix(in srgb, var(--g) 78%, #000); }
+.tl-group { color: #fff; background: color-mix(in srgb, var(--c, #475569) 85%, #000); }
 .health-row .base-tag, .fchip.on { color: #fff; }
 .month-grid .d { text-shadow: 0 1px 1px rgba(0,0,0,.35); }
 
@@ -413,16 +414,16 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 .who small, .tag, .wo, .tl-name small, .tl-day, .tl-block, .side-brand small, .side-nav a small, .side-me small,
 .donut-center small, .kpi2 small, .fchip b, .ucard-head .type-pill, .role-pill, .st-dot, .gantt, .gantt .g-day, .gantt .g-bar,
 .rc-lane-title, .tcard .count small, .tag2, .big-strip .bs-block, .strip-axis, .month-grid .dow, .month-grid .d,
-.pp-stats span, .fact span, .side-group-title, .an-heat, .an-heat .an-day, .an-heat td.an-num, .an-col, .badge, .legend, .legend2 { font-size: 12px !important; }
-.tl-day b { font-size: 11px !important; }      /* month name sitting above the day number */
+.pp-stats span, .fact span, .side-group-title, .an-heat, .an-heat .an-day, .an-heat td.an-num, .an-col, .badge, .legend, .legend2 { font-size: 12px; }
+.tl-day b { font-size: 11px; }      /* month name sitting above the day number */
 .chip.compact .avatar, .avatar, .avatar-sm { font-size: 11px; }  /* initials inside avatars are not read as text */
-.tl-row { grid-template-columns: 210px repeat(var(--n), minmax(26px, 1fr)) !important; min-width: calc(210px + var(--n) * 26px) !important; }
-.gantt { grid-template-columns: 170px repeat(var(--n), minmax(22px, 1fr)) !important; min-width: calc(170px + var(--n) * 22px) !important; }
-.fleet-map .site-label { font-size: 14px !important; }
+.tl-row { grid-template-columns: 210px repeat(var(--n), minmax(26px, 1fr)); min-width: calc(210px + var(--n) * 26px); }
+.gantt { grid-template-columns: 170px repeat(var(--n), minmax(22px, 1fr)); min-width: calc(170px + var(--n) * 22px); }
+.fleet-map .site-label { font-size: 14px; }
 
 /* ================= P1 fixes: sideways scrollers show a thin, themed scrollbar so people know there is more ================= */
 .tl, .an-heat-wrap, .rc-gantt, .table-scroll, .lane-list, .pick-list, .pp, .modal {
-  scrollbar-width: thin !important; scrollbar-color: color-mix(in srgb, var(--accent) 45%, var(--border)) transparent;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 45%, var(--border)) transparent;
 }
 .tl::-webkit-scrollbar, .an-heat-wrap::-webkit-scrollbar, .rc-gantt::-webkit-scrollbar, .table-scroll::-webkit-scrollbar,
 .lane-list::-webkit-scrollbar, .pick-list::-webkit-scrollbar, .pp::-webkit-scrollbar, .modal::-webkit-scrollbar { display: block; width: 8px; height: 8px; }
@@ -456,29 +457,29 @@ p > button + button, span > button + button, div:not([class]) > button + button,
   .shell2, .shell2.slim { grid-template-columns: minmax(0, 1fr); }
   .side-nav { position: fixed; inset-block: 0; inset-inline-start: 0; width: min(290px, 86vw); transform: translateX(-105%); transition: transform var(--t-base) ease-out; z-index: 60; }
   .shell2.menu-open .side-nav { transform: none; box-shadow: 12px 0 40px rgba(0,0,0,.35); }
-  .shell2 .side-nav .side-label { display: grid !important; }
-  .shell2 .side-nav .side-group-title { display: block !important; }
-  .shell2 .side-brand { flex-direction: row !important; }
-  .shell2 .side-nav a { justify-content: flex-start !important; }
+  .shell2 .side-nav .side-label { display: grid; }
+  .shell2 .side-nav .side-group-title { display: block; }
+  .shell2 .side-brand { flex-direction: row; }
+  .shell2 .side-nav a { justify-content: flex-start; }
   .menu-scrim { display: block; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 55; }
   .menu-btn { display: inline-grid; place-items: center; }
   .nav { padding: 0 8px; gap: 6px; height: 56px; }
   .nav .crumb { font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .page, .bd { padding: 12px; }
   .bd-toolbar { position: static; }
-  .search, .search input { min-width: 0 !important; width: 100%; }
+  .search, .search input { min-width: 0; width: 100%; }
   .bd-toolbar .search { flex: 1 1 100%; }
   .guide-top { gap: 10px; }
   .guide-text { min-width: 0; flex-basis: calc(100% - 60px); }
   .guide-actions { width: 100%; }
-  .bd-overview { grid-template-columns: minmax(0, 1fr) !important; }
-  .rc-body, .focus-grid, .split { grid-template-columns: minmax(0, 1fr) !important; }
+  .bd-overview { grid-template-columns: minmax(0, 1fr); }
+  .rc-body, .focus-grid, .split { grid-template-columns: minmax(0, 1fr); }
   .facts2 { grid-template-columns: 1fr; }
   .pp-stats { grid-template-columns: 1fr 1fr; }
   .form2 .row2, .form2 .row3 { grid-template-columns: 1fr; }
   .modal { padding: 16px; }
   /* tables keep their columns and scroll sideways inside their own box */
-  .table { display: block; overflow-x: auto; white-space: nowrap; scrollbar-width: thin !important; }
+  .table { display: block; overflow-x: auto; white-space: nowrap; scrollbar-width: thin; }
   .table::-webkit-scrollbar { display: block; height: 8px; }
   .table::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 8px; }
   .reason-row { grid-template-columns: minmax(0, 1fr) 80px auto; }
@@ -499,7 +500,7 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 @media (pointer: coarse), (max-width: 760px) {
   .subtabs button, .row-actions button, .filters button, .filters select, .filters input, .actions button, .cand2 .acts button, .pp-actions button, .seg-days button, .picker-tabs button { min-height: 44px; }
   /* person chips: the whole chip opens the profile on touch, and a swipe that starts on a chip still scrolls the page */
-  .chip { position: relative; touch-action: pan-y !important; min-height: 44px; }
+  .chip { position: relative; touch-action: pan-y; min-height: 44px; }
   .chip .who .name::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
 }
 .side-account { display: none; }
@@ -512,13 +513,13 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 }
 .assign-btn { color: var(--ink-info); }
 .assign-btn.req { color: var(--ink-bad); }
-.health-row small, .bell b, .card2 small, .kpi2 small { font-size: 12px !important; }
+.health-row small, .bell b, .card2 small, .kpi2 small { font-size: 12px; }
 /* small print never drops below 12px */
 small, .why, .muted small { font-size: 12px; }
 /* rank medals: dark numbers on gold and silver, white on a deep bronze */
 .cand2 li:nth-child(1) .medal { color: #422006; }
-.cand2 li:nth-child(2) .medal { color: #0f172a; background: linear-gradient(135deg, #e2e8f0, #94a3b8) !important; }
-.cand2 li:nth-child(3) .medal { background: linear-gradient(135deg, #c2410c, #7c2d12) !important; }
+.cand2 li:nth-child(2) .medal { color: #0f172a; background: linear-gradient(135deg, #e2e8f0, #94a3b8); }
+.cand2 li:nth-child(3) .medal { background: linear-gradient(135deg, #c2410c, #7c2d12); }
 .gantt .g-bar { text-shadow: 0 1px 1px rgba(0,0,0,.25); }
 
 /* sign-in brand */

@@ -11,7 +11,7 @@ import { PersonLink } from './profiles'
 interface Suggest { candidates: { employeeId: string; score: number; explanation: string; employee?: string }[]; ruledOut: { employeeId: string; because: string[] }[] }
 export interface FreePerson extends Person { status: string }
 
-const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: '#f59e0b', JUNIOR: '#38bdf8', EXPERIENCED: '#16a34a', SENIOR: '#8b5cf6' }
+const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-500)', JUNIOR: 'var(--pal-sky-400)', EXPERIENCED: 'var(--pal-green-600)', SENIOR: 'var(--pal-violet-500)' }
 
 /**
  * Click "Assign" on an empty seat: the planner's best picks for it, or anyone free today, searchable.
@@ -54,7 +54,7 @@ export function AssignPicker({ seat, unit, date, free, onPick, onClose }: {
         <div className="picker-seat">
           <strong>{unit.code}</strong><ArrowRight size={14} aria-hidden /><span>{seat.position} #{seat.index}</span>
           {seat.requirements.qualification && <span className="tag2" style={{ ['--c' as string]: unit.colorKey === 'amber' ? 'var(--ch)' : 'var(--oh)' }}>{seat.requirements.qualification}</span>}
-          {seat.requirements.minSeniority && <span className="tag2" style={{ ['--c' as string]: '#16a34a' }}>{SENIORITY_LABEL[seat.requirements.minSeniority]}+</span>}
+          {seat.requirements.minSeniority && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-green-600)' }}>{SENIORITY_LABEL[seat.requirements.minSeniority]}+</span>}
           <span className="muted">{t('from', 'from')} {date}</span>
           <span className="seg-days" role="group" aria-label={t('howLong', 'For how long')}>
             <span className="muted">{t('forHowLong', 'for')}</span>
@@ -77,7 +77,7 @@ export function AssignPicker({ seat, unit, date, free, onPick, onClose }: {
                 const p = byId.get(c.employeeId)
                 return (
                   <li key={c.employeeId} className={i === 0 ? 'best' : ''}>
-                    <span className="rank" style={{ ['--c' as string]: i === 0 ? '#16a34a' : i < 3 ? '#2563eb' : '#64748b' }}>{i + 1}</span>
+                    <span className="rank" style={{ ['--c' as string]: i === 0 ? 'var(--pal-green-600)' : i < 3 ? 'var(--pal-blue-600)' : 'var(--pal-slate-500)' }}>{i + 1}</span>
                     <span className="who2">
                       <strong><PersonLink id={c.employeeId}>{c.employee}</PersonLink>{p && <small> · {p.position} · {p.base}</small>}</strong>
                       <span className="scorebar" title={`score ${c.score.toFixed(1)}`}><i style={{ width: `${Math.max(8, (c.score / top) * 100)}%` }} /></span>
@@ -108,14 +108,14 @@ export function AssignPicker({ seat, unit, date, free, onPick, onClose }: {
                 const st = STATUS_META[p.status] ?? STATUS_META.STANDBY
                 return (
                   <li key={p.id}>
-                    <span className="rank" style={{ ['--c' as string]: SEN_COLOR[p.seniority] ?? '#64748b' }} title={SENIORITY_LABEL[p.seniority]}>{initials(p.name)}</span>
+                    <span className="rank" style={{ ['--c' as string]: SEN_COLOR[p.seniority] ?? 'var(--pal-slate-500)' }} title={SENIORITY_LABEL[p.seniority]}>{initials(p.name)}</span>
                     <span className="who2">
                       <strong><PersonLink id={p.id}>{p.name}</PersonLink> <small>· {p.position} · {p.base}</small></strong>
                       <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span className="st-dot" style={{ ['--c' as string]: st.color }}>{st.label}</span>
                         <span className="tag2" style={{ ['--c' as string]: SEN_COLOR[p.seniority] }}>{SENIORITY_LABEL[p.seniority]}</span>
                         {p.tags.filter(x => x === 'OH' || x === 'CH').map(x => <span key={x} className={`tag tag-${x}`}>{x}</span>)}
-                        {p.position !== seat.position && <span className="tag2" style={{ ['--c' as string]: '#dc2626' }}>{t('otherPosition', 'other position')}</span>}
+                        {p.position !== seat.position && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-red-600)' }}>{t('otherPosition', 'other position')}</span>}
                       </span>
                     </span>
                     <button type="button" onClick={() => onPick(p, end)}>{t('choose', 'Choose')}</button>

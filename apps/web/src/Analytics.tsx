@@ -33,7 +33,7 @@ const STATUS_COLOR: Record<string, string> = { ON_UNIT: 'var(--st-unit)', ON_BAS
 const STATUS_NAME: Record<string, string> = { ON_UNIT: 'On unit', ON_BASE_POST: 'Base post', STANDBY: 'Standby', DAYS_OFF: 'Days off', UNAVAILABLE: 'Unavailable', ON_LEAVE: 'On leave' }
 
 /** Coverage colour: red under 70 %, amber under 100 %, green from 100 %, grey when nothing is required. */
-const heatColor = (r: number | null) => r === null ? 'var(--border)' : r >= 1 ? '#bbf7d0' : r >= 0.7 ? '#fde68a' : '#fca5a5'
+const heatColor = (r: number | null) => r === null ? 'var(--border)' : r >= 1 ? 'var(--pal-green-200)' : r >= 0.7 ? 'var(--pal-amber-200)' : 'var(--pal-red-300)'
 
 /** Dashboards of plan section 20: one screen per question, all computed from the same data as the board. */
 export default function Analytics({ initial }: { initial?: Tab }) {
@@ -43,7 +43,7 @@ export default function Analytics({ initial }: { initial?: Tab }) {
   const tabs = TABS.filter(([k]) => k !== 'leave' || can('SUPER_ADMIN', 'OPS_MANAGER', 'HR', 'BASE_MANAGER'))
   return (
     <main className="page wide">
-      <PageGuide id="analytics" Icon={BarChart3} color="#16a34a" title={t('anTitle', 'Analytics')}
+      <PageGuide id="analytics" Icon={BarChart3} color="var(--pal-green-600)" title={t('anTitle', 'Analytics')}
         purpose={t('anPurpose', 'Where the company will be short of people, who is overworked, and what to do about it.')}
         steps={[
           t('anStep1', 'Overview: today\'s numbers and recommendations you can accept, snooze or dismiss.'),
@@ -266,11 +266,11 @@ function LineChart({ title, dates, required, available }: { title: string; dates
     <section className="panel" aria-label={`${title} over time`}>
       <h2>{title}</h2>
       <svg viewBox={`0 0 ${W} ${H}`} className="an-line" role="img" aria-label={`${title}: required and available per day`}>
-        {[0, 0.5, 1].map(f => <g key={f}><line x1={P} x2={W - P} y1={y(max * f)} y2={y(max * f)} stroke="var(--border)" /><text x={4} y={y(max * f) + 4} fontSize="13" fill="var(--muted)">{Math.round(max * f)}</text></g>)}
-        {gaps.map(i => <rect key={i} x={x(i) - 2} y={P / 2} width={4} height={H - P * 1.5} fill="#fca5a5" opacity=".45" />)}
-        <path d={path(required)} fill="none" stroke="var(--bad)" strokeWidth="2" strokeDasharray="5 3" />
-        <path d={path(available)} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
-        {[0, Math.floor(dates.length / 2), dates.length - 1].map(i => <text key={i} x={x(i)} y={H - 6} fontSize="13" textAnchor="middle" fill="var(--muted)">{dates[i].slice(5)}</text>)}
+        {[0, 0.5, 1].map(f => <g key={f}><line style={{ stroke: 'var(--border)' }} x1={P} x2={W - P} y1={y(max * f)} y2={y(max * f)} /><text style={{ fill: 'var(--muted)' }} x={4} y={y(max * f) + 4} fontSize="13">{Math.round(max * f)}</text></g>)}
+        {gaps.map(i => <rect style={{ fill: 'var(--pal-red-300)' }} key={i} x={x(i) - 2} y={P / 2} width={4} height={H - P * 1.5} opacity=".45" />)}
+        <path style={{ stroke: 'var(--bad)' }} d={path(required)} fill="none" strokeWidth="2" strokeDasharray="5 3" />
+        <path style={{ stroke: 'var(--accent)' }} d={path(available)} fill="none" strokeWidth="2.5" />
+        {[0, Math.floor(dates.length / 2), dates.length - 1].map(i => <text style={{ fill: 'var(--muted)' }} key={i} x={x(i)} y={H - 6} fontSize="13" textAnchor="middle">{dates[i].slice(5)}</text>)}
       </svg>
       <p className="an-key"><i style={{ background: 'var(--accent)' }} /> {t('anAvail', 'available')} <i style={{ background: 'var(--bad)' }} /> {t('anRequired', 'required')}</p>
     </section>
@@ -292,7 +292,7 @@ function PeopleTab() {
   }>('/analytics/people')
   const x = d.data
   const levels = ['NEW_RECRUIT', 'JUNIOR', 'EXPERIENCED', 'SENIOR']
-  const colors = ['#94a3b8', '#60a5fa', '#16a34a', '#d97706']
+  const colors = ['var(--pal-slate-400)', 'var(--pal-blue-400)', 'var(--pal-green-600)', 'var(--pal-amber-600)']
   return (
     <>
       <Loading q={d} />
@@ -394,12 +394,12 @@ function StaffingTab() {
               <tbody>{x.rows.map(r => (
                 <tr key={r.base + r.position}>
                   <th scope="row">{r.base} · {r.position}</th><td className="muted nowrap">min {r.min}</td>
-                  {r.series.map(s => <td key={s.date} className="an-num" style={{ background: s.present < r.min ? '#fca5a5' : s.present < r.target ? '#fde68a' : '#bbf7d0' }} title={`${s.date}: ${s.present} (min ${r.min}, target ${r.target})`}>{s.present}</td>)}
+                  {r.series.map(s => <td key={s.date} className="an-num" style={{ background: s.present < r.min ? 'var(--pal-red-300)' : s.present < r.target ? 'var(--pal-amber-200)' : 'var(--pal-green-200)' }} title={`${s.date}: ${s.present} (min ${r.min}, target ${r.target})`}>{s.present}</td>)}
                 </tr>
               ))}</tbody>
             </table>
           </div>
-          <p className="an-key"><i style={{ background: '#fca5a5' }} /> {t('anUnderMin', 'under minimum')} <i style={{ background: '#fde68a' }} /> {t('anUnderTarget', 'under target')} <i style={{ background: '#bbf7d0' }} /> {t('anOk', 'at or above target')}</p>
+          <p className="an-key"><i style={{ background: 'var(--pal-red-300)' }} /> {t('anUnderMin', 'under minimum')} <i style={{ background: 'var(--pal-amber-200)' }} /> {t('anUnderTarget', 'under target')} <i style={{ background: 'var(--pal-green-200)' }} /> {t('anOk', 'at or above target')}</p>
         </section>
       )}
     </>
@@ -429,10 +429,10 @@ function MapTab() {
     <section className="panel" aria-label="Map">
       <h2>{t('anMap', 'Bases and active well sites')}</h2>
       <svg viewBox={`0 0 ${W} ${H}`} className="an-map" role="img" aria-label="Map of bases and sites">
-        {x.sites.map(s => <g key={s.id}><rect x={px(s.lng) - 5} y={py(s.lat) - 5} width="10" height="10" transform={`rotate(45 ${px(s.lng)} ${py(s.lat)})`} fill="var(--ch)"><title>{`${s.name}${s.well ? ' · ' + s.well : ''}${s.rig ? ' · ' + s.rig : ''}`}</title></rect></g>)}
+        {x.sites.map(s => <g key={s.id}><rect style={{ fill: 'var(--ch)' }} x={px(s.lng) - 5} y={py(s.lat) - 5} width="10" height="10" transform={`rotate(45 ${px(s.lng)} ${py(s.lat)})`}><title>{`${s.name}${s.well ? ' · ' + s.well : ''}${s.rig ? ' · ' + s.rig : ''}`}</title></rect></g>)}
         {x.bases.map(b => (
           <g key={b.id} className="an-base" onClick={() => setSel(b.id === sel ? null : b.id)} tabIndex={0} role="button" aria-label={`${b.code}: ${b.people} people`} onKeyDown={e => { if (e.key === 'Enter') setSel(b.id) }}>
-            <circle cx={px(b.lng)} cy={py(b.lat)} r={10 + b.people / 6} fill="var(--accent)" opacity={b.id === sel ? 0.9 : 0.55} />
+            <circle style={{ fill: 'var(--accent)' }} cx={px(b.lng)} cy={py(b.lat)} r={10 + b.people / 6} opacity={b.id === sel ? 0.9 : 0.55} />
             <text x={px(b.lng)} y={py(b.lat) + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff">{b.code}</text>
           </g>
         ))}

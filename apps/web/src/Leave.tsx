@@ -38,7 +38,7 @@ export default function Leave() {
 
   return (
     <main className="page">
-      <PageGuide id="leave" Icon={CalendarDays} color="#9333ea" title={t('leaveTitle', 'Leave')}
+      <PageGuide id="leave" Icon={CalendarDays} color="var(--pal-purple-600)" title={t('leaveTitle', 'Leave')}
         purpose={t('leavePurpose', 'Leave requests to decide, who is away, who must be cleared before working again, and swap requests.')}
         steps={[
           t('lvStep1', 'Approve or refuse requests. A warning shows when too many people of the same kind would be away at once.'),

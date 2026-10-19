@@ -1,3 +1,5 @@
+/* Older styles. They sit in the 'legacy' cascade layer, so look.css (unlayered) wins without !important. */
+@layer legacy {
 /* ---------- bell and small nav links */
 .navlink { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); background: var(--surface); }
 .navlink.on { color: var(--accent); border-color: var(--accent); }
@@ -84,3 +86,4 @@
 .bottom-nav .ico { position: relative; display: inline-flex; }
 
 @media (min-width: 900px) { .portal { padding-top: var(--s4); } .bottom-nav { border-radius: 18px 18px 0 0; } }
+}

@@ -56,7 +56,7 @@ function UnitList() {
 
   return (
     <main className="page wide">
-      <PageGuide id="units" Icon={Truck} color="#0369a1" title={t('unitsTitle', 'Units')}
+      <PageGuide id="units" Icon={Truck} color="var(--pal-sky-700)" title={t('unitsTitle', 'Units')}
         purpose={t('unitsPurpose', 'The whole fleet: where each truck is based, what it is doing today, its crew and its details.')}
         steps={[
           t('unStep1', 'The tiles count units by status today; click one to show only those.'),
@@ -68,10 +68,10 @@ function UnitList() {
       </PageGuide>
 
       <section className="kpis2" aria-label={t('unitsByStatus', 'Units by status')}>
-        <button type="button" className={`kpi2${status === '' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setStatus('')} aria-pressed={status === ''}>
+        <button type="button" className={`kpi2${status === '' ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--pal-slate-700)' }} onClick={() => setStatus('')} aria-pressed={status === ''}>
           <Truck size={22} className="k-icon" aria-hidden /><strong>{all.length}</strong><span>{t('allUnits', 'All units')}</span><small>{all.filter(u => u.problem).length ? `${all.filter(u => u.problem).length} ${t('crewShort', 'short of crew')}` : t('crewsOk', 'all crews complete')}</small>
         </button>
-        <button type="button" className={`kpi2${status === 'SERVICE' ? ' on' : ''}`} style={{ ['--c' as string]: all.some(u => u.nextService?.state === 'overdue') ? '#b91c1c' : '#7c2d12' }} onClick={() => setStatus(status === 'SERVICE' ? '' : 'SERVICE')} aria-pressed={status === 'SERVICE'}>
+        <button type="button" className={`kpi2${status === 'SERVICE' ? ' on' : ''}`} style={{ ['--c' as string]: all.some(u => u.nextService?.state === 'overdue') ? 'var(--pal-red-700)' : 'var(--pal-orange-900)' }} onClick={() => setStatus(status === 'SERVICE' ? '' : 'SERVICE')} aria-pressed={status === 'SERVICE'}>
           <CalendarCheck size={22} className="k-icon" aria-hidden /><strong>{all.filter(serviceDue).length}</strong><span>{t('serviceDue', 'Service due')}</span><small>{all.filter(u => u.nextService?.state === 'overdue').length} {t('overdueLc', 'overdue')}</small>
         </button>
         {Object.entries(STATUS).map(([k, m]) => (

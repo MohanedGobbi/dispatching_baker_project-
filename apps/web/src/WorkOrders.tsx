@@ -39,7 +39,7 @@ export default function WorkOrders() {
 
   return (
     <main className="page wide">
-      <PageGuide id="workorders" Icon={Wrench} color="#b45309" title={t('woTitle', 'Work orders')}
+      <PageGuide id="workorders" Icon={Wrench} color="var(--pal-amber-700)" title={t('woTitle', 'Work orders')}
         purpose={t('woPurpose', 'Units in the workshop. While a work order is open the unit is under maintenance and its crew seats are not needed.')}
         steps={[
           t('woStep1', 'Open a work order with the expected return date and the mechanics working on it.'),

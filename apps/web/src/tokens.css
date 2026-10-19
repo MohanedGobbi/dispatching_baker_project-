@@ -1,7 +1,6 @@
 /* Design tokens (plan 27.3). Single source for colors, type, spacing, radius, motion. */
 :root {
-  --font-latin: 'Inter', system-ui, sans-serif;
-  --font-arabic: 'IBM Plex Sans Arabic', 'Cairo', sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif; /* self-hosted (@fontsource-variable/inter), works offline */
   --bg: #f6f7f9; --surface: #ffffff; --text: #0f172a; --muted: #556275; --border: #e2e8f0;
   --accent: #2563eb;
   --accent-fill: #2563eb;                       /* filled buttons and chips: white text stays readable in both themes */
@@ -15,6 +14,52 @@
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px;
   --radius: 14px; --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .06);
   --t-fast: 150ms; --t-base: 250ms;
+}
+/* Palette for identity colours used in components (tiles, bases, roles, charts). Saturated ones carry white text in
+   both themes; the pale tints flip to deep tones in dark mode. Components use these, never raw hex. */
+:root {
+  --pal-amber-200: #fde68a;
+  --pal-amber-500: #f59e0b;
+  --pal-amber-600: #d97706;
+  --pal-amber-700: #b45309;
+  --pal-blue-400: #60a5fa;
+  --pal-blue-600: #2563eb;
+  --pal-blue-700: #1d4ed8;
+  --pal-cyan-600: #0891b2;
+  --pal-cyan-700: #0e7490;
+  --pal-green-200: #bbf7d0;
+  --pal-green-600: #16a34a;
+  --pal-green-700: #15803d;
+  --pal-indigo-600: #4f46e5;
+  --pal-indigo-700: #4338ca;
+  --pal-orange-600: #ea580c;
+  --pal-orange-700: #c2410c;
+  --pal-orange-900: #7c2d12;
+  --pal-pink-700: #be185d;
+  --pal-purple-600: #9333ea;
+  --pal-purple-700: #7e22ce;
+  --pal-red-300: #fca5a5;
+  --pal-red-600: #dc2626;
+  --pal-red-700: #b91c1c;
+  --pal-sky-400: #38bdf8;
+  --pal-sky-700: #0369a1;
+  --pal-slate-300: #cbd5e1;
+  --pal-slate-400: #94a3b8;
+  --pal-slate-500: #64748b;
+  --pal-slate-600: #475569;
+  --pal-slate-700: #334155;
+  --pal-teal-600: #0d9488;
+  --pal-teal-700: #0f766e;
+  --pal-violet-500: #8b5cf6;
+  --pal-violet-600: #7c3aed;
+  --pal-violet-700: #6d28d9;
+}
+:root[data-theme='dark'] {
+  --pal-green-200: #14532d;
+  --pal-red-300: #7f1d1d;
+  --pal-amber-200: #78350f;
+  --pal-slate-300: #334155;
+  --pal-slate-400: #475569;
 }
 :root[data-theme='dark'] {
   --bg: #0b1220; --surface: #111a2e; --text: #e5e9f2; --muted: #94a3b8; --border: #1f2a44; --accent: #60a5fa;

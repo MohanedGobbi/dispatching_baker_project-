@@ -69,7 +69,7 @@ function PlanList() {
 
   return (
     <main className="page">
-      <PageGuide id="plans" Icon={Wand2} color="#7c3aed" title={t('plansTitle', 'Plans')}
+      <PageGuide id="plans" Icon={Wand2} color="var(--pal-violet-600)" title={t('plansTitle', 'Plans')}
         purpose={t('plansPurpose', 'Let the planner propose who works where for the coming weeks, check it, then publish it to everyone.')}
         steps={[
           t('plStep1', '"New plan": choose the weeks and bases. The planner fills every seat it can while following every rule.'),

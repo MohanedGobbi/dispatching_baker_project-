@@ -27,9 +27,9 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(iso) + n * DAY).
 const minIso = (a: string, b: string) => (a < b ? a : b)
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const URG: Record<string, { color: string; label: string; Icon: LucideIcon }> = {
-  CRITICAL: { color: '#b91c1c', label: 'Critical', Icon: AlertOctagon },
-  HIGH: { color: '#c2410c', label: 'High', Icon: AlertTriangle },
-  NORMAL: { color: '#1d4ed8', label: 'Normal', Icon: Clock },
+  CRITICAL: { color: 'var(--pal-red-700)', label: 'Critical', Icon: AlertOctagon },
+  HIGH: { color: 'var(--pal-orange-700)', label: 'High', Icon: AlertTriangle },
+  NORMAL: { color: 'var(--pal-blue-700)', label: 'Normal', Icon: Clock },
 }
 const TRIGGER_ICON: Record<string, LucideIcon> = { medical_leave: HeartPulse, leave: CalendarDays, unit_deployed: Truck, unassigned: UserMinus, employee_archived: UserX }
 const isOpen = (t: Task) => ['OPEN', 'ESCALATED', 'CANDIDATE_PROPOSED'].includes(t.status)
@@ -65,7 +65,7 @@ export default function Replacements() {
 
   return (
     <main className="page wide rc">
-      <PageGuide id="replacements" Icon={Repeat} color="#dc2626" title={t('replacementsTitle', 'Replacement center')}
+      <PageGuide id="replacements" Icon={Repeat} color="var(--pal-red-600)" title={t('replacementsTitle', 'Replacement center')}
         purpose={t('replacementsPurpose', 'Every seat that has lost its person or never had one, most urgent first, with the best people to fill it.')}
         steps={[
           t('rcStep1', 'Tasks appear by themselves when someone goes on leave, falls sick, or a unit gets a job without a crew. "Scan" checks the next four weeks for anything missed.'),
@@ -84,13 +84,13 @@ export default function Replacements() {
         {(['CRITICAL', 'HIGH', 'NORMAL'] as const).map(u => {
           const m = URG[u]
           return (
-            <button key={u} type="button" className="kpi2" style={{ ['--c' as string]: count(u) ? m.color : '#16a34a', outline: urgency === u ? '3px solid var(--text)' : undefined }} onClick={() => setUrgency(urgency === u ? '' : u)}>
+            <button key={u} type="button" className="kpi2" style={{ ['--c' as string]: count(u) ? m.color : 'var(--pal-green-600)', outline: urgency === u ? '3px solid var(--text)' : undefined }} onClick={() => setUrgency(urgency === u ? '' : u)}>
               <m.Icon size={22} className="k-icon" aria-hidden /><strong>{count(u)}</strong><span>{t(`urg_${u}`, m.label)}</span>
               <small>{u === 'CRITICAL' ? t('critHint', 'seat empty today or tomorrow') : u === 'HIGH' ? t('highHint', 'within the week') : t('normHint', 'time to plan')}</small>
             </button>
           )
         })}
-        <div className="kpi2" style={{ ['--c' as string]: escalated ? '#7c3aed' : '#475569' }}>
+        <div className="kpi2" style={{ ['--c' as string]: escalated ? 'var(--pal-violet-600)' : 'var(--pal-slate-600)' }}>
           <Siren size={22} className="k-icon" aria-hidden /><strong>{escalated}</strong><span>{t('overdue', 'Overdue')}</span><small>{t('overdueHint', 'starts within 2 days, still nobody')}</small>
         </div>
       </section>
@@ -132,16 +132,16 @@ function TaskCard({ task, on, onClick }: { task: Task; on: boolean; onClick: () 
   const d = task.daysUntilStart ?? 0
   const open = isOpen(task)
   return (
-    <button type="button" className={`tcard${on ? ' on' : ''}`} style={{ ['--c' as string]: open ? m.color : '#64748b' }} onClick={onClick}>
+    <button type="button" className={`tcard${on ? ' on' : ''}`} style={{ ['--c' as string]: open ? m.color : 'var(--pal-slate-500)' }} onClick={onClick}>
       <span className="count">{open ? (d <= 0 ? <><b>!</b><small>now</small></> : <><b>{d}</b><small>{d === 1 ? 'day' : 'days'}</small></>) : <><CheckCircle2 size={22} /><small>done</small></>}</span>
       <span className="t-main">
         <strong>{task.seat}</strong>
         <small>{fmtDate(task.from, i18n.language)} → {fmtDate(task.to, i18n.language)} · {plural(task.days, 'day')}</small>
         <span className="t-meta">
           <span className="tag2" style={{ ['--c' as string]: m.color }}><m.Icon size={11} aria-hidden /> {m.label}</span>
-          <span className="tag2" style={{ ['--c' as string]: '#475569' }}><Icon size={11} aria-hidden /> {TRIGGER_LABEL[task.trigger] ?? task.trigger}</span>
-          {task.status === 'ESCALATED' && <span className="tag2" style={{ ['--c' as string]: '#7c3aed' }}><Siren size={11} aria-hidden /> overdue</span>}
-          {task.status === 'CANDIDATE_PROPOSED' && task.candidate && <span className="tag2" style={{ ['--c' as string]: '#2563eb' }}>→ {task.candidate.name}</span>}
+          <span className="tag2" style={{ ['--c' as string]: 'var(--pal-slate-600)' }}><Icon size={11} aria-hidden /> {TRIGGER_LABEL[task.trigger] ?? task.trigger}</span>
+          {task.status === 'ESCALATED' && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-violet-600)' }}><Siren size={11} aria-hidden /> overdue</span>}
+          {task.status === 'CANDIDATE_PROPOSED' && task.candidate && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-blue-600)' }}>→ {task.candidate.name}</span>}
         </span>
       </span>
     </button>
@@ -221,7 +221,7 @@ function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean
 
   return (
     <div className="rc-detail">
-      <div className="rc-detail-head" style={{ ['--c' as string]: open ? m.color : '#475569' }}>
+      <div className="rc-detail-head" style={{ ['--c' as string]: open ? m.color : 'var(--pal-slate-600)' }}>
         <h2 className="on-color"><SeatLabel label={task.seat} /></h2>
         <div className="row">
           <span><m.Icon size={13} aria-hidden /> {m.label}</span>
@@ -251,7 +251,7 @@ function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean
                 <li key={c.employeeId} className={`${i === 0 ? 'top' : ''}${task.candidate?.id === c.employeeId ? ' proposed' : ''}`}>
                   <span className="medal">{i + 1}</span>
                   <div>
-                    <strong><PersonLink id={c.employeeId}>{c.employee}</PersonLink></strong>{task.candidate?.id === c.employeeId && <span className="tag2" style={{ ['--c' as string]: '#2563eb', marginInlineStart: 6 }}>{t('proposed', 'proposed')}</span>}
+                    <strong><PersonLink id={c.employeeId}>{c.employee}</PersonLink></strong>{task.candidate?.id === c.employeeId && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-blue-600)', marginInlineStart: 6 }}>{t('proposed', 'proposed')}</span>}
                     <div className="scorebar" style={{ margin: '4px 0' }} title={`${t('fit', 'fit')} ${Math.round(c.score / top * 100)}%`}><i style={{ width: `${Math.max(8, c.score / top * 100)}%` }} /></div>
                     <small className="why">{c.explanation}</small>
                   </div>

@@ -31,7 +31,7 @@ export default function CrewChanges() {
 
   return (
     <main className="page">
-      <PageGuide id="changes" Icon={ClipboardList} color="#0d9488" title={t('changesTitle', 'Crew changes')}
+      <PageGuide id="changes" Icon={ClipboardList} color="var(--pal-teal-600)" title={t('changesTitle', 'Crew changes')}
         purpose={t('changesPurpose', 'Every handover in the coming days: who leaves a seat, who arrives, and whether someone is actually coming.')}
         steps={[
           t('ccStep1', 'Green rows are settled: someone is coming. Red rows have nobody to take over yet.'),

@@ -33,7 +33,7 @@ const VALIDITY: Record<Doc['validity'], [Severity, string] | null> = { none: nul
 const DOC_KINDS: [string, string][] = [['registration', 'Registration'], ['insurance', 'Insurance'], ['inspection', 'Inspection certificate'], ['other', 'Other']]
 const WO_SEV: Record<string, Severity> = { OPEN: 'info', IN_PROGRESS: 'warn', WAITING_PARTS: 'warn', DONE: 'ok', CANCELLED: 'info' }
 const OPEN_WO = ['OPEN', 'IN_PROGRESS', 'WAITING_PARTS']
-const COLORS = { job: '#1d4ed8', shop: '#b45309', idle: 'var(--border)' }
+const COLORS = { job: 'var(--pal-blue-700)', shop: 'var(--pal-amber-700)', idle: 'var(--border)' }
 const isoToday = () => new Date().toISOString().slice(0, 10)
 const plusDays = (d: string, n: number) => new Date(Date.parse(d) + n * 86_400_000).toISOString().slice(0, 10)
 
@@ -55,7 +55,7 @@ export default function UnitPage({ id }: { id: string }) {
 
   const fmt = (d: string | null | undefined) => (d ? fmtDate(d, i18n.language) : '—')
   const today = isoToday()
-  const st = STATUS[x.status] ?? { label: x.status, sev: 'info' as Severity, color: '#64748b' }
+  const st = STATUS[x.status] ?? { label: x.status, sev: 'info' as Severity, color: 'var(--pal-slate-500)' }
   const current = x.deployments.find(d => d.start.slice(0, 10) <= today && d.end.slice(0, 10) >= today)
   const filled = x.seats.filter(s => s.required && s.holder).length, required = x.seats.filter(s => s.required).length
   const nextPlan = [...(plans.data ?? [])].filter(p => p.active).sort((a, b) => a.nextDue.localeCompare(b.nextDue))[0]
@@ -92,16 +92,16 @@ export default function UnitPage({ id }: { id: string }) {
       <section className="kpis2" aria-label={t('unitNumbers', 'Unit in numbers')}>
         <div className="kpi2" style={{ ['--c' as string]: COLORS.job }}><Gauge size={22} className="k-icon" aria-hidden /><strong>{hist.data ? `${hist.data.utilisation}%` : '…'}</strong><span>{t('utilisation12', 'On a job, last 12 months')}</span></div>
         <div className="kpi2" style={{ ['--c' as string]: COLORS.shop }}><Wrench size={22} className="k-icon" aria-hidden /><strong>{hist.data ? `${hist.data.workshopShare}%` : '…'}</strong><span>{t('workshop12', 'In the workshop')}</span></div>
-        <div className="kpi2" style={{ ['--c' as string]: required && filled < required && current ? '#b91c1c' : '#0f766e' }}><Truck size={22} className="k-icon" aria-hidden /><strong>{filled}/{required}</strong><span>{t('crewToday', 'Crew seats filled today')}</span></div>
-        <div className="kpi2" style={{ ['--c' as string]: nextPlan ? (nextPlan.state === 'overdue' ? '#b91c1c' : nextPlan.state === 'due_soon' ? '#b45309' : '#15803d') : '#475569' }}>
+        <div className="kpi2" style={{ ['--c' as string]: required && filled < required && current ? 'var(--pal-red-700)' : 'var(--pal-teal-700)' }}><Truck size={22} className="k-icon" aria-hidden /><strong>{filled}/{required}</strong><span>{t('crewToday', 'Crew seats filled today')}</span></div>
+        <div className="kpi2" style={{ ['--c' as string]: nextPlan ? (nextPlan.state === 'overdue' ? 'var(--pal-red-700)' : nextPlan.state === 'due_soon' ? 'var(--pal-amber-700)' : 'var(--pal-green-700)') : 'var(--pal-slate-600)' }}>
           <CalendarCheck size={22} className="k-icon" aria-hidden /><strong>{nextPlan ? new Date(nextPlan.nextDue).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC' }) : '—'}</strong><span>{nextPlan ? `${t('nextService', 'Next service')}: ${nextPlan.name}` : t('noService', 'No service plan')}</span>
         </div>
-        <div className="kpi2" style={{ ['--c' as string]: docIssues ? '#b91c1c' : '#475569' }}><FileText size={22} className="k-icon" aria-hidden /><strong>{docIssues}</strong><span>{t('docIssues', 'Papers expired or expiring')}</span></div>
+        <div className="kpi2" style={{ ['--c' as string]: docIssues ? 'var(--pal-red-700)' : 'var(--pal-slate-600)' }}><FileText size={22} className="k-icon" aria-hidden /><strong>{docIssues}</strong><span>{t('docIssues', 'Papers expired or expiring')}</span></div>
       </section>
 
       <section className="panel">
         <h2>{t('lastYear', 'The last 12 months')}</h2>
-        <Legend items={[{ color: COLORS.job, label: t('onJob', 'On a job') }, { color: COLORS.shop, label: t('inWorkshop', 'In the workshop') }, { color: '#cbd5e1', label: t('idle', 'At base, idle') }]} />
+        <Legend items={[{ color: COLORS.job, label: t('onJob', 'On a job') }, { color: COLORS.shop, label: t('inWorkshop', 'In the workshop') }, { color: 'var(--pal-slate-300)', label: t('idle', 'At base, idle') }]} />
         {hist.data && <UsageChart months={hist.data.months} />}
       </section>
 
@@ -248,11 +248,11 @@ function UsageChart({ months }: { months: History['months'] }) {
         {months.map((m, i) => {
           const x = pad + i * (bw + gap)
           let top = H
-          const seg = (v: number, fill: string, key: string) => { if (!v) return null; top -= y(v); return <rect key={key} x={x} y={top} width={bw} height={y(v)} rx={3} fill={fill}><title>{`${m.month}: ${v} day(s)`}</title></rect> }
+          const seg = (v: number, fill: string, key: string) => { if (!v) return null; top -= y(v); return <rect style={{ fill: fill }} key={key} x={x} y={top} width={bw} height={y(v)} rx={3}><title>{`${m.month}: ${v} day(s)`}</title></rect> }
           const label = new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString(i18n.language, { month: 'short', timeZone: 'UTC' })
           return (
             <g key={m.month}>
-              {seg(m.jobDays, COLORS.job, 'j')}{seg(m.workshopDays, COLORS.shop, 'w')}{seg(m.idleDays, '#cbd5e1', 'i')}
+              {seg(m.jobDays, COLORS.job, 'j')}{seg(m.workshopDays, COLORS.shop, 'w')}{seg(m.idleDays, 'var(--pal-slate-300)', 'i')}
               <text x={x + bw / 2} y={H + 14} textAnchor="middle" className="usage-label">{label}</text>
               {m.jobDays > 0 && <text x={x + bw / 2} y={H - y(m.jobDays) / 2 + 4} textAnchor="middle" className="usage-val">{m.jobDays}</text>}
             </g>

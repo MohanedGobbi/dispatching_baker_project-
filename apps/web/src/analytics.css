@@ -1,3 +1,5 @@
+/* Older styles. They sit in the 'legacy' cascade layer, so look.css (unlayered) wins without !important. */
+@layer legacy {
 .an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s3); margin: var(--s3) 0; }
 .an-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--s3) var(--s4); display: grid; gap: 2px; border-inline-start: 4px solid var(--border); }
 .an-card strong { font-size: 1.6rem; line-height: 1.2; }
@@ -48,3 +50,4 @@ button.link { background: none; border: 0; color: var(--accent); text-decoration
 .wi-rule input[type='number'] { width: 4.5rem; }
 .wi-rule input, .wi-rule select { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); color: var(--text); }
 .an-bars .an-bar:has(+ .an-bar) { margin-bottom: 0; }
+}

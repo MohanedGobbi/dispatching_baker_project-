@@ -54,7 +54,7 @@ export default function Extensions() {
 
   return (
     <main className="page wide">
-      <PageGuide id="extensions" Icon={Timer} color="#ea580c" title={t('extTitle', 'Extensions')}
+      <PageGuide id="extensions" Icon={Timer} color="var(--pal-orange-600)" title={t('extTitle', 'Extensions')}
         purpose={t('extPurpose', 'Keeping someone on a unit past the planned end. Every extra day is owed back to them as rest.')}
         steps={[
           direct ? t('exStep1direct', '"Extend": pick the person, the extra days and why. It applies at once.') : t('exStep1', 'A dispatcher or chief requests extra days and says why.'),

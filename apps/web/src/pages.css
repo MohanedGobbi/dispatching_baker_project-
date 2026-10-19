@@ -1,6 +1,7 @@
+/* Older styles. They sit in the 'legacy' cascade layer, so look.css (unlayered) wins without !important. */
+@layer legacy {
 /* ---------- shell navigation */
 .nav { display: flex; align-items: center; gap: var(--s2); padding: 0 var(--s4); height: 48px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 30; }
-.nav .brand { font-size: 18px; margin-inline-end: var(--s3); }
 .nav nav { display: flex; gap: 2px; overflow-x: auto; }
 .nav nav a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; white-space: nowrap; }
 .nav nav a:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 6%, transparent); }
@@ -8,7 +9,6 @@
 .nav .spacer { flex: 1; }
 .nav button { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 6px 10px; }
 .nav button.on { border-color: var(--accent); color: var(--accent); }
-.topbar { top: 48px; }
 .app.tv { position: fixed; inset: 0; z-index: 100; overflow: auto; background: var(--bg); }
 
 /* ---------- pages */
@@ -60,12 +60,10 @@ td.row-actions button { margin-inline-start: 6px; }
 
 /* replacement center */
 .split { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: var(--s4); align-items: start; }
-.task-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); }
 .task { width: 100%; text-align: start; display: grid; gap: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-inline-start: 5px solid var(--ok); border-radius: 12px; padding: 10px 14px; }
 .task.sev-bad { border-inline-start-color: var(--bad); }
 .task.sev-warn { border-inline-start-color: var(--warn); }
 .task.on { outline: 2px solid var(--accent); }
-.task-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .detail { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--s4); position: sticky; top: 110px; }
 .detail h2 { margin: 0 0 4px; font-size: 18px; }
 .detail h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -129,7 +127,6 @@ td.row-actions button { margin-inline-start: 6px; }
 .audit-diff td.add { background: color-mix(in srgb, var(--ok) 8%, transparent); }
 .filters button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 12px; }
 .filters button:disabled { opacity: .5; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* import / export */
 .panel h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; }
@@ -139,3 +136,5 @@ td.row-actions button { margin-inline-start: 6px; }
 .import-report { display: grid; gap: var(--s2); border-top: 1px solid var(--border); padding-top: var(--s3); }
 .import-report .banner { margin: 0; }
 .warn-text { color: var(--warn); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}

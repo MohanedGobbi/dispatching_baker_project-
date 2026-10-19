@@ -44,7 +44,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [])
   useEffect(() => {
     if (!top) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setStack([]) }
+    // Escape closes a dialog opened from the panel first; the panel itself only when no dialog is open.
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.modal-back')) setStack([]) }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [top])
@@ -104,7 +105,7 @@ const DAY = 86_400_000
 const isoD = (d: Date) => d.toISOString().slice(0, 10)
 const addDays = (s: string, n: number) => isoD(new Date(Date.parse(s) + n * DAY))
 const color = (s: string) => STATUS_META[s]?.color ?? 'var(--muted)'
-const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: '#f59e0b', JUNIOR: '#38bdf8', EXPERIENCED: '#16a34a', SENIOR: '#8b5cf6' }
+const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-500)', JUNIOR: 'var(--pal-sky-400)', EXPERIENCED: 'var(--pal-green-600)', SENIOR: 'var(--pal-violet-500)' }
 
 function Tabs<T extends string>({ tabs, tab, setTab }: { tabs: [T, string, typeof User][]; tab: T; setTab: (t: T) => void }) {
   return <div className="pp-tabs" role="tablist">{tabs.map(([k, l, I]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><I size={14} aria-hidden /> {l}</button>)}</div>
@@ -171,7 +172,7 @@ function PersonProfile({ id }: { id: string }) {
           <div className="pp-pills">
             <span><st.Icon size={12} aria-hidden /> {st.label}</span>
             <span style={{ background: SEN_COLOR[p.seniority] }}>{SENIORITY_LABEL[p.seniority]}</span>
-            {!p.active && <span style={{ background: '#475569' }}>{t('archived', 'Left the company')}</span>}
+            {!p.active && <span style={{ background: 'var(--pal-slate-600)' }}>{t('archived', 'Left the company')}</span>}
           </div>
         </div>
         <div className="pp-quick">
@@ -211,8 +212,8 @@ function PersonProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3><Award size={14} aria-hidden /> {t('qualsCerts', 'Qualifications and certificates')}</h3>
             <div className="chips">
-              {p.qualifications.map(q => <span key={q.qualification.name} className="tag2" style={{ ['--c' as string]: q.qualification.name === 'Cased Hole' ? 'var(--ch)' : q.qualification.name === 'Open Hole' ? 'var(--oh)' : '#2563eb' }}>{q.qualification.name}</span>)}
-              {p.certifications.map(c => <span key={c.id} className="tag2" style={{ ['--c' as string]: '#0d9488' }}><CheckCircle2 size={11} aria-hidden /> {c.type.name}</span>)}
+              {p.qualifications.map(q => <span key={q.qualification.name} className="tag2" style={{ ['--c' as string]: q.qualification.name === 'Cased Hole' ? 'var(--ch)' : q.qualification.name === 'Open Hole' ? 'var(--oh)' : 'var(--pal-blue-600)' }}>{q.qualification.name}</span>)}
+              {p.certifications.map(c => <span key={c.id} className="tag2" style={{ ['--c' as string]: 'var(--pal-teal-600)' }}><CheckCircle2 size={11} aria-hidden /> {c.type.name}</span>)}
               {!p.qualifications.length && !p.certifications.length && <span className="muted">–</span>}
             </div>
             {p.restrictions.length > 0 && <div className="chips">{p.restrictions.map(r => <span key={r.id} className="tag2" style={{ ['--c' as string]: 'var(--st-clearance)' }}><ShieldAlert size={11} aria-hidden /> {r.kind.replace(/_/g, ' ')}{r.end ? ` · ${t('until', 'until')} ${fmtDate(r.end, i18n.language)}` : ''}</span>)}</div>}
@@ -243,7 +244,7 @@ function PersonProfile({ id }: { id: string }) {
             <ul className="hist">
               {p.assignments.map(a => {
                 const where = a.seat.unit?.code ?? `${a.seat.base?.code} base`
-                const col = a.status === 'ACTIVE' ? 'var(--st-unit)' : a.status === 'CONFIRMED' ? '#7c3aed' : a.status === 'DRAFT' ? '#94a3b8' : a.status === 'CANCELLED' ? '#dc2626' : '#64748b'
+                const col = a.status === 'ACTIVE' ? 'var(--st-unit)' : a.status === 'CONFIRMED' ? 'var(--pal-violet-600)' : a.status === 'DRAFT' ? 'var(--pal-slate-400)' : a.status === 'CANCELLED' ? 'var(--pal-red-600)' : 'var(--pal-slate-500)'
                 return (
                   <li key={a.id} style={{ ['--c' as string]: col }}>
                     <span><b>{a.seat.unit ? <UnitLink code={a.seat.unit.code} /> : where}</b> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {fmtDate(a.actualEnd ?? a.plannedEnd, i18n.language)}{a.type === 'REPLACEMENT' ? ' · replacement' : ''}</small></span>
@@ -282,8 +283,8 @@ interface UnitD {
   utilization: { deployedDays: number; downtimeDays: number; rate: number }
 }
 const UNIT_STATUS: Record<string, [string, string]> = {
-  DEPLOYED: ['On a job', '#2563eb'], AVAILABLE: ['At base, available', '#16a34a'], UNDER_MAINTENANCE: ['In the workshop', '#b45309'],
-  OUT_OF_SERVICE: ['Out of service', '#dc2626'], IN_TRANSIT: ['In transit', '#7c3aed'],
+  DEPLOYED: ['On a job', 'var(--pal-blue-600)'], AVAILABLE: ['At base, available', 'var(--pal-green-600)'], UNDER_MAINTENANCE: ['In the workshop', 'var(--pal-amber-700)'],
+  OUT_OF_SERVICE: ['Out of service', 'var(--pal-red-600)'], IN_TRANSIT: ['In transit', 'var(--pal-violet-600)'],
 }
 const OPEN_WO = ['OPEN', 'IN_PROGRESS', 'WAITING_PARTS']
 
@@ -300,7 +301,7 @@ function UnitProfile({ id }: { id: string }) {
   const x = u.data
   if (u.error) return <div className="pp-body"><div className="banner error">{u.error}</div></div>
   if (!x) return <div className="pp-body muted">…</div>
-  const [stLabel, stColor] = UNIT_STATUS[x.status] ?? [x.status, '#64748b']
+  const [stLabel, stColor] = UNIT_STATUS[x.status] ?? [x.status, 'var(--pal-slate-500)']
   const typeCol = x.unitType.colorKey === 'amber' ? 'var(--ch)' : 'var(--oh)'
   const today = isoD(new Date())
   const current = x.deployments.find(d => d.start.slice(0, 10) <= today && d.end.slice(0, 10) >= today)
@@ -364,7 +365,7 @@ function UnitProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3><User size={14} aria-hidden /> {t('crewNow', 'Crew today')}</h3>
             <ul className="hist">{x.seats.map(s => (
-              <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required ? 'var(--bad)' : '#94a3b8' }}>
+              <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required ? 'var(--bad)' : 'var(--pal-slate-400)' }}>
                 <span><b>{s.position} #{s.index}</b>{!s.required && <small> · {t('optional', 'optional')}</small>}<br /><small>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : t('emptySeat', 'Nobody')}</small></span>
               </li>
             ))}</ul>
@@ -386,7 +387,7 @@ function UnitProfile({ id }: { id: string }) {
             <section key={title as string} className="pp-card">
               <h3>{title as string} <small className="muted">· {(list as UnitD['deployments']).length}</small></h3>
               <ul className="hist">{(list as UnitD['deployments']).map(d => (
-                <li key={d.id} style={{ ['--c' as string]: d === current ? '#2563eb' : d.end.slice(0, 10) < today ? '#94a3b8' : '#7c3aed' }}>
+                <li key={d.id} style={{ ['--c' as string]: d === current ? 'var(--pal-blue-600)' : d.end.slice(0, 10) < today ? 'var(--pal-slate-400)' : 'var(--pal-violet-600)' }}>
                   <span><b>{d.job.wellName}</b>{d.job.rigName ? ` · ${d.job.rigName}` : ''} <small className="muted">{d.job.ref}</small><br /><small>{fmtDate(d.start, i18n.language)} → {fmtDate(d.end, i18n.language)}{d.job.client ? ` · ${d.job.client}` : ''}</small></span>
                   {editor && d === current && <button type="button" className="ghost" onClick={() => act(() => api(`/jobs/${d.job.id}/end`, { method: 'POST', body: {} }), t('jobEnded', 'Job ended, unit back at base'))}>{t('endJob', 'End job today')}</button>}
                 </li>
@@ -408,7 +409,7 @@ function UnitProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3>{t('openWo', 'Open work orders')} <small className="muted">· {openWos.length}</small></h3>
             <ul className="hist">{openWos.map(w => (
-              <li key={w.id} style={{ ['--c' as string]: w.priority === 'urgent' || w.priority === 'high' ? '#dc2626' : '#b45309' }}>
+              <li key={w.id} style={{ ['--c' as string]: w.priority === 'urgent' || w.priority === 'high' ? 'var(--pal-red-600)' : 'var(--pal-amber-700)' }}>
                 <span><b>{w.description || w.type}</b><br /><small>{w.type} · {w.status.toLowerCase().replace('_', ' ')} · {t('backBy', 'back by')} {fmtDate(w.expectedReturn, i18n.language)}</small></span>
                 {editor && <button type="button" className="ghost" onClick={() => act(() => api(`/work-orders/${w.id}/status`, { method: 'POST', body: { status: 'DONE' } }), t('woDone', 'Repaired: unit available again'))}><CheckCircle2 size={14} aria-hidden /> {t('repaired', 'Repaired')}</button>}
               </li>
@@ -417,7 +418,7 @@ function UnitProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3><Clock size={14} aria-hidden /> {t('woHistory', 'Maintenance history')}</h3>
             <ul className="hist">{x.workOrders.filter(w => !OPEN_WO.includes(w.status)).map(w => (
-              <li key={w.id} style={{ ['--c' as string]: '#94a3b8' }}><span><b>{w.description || w.type}</b><br /><small>{fmtDate(w.plannedStart, i18n.language)} → {fmtDate(w.expectedReturn, i18n.language)} · {w.status.toLowerCase()}</small></span></li>
+              <li key={w.id} style={{ ['--c' as string]: 'var(--pal-slate-400)' }}><span><b>{w.description || w.type}</b><br /><small>{fmtDate(w.plannedStart, i18n.language)} → {fmtDate(w.expectedReturn, i18n.language)} · {w.status.toLowerCase()}</small></span></li>
             ))}{!x.workOrders.some(w => !OPEN_WO.includes(w.status)) && <li className="muted">–</li>}</ul>
           </section>
         </>}
@@ -426,7 +427,7 @@ function UnitProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3><History size={14} aria-hidden /> {t('whoWorked', 'Who worked on this unit')}</h3>
             <ul className="hist">{x.crewHistory.map(a => (
-              <li key={a.id} style={{ ['--c' as string]: a.status === 'ACTIVE' ? 'var(--st-unit)' : a.status === 'CONFIRMED' ? '#7c3aed' : '#94a3b8' }}>
+              <li key={a.id} style={{ ['--c' as string]: a.status === 'ACTIVE' ? 'var(--st-unit)' : a.status === 'CONFIRMED' ? 'var(--pal-violet-600)' : 'var(--pal-slate-400)' }}>
                 <span><PersonLink id={a.employee.id}>{a.employee.firstName} {a.employee.lastName}</PersonLink> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {fmtDate(a.actualEnd ?? a.plannedEnd, i18n.language)}</small></span>
                 <span className="tag2">{a.status.toLowerCase()}</span>
               </li>

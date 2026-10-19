@@ -8,6 +8,7 @@ import { api } from './api'
 import { useAuth } from './auth'
 import { Modal, ViolationList } from './dialogs'
 import { ChangePasswordDialog } from './account'
+import { currentTheme, setTheme } from './theme'
 import { errMsg, useApi, useLive, useRoute } from './hooks'
 import { fmtDate, plural } from './labels'
 import { NoticeList, PreferencesPanel, useUnread } from './notifications'
@@ -402,7 +403,7 @@ function MeTab() {
   const profile = useApi<Profile>('/portal/profile')
   const [edit, setEdit] = useState(false)
   const [form, setForm] = useState({ phone: '', email: '', emergencyContact: '', homeCity: '' })
-  const [dark, setDark] = useState(document.documentElement.dataset.theme === 'dark')
+  const [dark, setDark] = useState(currentTheme() === 'dark')
   const [pwOpen, setPwOpen] = useState(false)
   const p = profile.data, s = stats.data
 
@@ -410,7 +411,7 @@ function MeTab() {
   const save = async () => {
     try { await api('/portal/profile', { method: 'PUT', body: form }); toast(t('saved', 'Saved')); setEdit(false); await profile.reload() } catch (e) { toast(errMsg(e), 'error') }
   }
-  const theme = () => { const n = !dark; setDark(n); document.documentElement.dataset.theme = n ? 'dark' : 'light' }
+  const theme = () => { const n = !dark; setDark(n); setTheme(n ? 'dark' : 'light') }
 
   return (
     <>

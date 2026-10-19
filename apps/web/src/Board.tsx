@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import {
   AlertTriangle, CalendarClock, Plus, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, LayoutGrid, MapPin, Monitor, PieChart, Repeat,
@@ -32,7 +32,7 @@ const LANES: [string, string, string][] = [
   ['standby', 'STANDBY', 'Standby'], ['daysOff', 'DAYS_OFF', 'Days off'], ['leave', 'LEAVE', 'Leave'],
   ['unavailable', 'UNAVAILABLE', 'Unavailable'], ['training', 'TRAINING', 'Training'], ['awaitingClearance', 'AWAITING_CLEARANCE', 'Awaiting clearance'],
 ]
-const ROLE_COLOR: Record<string, string> = { 'Chief of Unit': '#6d28d9', 'Field Operator': '#1d4ed8', 'Field Driver': '#0f766e' }
+const ROLE_COLOR: Record<string, string> = { 'Chief of Unit': 'var(--pal-violet-700)', 'Field Operator': 'var(--pal-blue-700)', 'Field Driver': 'var(--pal-teal-700)' }
 const SEAT_NAME: Record<string, string> = { 'Chief of Unit': 'Chief', 'Field Operator': 'Operator', 'Field Driver': 'Driver' }
 const unitKind = (u: UnitCardData) => (u.colorKey === 'amber' || /cased/i.test(u.type) ? 'CH' : 'OH')
 const isIdle = (u: UnitCardData) => u.status !== 'DEPLOYED'
@@ -105,7 +105,12 @@ export default function Board() {
     return () => clearInterval(h)
   }, [tv, data])
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor))
+  // Mouse: drag after a few pixels. Touch: press and hold, so a swipe still scrolls the board.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(KeyboardSensor),
+  )
 
   // ---- drag and drop (still works; clicking "Assign" does the same without dragging)
   const onDragStart = (e: DragStartEvent) => setDragging((e.active.data.current as DragPayload) ?? null)
@@ -184,7 +189,7 @@ export default function Board() {
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
       <div className={`bd${tv ? ' app tv' : ''}`}>
         {!tv && (
-          <PageGuide id="board" Icon={LayoutGrid} color="#2563eb" title={t('boardTitle', 'Dispatch board')}
+          <PageGuide id="board" Icon={LayoutGrid} color="var(--pal-blue-600)" title={t('boardTitle', 'Dispatch board')}
             purpose={t('boardPurpose', 'Where everyone is on the chosen day: every unit with its crew, every base, and who is free.')}
             steps={[
               t('boardStep1', 'The coloured cards are units. Green header = Open Hole, amber = Cased Hole, grey = at base without a job. A red outline means the crew breaks a rule.'),
@@ -237,20 +242,20 @@ export default function Board() {
 
         {data && s && !tv && (
           <section className="kpis2" aria-label="Today in numbers">
-            <button type="button" className="kpi2" style={{ ['--c' as string]: '#2563eb' }} onClick={() => { setStateF('all'); setTab('field') }}>
+            <button type="button" className="kpi2" style={{ ['--c' as string]: 'var(--pal-blue-600)' }} onClick={() => { setStateF('all'); setTab('field') }}>
               <Truck size={22} className="k-icon" aria-hidden /><strong>{deployed.length}</strong><span>{t('kpiDeployed', 'Units on a job')}</span><small>{data.units.length - deployed.length} {t('atBase', 'at base')}</small>
             </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: attention ? '#dc2626' : '#16a34a' }} onClick={() => { setStateF(attention ? 'attention' : 'all'); setTab('field') }}>
+            <button type="button" className="kpi2" style={{ ['--c' as string]: attention ? 'var(--pal-red-600)' : 'var(--pal-green-600)' }} onClick={() => { setStateF(attention ? 'attention' : 'all'); setTab('field') }}>
               {attention ? <AlertTriangle size={22} className="k-icon" aria-hidden /> : <CheckCircle2 size={22} className="k-icon" aria-hidden />}
               <strong>{attention}</strong><span>{t('kpiAttention', 'Crews needing attention')}</span><small>{attention ? t('clickToSee', 'click to show them') : t('allCrewsOk', 'every crew follows the rules')}</small>
             </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: critical ? '#b91c1c' : openTasks ? '#ea580c' : '#16a34a' }} onClick={() => go('replacements')}>
+            <button type="button" className="kpi2" style={{ ['--c' as string]: critical ? 'var(--pal-red-700)' : openTasks ? 'var(--pal-orange-600)' : 'var(--pal-green-600)' }} onClick={() => go('replacements')}>
               <Repeat size={22} className="k-icon" aria-hidden /><strong>{openTasks}</strong><span>{t('kpiTasks', 'Seats waiting for someone')}</span><small>{critical ? `${critical} ${t('critical', 'critical')} · ` : ''}{t('openCenter', 'open the replacement center')}</small>
             </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: s.basePostsBelowMin ? '#dc2626' : '#4f46e5' }} onClick={() => setTab('base')}>
+            <button type="button" className="kpi2" style={{ ['--c' as string]: s.basePostsBelowMin ? 'var(--pal-red-600)' : 'var(--pal-indigo-600)' }} onClick={() => setTab('base')}>
               <Wrench size={22} className="k-icon" aria-hidden /><strong>{s.basePostsBelowMin}</strong><span>{t('kpiBelowMin', 'Base posts below minimum')}</span><small>{t('seeBaseStaff', 'see base staff')}</small>
             </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: '#0d9488' }} onClick={() => go('crew-changes')}>
+            <button type="button" className="kpi2" style={{ ['--c' as string]: 'var(--pal-teal-600)' }} onClick={() => go('crew-changes')}>
               <CalendarClock size={22} className="k-icon" aria-hidden /><strong>{s.crewChangesNext7Days}</strong><span>{t('kpiChanges', 'Crew changes this week')}</span><small>{t('seeList', 'see the list')}</small>
             </button>
           </section>
@@ -262,7 +267,7 @@ export default function Board() {
               <h2><MapPin size={16} aria-hidden /> {t('whereTitle', 'Where the units are working')}<small>{t('clickBase', 'click a base to filter')}</small></h2>
               {map.data ? <FleetMap map={map.data} units={data.units} colorOf={colorOf} selected={baseId} onBase={id => setBaseId(id)} />
                 : <p className="hint">{map.error ? t('mapUnavailable', 'The map is not available for your role.') : t('loading', 'Loading…')}</p>}
-              <Legend items={[{ color: '#2563eb', label: t('lgOnUnit', 'on a unit'), shape: 'ring' }, { color: '#0d9488', label: t('lgStandby', 'standby'), shape: 'ring' }, { color: '#94a3b8', label: t('lgOther', 'off / leave / base'), shape: 'ring' }, { color: '#16a34a', label: t('lgCrewOk', 'crew OK') }, { color: '#d97706', label: t('lgCrewWarn', 'warning') }, { color: '#dc2626', label: t('lgCrewBad', 'rule broken') }]} />
+              <Legend items={[{ color: 'var(--pal-blue-600)', label: t('lgOnUnit', 'on a unit'), shape: 'ring' }, { color: 'var(--pal-teal-600)', label: t('lgStandby', 'standby'), shape: 'ring' }, { color: 'var(--pal-slate-400)', label: t('lgOther', 'off / leave / base'), shape: 'ring' }, { color: 'var(--pal-green-600)', label: t('lgCrewOk', 'crew OK') }, { color: 'var(--pal-amber-600)', label: t('lgCrewWarn', 'warning') }, { color: 'var(--pal-red-600)', label: t('lgCrewBad', 'rule broken') }]} />
             </div>
             <div className="card2">
               <h2><PieChart size={16} aria-hidden /> {t('peopleToday', 'Everyone today')}<small>{t('clickSlice', 'click to find them')}</small></h2>
@@ -289,15 +294,15 @@ export default function Board() {
                     <button key={b.id} type="button" className={`health-row${baseId === b.id ? ' on' : ''}`} onClick={() => setBaseId(baseId === b.id ? '' : b.id)} title={`${b.name}: ${ok} OK, ${warn} warning, ${bad} broken, ${idle} at base`}>
                       <span className="base-tag" style={{ ['--c' as string]: colorOf(b.code) }}>{b.code}</span>
                       <span className="stackbar">
-                        <i style={{ width: `${ok / tot * 100}%`, background: '#16a34a' }} /><i style={{ width: `${warn / tot * 100}%`, background: '#f59e0b' }} />
-                        <i style={{ width: `${bad / tot * 100}%`, background: '#dc2626' }} /><i style={{ width: `${idle / tot * 100}%`, background: '#cbd5e1' }} />
+                        <i style={{ width: `${ok / tot * 100}%`, background: 'var(--pal-green-600)' }} /><i style={{ width: `${warn / tot * 100}%`, background: 'var(--pal-amber-500)' }} />
+                        <i style={{ width: `${bad / tot * 100}%`, background: 'var(--pal-red-600)' }} /><i style={{ width: `${idle / tot * 100}%`, background: 'var(--pal-slate-300)' }} />
                       </span>
                       <small className="muted">{ok + warn + bad}/{us.length} {t('onJob', 'on a job')}</small>
                     </button>
                   )
                 })}
               </div>
-              <Legend items={[{ color: '#16a34a', label: t('lgOk', 'OK'), shape: 'bar' }, { color: '#f59e0b', label: t('lgWarn', 'warning'), shape: 'bar' }, { color: '#dc2626', label: t('lgBad', 'rule broken'), shape: 'bar' }, { color: '#cbd5e1', label: t('lgIdle', 'no job'), shape: 'bar' }]} />
+              <Legend items={[{ color: 'var(--pal-green-600)', label: t('lgOk', 'OK'), shape: 'bar' }, { color: 'var(--pal-amber-500)', label: t('lgWarn', 'warning'), shape: 'bar' }, { color: 'var(--pal-red-600)', label: t('lgBad', 'rule broken'), shape: 'bar' }, { color: 'var(--pal-slate-300)', label: t('lgIdle', 'no job'), shape: 'bar' }]} />
             </div>
           </section>
         )}
@@ -305,13 +310,13 @@ export default function Board() {
         {data && !tv && (
           <div className="card2" style={{ gap: 8 }}>
             <div className="chips"><span className="chips-label">{t('fBase', 'Base')}</span>
-              <button type="button" className={`fchip${!baseId ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setBaseId('')}>{t('allBases', 'All bases')}</button>
+              <button type="button" className={`fchip${!baseId ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--pal-slate-700)' }} onClick={() => setBaseId('')}>{t('allBases', 'All bases')}</button>
               {data.bases.map(b => <button key={b.id} type="button" className={`fchip${baseId === b.id ? ' on' : ''}`} style={{ ['--c' as string]: colorOf(b.code) }} onClick={() => setBaseId(baseId === b.id ? '' : b.id)}><i />{b.code} <b>{data.units.filter(u => u.baseId === b.id).length}</b></button>)}
               <span className="chips-label" style={{ marginInlineStart: 10 }}>{t('fType', 'Type')}</span>
-              {(['', 'OH', 'CH'] as const).map(k => <button key={k || 'all'} type="button" className={`fchip${kind === k ? ' on' : ''}`} style={{ ['--c' as string]: k === 'OH' ? 'var(--oh)' : k === 'CH' ? 'var(--ch)' : '#334155' }} onClick={() => setKind(k)}>{k ? <><i />{k === 'OH' ? 'Open Hole' : 'Cased Hole'}</> : t('allTypes', 'All')}</button>)}
+              {(['', 'OH', 'CH'] as const).map(k => <button key={k || 'all'} type="button" className={`fchip${kind === k ? ' on' : ''}`} style={{ ['--c' as string]: k === 'OH' ? 'var(--oh)' : k === 'CH' ? 'var(--ch)' : 'var(--pal-slate-700)' }} onClick={() => setKind(k)}>{k ? <><i />{k === 'OH' ? 'Open Hole' : 'Cased Hole'}</> : t('allTypes', 'All')}</button>)}
               {tab === 'field' && <>
                 <span className="chips-label" style={{ marginInlineStart: 10 }}>{t('fState', 'Crew')}</span>
-                {([['all', 'Any', '#334155'], ['attention', 'Needs attention', '#ea580c'], ['bad', 'Rule broken', '#dc2626'], ['ok', 'All good', '#16a34a'], ['idle', 'No job', '#64748b']] as const).map(([k, l, c]) => (
+                {([['all', 'Any', 'var(--pal-slate-700)'], ['attention', 'Needs attention', 'var(--pal-orange-600)'], ['bad', 'Rule broken', 'var(--pal-red-600)'], ['ok', 'All good', 'var(--pal-green-600)'], ['idle', 'No job', 'var(--pal-slate-500)']] as const).map(([k, l, c]) => (
                   <button key={k} type="button" className={`fchip${stateF === k ? ' on' : ''}`} style={{ ['--c' as string]: c }} onClick={() => setStateF(k)}>{k !== 'all' && <i />}{t(`fs_${k}`, l)}</button>
                 ))}
               </>}
@@ -347,7 +352,7 @@ export default function Board() {
 
         {data && !tv && (
           <section ref={lanesRef} aria-label="People not on a seat" className="base-sec">
-            <div className="base-banner" style={{ ['--c' as string]: '#334155' }}>
+            <div className="base-banner" style={{ ['--c' as string]: 'var(--pal-slate-700)' }}>
               <h2><Users size={18} aria-hidden /></h2><span>{t('peopleNotOnSeat', 'People not on a seat today')}{editor ? ` · ${t('dragHint', 'drag someone from standby onto a seat, or use Assign')}` : ''}</span>
               {lane && <span className="bb-stats"><em style={{ cursor: 'pointer' }} onClick={() => setLane('')}>{t('showAllLanes', 'Show all')} ✕</em></span>}
             </div>
@@ -423,7 +428,7 @@ function Seat({ seat, unit, editable, hits, onOpen, onAssign }: { seat: SeatCard
   const badIssue = seat.issues.find(i => i.severity === 'bad')
   return (
     <div ref={drop.setNodeRef} className={`seat2${drop.isOver ? ' over' : ''}${badIssue && seat.holder ? ' bad' : ''}${!seat.required ? ' optional' : ''}`}>
-      <span className="role-pill" style={{ ['--c' as string]: ROLE_COLOR[seat.position] ?? '#64748b' }} title={`${seat.position}${need ? ' · needs an experienced person' : ''}${seat.required ? '' : ' · optional'}`}>
+      <span className="role-pill" style={{ ['--c' as string]: ROLE_COLOR[seat.position] ?? 'var(--pal-slate-500)' }} title={`${seat.position}${need ? ' · needs an experienced person' : ''}${seat.required ? '' : ' · optional'}`}>
         {SEAT_NAME[seat.position] ?? seat.position}{seat.position === 'Field Operator' ? ` ${seat.index}` : ''}{need && <em>★</em>}
       </span>
       {seat.holder
@@ -440,7 +445,7 @@ function Seat({ seat, unit, editable, hits, onOpen, onAssign }: { seat: SeatCard
 function StaffingPanel({ row, hits, onOpen }: { row: StaffingRow; hits: Set<string>; onOpen: (id: string) => void }) {
   const { t } = useTranslation()
   const label = { ok: t('staffOk', 'Fully staffed'), below_target: t('staffBelowTarget', 'Below target'), below_min: t('staffBelowMin', 'Below minimum'), off_day: t('staffOffDay', 'Not needed today') }[row.state]
-  const col = row.severity === 'bad' ? '#dc2626' : row.severity === 'warn' ? '#d97706' : row.state === 'off_day' ? '#64748b' : '#4f46e5'
+  const col = row.severity === 'bad' ? 'var(--pal-red-600)' : row.severity === 'warn' ? 'var(--pal-amber-600)' : row.state === 'off_day' ? 'var(--pal-slate-500)' : 'var(--pal-indigo-600)'
   return (
     <article className="ucard" style={{ ['--u' as string]: col }}>
       <header className="ucard-head">
@@ -452,7 +457,7 @@ function StaffingPanel({ row, hits, onOpen }: { row: StaffingRow; hits: Set<stri
         {row.people.map(p => (
           <div key={p.id} className="staff-person">
             <PersonChip person={p} highlight={hits.has(p.id)} onOpen={onOpen} compact />
-            {p.workOrder && <span className="tag2" style={{ ['--c' as string]: '#b45309' }} title={`${p.workOrder.type} · ${p.workOrder.status}`}><Wrench size={11} aria-hidden /> {p.workOrder.unit}</span>}
+            {p.workOrder && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-amber-700)' }} title={`${p.workOrder.type} · ${p.workOrder.status}`}><Wrench size={11} aria-hidden /> {p.workOrder.unit}</span>}
           </div>
         ))}
       </div>
