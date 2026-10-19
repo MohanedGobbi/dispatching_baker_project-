@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from './api'
+import { api, ApiError } from './api'
 import { Modal } from './dialogs'
 import { errMsg, useApi } from './hooks'
 import { useToast } from './ui'
 
 interface Named { id: string; name: string }
 interface Base { id: string; code: string; name: string }
-interface UnitRow { id: string; code: string; type: string; home: { code: string }; status: string }
+interface UnitOption { id: string; code: string; type: string; home: { code: string }; status: string }
 const today = () => new Date().toISOString().slice(0, 10)
 const plus = (d: string, n: number) => new Date(Date.parse(d) + n * 86_400_000).toISOString().slice(0, 10)
 
@@ -55,7 +55,7 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
   const toast = useToast()
   const types = useApi<Named[]>('/catalogs/unit-types')
   const bases = useApi<Base[]>('/bases')
-  const units = useApi<{ items: UnitRow[] }>('/units?limit=200')
+  const units = useApi<{ items: UnitOption[] }>('/units?limit=200')
   const [f, setF] = useState({ wellName: '', rigName: '', client: '', baseId: '', siteId: '', serviceType: '', start: today(), end: plus(today(), 44), unitId: unitId ?? '' })
   const sites = useApi<{ id: string; name: string }[]>(f.baseId ? `/sites?baseId=${f.baseId}` : null)
   const [busy, setBusy] = useState(false)
@@ -106,6 +106,111 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
           <button type="button" className="primary" disabled={busy || !f.wellName.trim() || !f.siteId || !f.serviceType || f.end < f.start} onClick={save}>{f.unitId ? t('createDeploy', 'Create and send unit') : t('createJob', 'Create job')}</button>
         </footer>
       </div>
+    </Modal>
+  )
+}
+
+export interface UnitRow {
+  id: string; code: string; type: string; typeId: string; colorKey: string; home: { code: string; name: string }; homeBaseId: string
+  plate: string | null; model: string | null; year: number | null; notes: string | null
+  status: string; job: { ref: string; wellName: string; rigName: string | null } | null; jobUntil: string | null; backBy: string | null
+  crew: { filled: number; required: number }; problem: boolean
+  nextService?: { name: string; due: string; state: 'overdue' | 'due_soon' | 'ok' } | null
+}
+
+
+export function EditUnit({ unit, onClose, onDone }: { unit: UnitRow; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const [f, setF] = useState({ plate: unit.plate ?? '', model: unit.model ?? '', year: unit.year ? String(unit.year) : '', notes: unit.notes ?? '' })
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value })
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setBusy(true)
+    try {
+      await api(`/units/${unit.id}`, { method: 'PUT', body: { plate: f.plate.trim() || null, model: f.model.trim() || null, year: f.year ? +f.year : null, notes: f.notes.trim() || null } })
+      toast(t('saved', 'Saved')); onDone()
+    } catch (e) { toast(errMsg(e), 'error'); setBusy(false) }
+  }
+  return (
+    <Modal title={`${t('editUnit', 'Edit unit')} · ${unit.code}`} onClose={onClose}>
+      <div className="form2">
+        <p className="muted" style={{ margin: 0 }}>{unit.type} · {unit.home.code}. {t('typeFixed', 'The type is fixed because it decides the crew seats; use "Move" to change the home base.')}</p>
+        <div className="row3">
+          <label>{t('plate', 'Plate')}<input value={f.plate} onChange={set('plate')} autoFocus /></label>
+          <label>{t('model', 'Model')}<input value={f.model} onChange={set('model')} /></label>
+          <label>{t('year', 'Year')}<input type="number" value={f.year} onChange={set('year')} /></label>
+        </div>
+        <label>{t('notes', 'Notes')}<textarea rows={3} value={f.notes} onChange={set('notes')} /></label>
+        <footer>
+          <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
+          <button type="button" className="primary" disabled={busy} onClick={() => void save()}>{t('save', 'Save')}</button>
+        </footer>
+      </div>
+    </Modal>
+  )
+}
+
+export function MoveUnit({ unit, bases, onClose, onDone }: { unit: UnitRow; bases: { id: string; code: string }[]; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const others = bases.filter(b => b.id !== unit.homeBaseId)
+  const [baseId, setBaseId] = useState(others[0]?.id ?? '')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setBusy(true)
+    try {
+      await api(`/units/${unit.id}/transfer`, { method: 'POST', body: { baseId, reason: reason.trim() || undefined } })
+      toast(`${unit.code} → ${others.find(b => b.id === baseId)?.code}`); onDone()
+    } catch (e) { toast(errMsg(e), 'error'); setBusy(false) }
+  }
+  return (
+    <Modal title={`${t('move', 'Move to another base')} · ${unit.code}`} onClose={onClose}>
+      <div className="form2">
+        <p className="muted" style={{ margin: 0 }}>{t('moveFrom', 'Based at')} {unit.home.code} ({unit.home.name}).</p>
+        <label>{t('newBase', 'New home base')}<select value={baseId} onChange={e => setBaseId(e.target.value)}>{others.map(b => <option key={b.id} value={b.id}>{b.code}</option>)}</select></label>
+        <label>{t('reason', 'Reason')}<input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('moveReasonPh', 'e.g. rebalancing the fleet')} /></label>
+        <footer>
+          <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
+          <button type="button" className="primary" disabled={busy || !baseId} onClick={() => void save()}>{t('moveIt', 'Move')}</button>
+        </footer>
+      </div>
+    </Modal>
+  )
+}
+
+export function DeleteUnit({ unit, onClose, onRetire, onDone }: { unit: UnitRow; onClose: () => void; onRetire: () => void; onDone: () => void }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const [refused, setRefused] = useState('')
+  const [busy, setBusy] = useState(false)
+  const remove = async () => {
+    setBusy(true)
+    try { await api(`/units/${unit.id}`, { method: 'DELETE' }); toast(`${unit.code} ${t('deleted', 'deleted')}`); onDone() } catch (e) {
+      if (e instanceof ApiError && e.status === 409) setRefused(e.message); else toast(errMsg(e), 'error')
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={`${t('delete', 'Delete')} ${unit.code}?`} onClose={onClose}>
+      {refused ? (
+        <>
+          <p>{refused}</p>
+          <footer>
+            <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
+            {unit.status !== 'OUT_OF_SERVICE' && unit.status !== 'DEPLOYED' && <button type="button" className="primary" onClick={onRetire}>{t('outService', 'Out of service')}</button>}
+          </footer>
+        </>
+      ) : (
+        <>
+          <p>{t('deleteUnitText', 'This removes the unit and its crew seats for good. It is meant for a unit entered by mistake; a unit with any history cannot be deleted.')}</p>
+          <footer>
+            <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
+            <button type="button" className="primary danger-fill" disabled={busy} onClick={() => void remove()}>{t('delete', 'Delete')}</button>
+          </footer>
+        </>
+      )}
     </Modal>
   )
 }

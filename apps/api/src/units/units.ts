@@ -8,6 +8,7 @@ import { SettingsModule, SettingsService } from '../settings/settings';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
 import { computeUnitStatus, countFieldDays, UnitStatusValue } from '../domain/derived';
 import { startOfDay } from '../domain/status';
+import { nextDue, serviceState } from '../domain/preventive';
 
 const UNIT_SPEC: Spec = { code: 'string', unitTypeId: 'string', homeBaseId: 'string', plate: 'string', model: 'string', year: 'number', notes: 'string' };
 const MANUAL_STATUSES = ['AVAILABLE', 'IN_TRANSIT', 'OUT_OF_SERVICE'];
@@ -50,7 +51,7 @@ class UnitsController {
       },
       orderBy: { code: 'asc' },
       include: {
-        unitType: true, homeBase: { select: { code: true, name: true } }, workOrders: true,
+        unitType: true, homeBase: { select: { code: true, name: true } }, workOrders: true, maintenancePlans: { where: { active: true } },
         deployments: { include: { job: { select: { ref: true, wellName: true, rigName: true } } } },
         seats: { where: { holderType: 'UNIT' }, select: { id: true, requiredFlag: true, assignments: {
           where: { status: { in: ['CONFIRMED', 'ACTIVE'] }, start: { lte: date }, plannedEnd: { gte: date } }, select: { id: true } } } },
@@ -61,11 +62,14 @@ class UnitsController {
       const current = u.deployments.find(d => startOfDay(d.start) <= startOfDay(date) && startOfDay(date) <= d.end);
       const required = u.seats.filter(s => s.requiredFlag);
       const filledRequired = required.filter(s => s.assignments.length > 0).length;
+      // The service due first, for the "service due" tile and column.
+      const service = u.maintenancePlans.map(p => ({ name: p.name, due: nextDue(p), state: serviceState(p, date) })).sort((a, b) => a.due.getTime() - b.due.getTime())[0];
       const openWo = u.workOrders.find(w => !['DONE', 'CANCELLED'].includes(w.status) && startOfDay(w.plannedStart) <= startOfDay(date));
       return {
         id: u.id, code: u.code, type: u.unitType.name, typeId: u.unitTypeId, colorKey: u.unitType.colorKey, home: u.homeBase, homeBaseId: u.homeBaseId,
         plate: u.plate, model: u.model, year: u.year, notes: u.notes,
         status, job: current?.job ?? null, jobUntil: current?.end ?? null, backBy: openWo?.expectedReturn ?? null,
+        nextService: service ? { name: service.name, due: service.due.toISOString().slice(0, 10), state: service.state } : null,
         crew: { filled: filledRequired, required: required.length },
         // A deployed unit with missing required seats is a compliance problem (plan 14.1 badges).
         problem: status === 'DEPLOYED' && filledRequired < required.length,
@@ -205,6 +209,8 @@ class UnitsController {
     const seatIds = unit.seats.map(s => s.id);
     await this.prisma.$transaction([
       this.prisma.replacementTask.deleteMany({ where: { seatId: { in: seatIds } } }),
+      this.prisma.maintenancePlan.deleteMany({ where: { unitId: id } }),
+      this.prisma.unitDocument.deleteMany({ where: { unitId: id } }),
       this.prisma.seat.deleteMany({ where: { id: { in: seatIds } } }),
       this.prisma.unit.delete({ where: { id } }),
     ]);

@@ -233,6 +233,23 @@ async function main() {
     await prisma.user.create({ data: { login: e.employeeNo.toLowerCase(), passwordHash: demoHash, employeeId: e.id, roles: { create: extra } } });
   }
 
+  // ---- Preventive maintenance and unit papers. Spread by unit index (no random draws, so the people stay the same)
+  // and relative to today, so some services are always overdue or due soon and an insurance or two is expiring.
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  const ago = (n: number) => new Date(today.getTime() - n * 86_400_000);
+  const fleet = await prisma.unit.findMany({ orderBy: { code: 'asc' } });
+  for (const [i, u] of fleet.entries()) {
+    await prisma.maintenancePlan.createMany({ data: [
+      { unitId: u.id, name: 'Engine service', everyDays: 90, durationDays: 2, leadDays: 14, startFrom: ago(400), lastDone: ago((i * 13) % 100) },
+      { unitId: u.id, name: 'Logging cable and winch check', everyDays: 180, durationDays: 1, leadDays: 14, startFrom: ago(400), lastDone: ago((i * 23) % 175) },
+      { unitId: u.id, name: 'Annual technical inspection', everyDays: 365, durationDays: 3, leadDays: 30, startFrom: ago(400), lastDone: ago((i * 29) % 360) },
+    ] });
+    await prisma.unitDocument.createMany({ data: [
+      { unitId: u.id, kind: 'registration', title: `Registration ${u.plate ?? u.code}` },
+      { unitId: u.id, kind: 'insurance', title: 'Fleet insurance', expiresAt: new Date(today.getTime() + (((i * 37) % 400) - 20) * 86_400_000) },
+    ] });
+  }
+
   const counts = {
     bases: await prisma.base.count(), units: await prisma.unit.count(), seats: await prisma.seat.count(),
     employees: await prisma.employee.count(), certifications: await prisma.certification.count(),

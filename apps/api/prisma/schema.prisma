@@ -241,6 +241,45 @@ model Unit {
   seats       Seat[]
   deployments UnitDeployment[]
   workOrders  WorkOrder[]
+  maintenancePlans MaintenancePlan[]
+  documents   UnitDocument[]
+}
+
+/// Preventive maintenance (plan E19): a service repeated every N days. A work order is opened when it comes due;
+/// finishing that work order records the service as done.
+model MaintenancePlan {
+  id           String    @id @default(cuid())
+  unitId       String
+  unit         Unit      @relation(fields: [unitId], references: [id])
+  name         String
+  everyDays    Int
+  durationDays Int       @default(1)  // workshop days the service takes
+  leadDays     Int       @default(14) // open the work order this many days before it is due
+  startFrom    DateTime  // counts from here until the first service is recorded
+  lastDone     DateTime?
+  active       Boolean   @default(true)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  workOrders   WorkOrder[]
+
+  @@index([unitId])
+}
+
+/// Papers kept for a unit: registration, insurance, inspection certificate... optionally with a file and an expiry.
+model UnitDocument {
+  id        String      @id @default(cuid())
+  unitId    String
+  unit      Unit        @relation(fields: [unitId], references: [id])
+  kind      String      // registration | insurance | inspection | other
+  title     String
+  fileId    String?
+  file      StoredFile? @relation(fields: [fileId], references: [id])
+  expiresAt DateTime?
+  notes     String?
+  createdBy String?
+  createdAt DateTime    @default(now())
+
+  @@index([unitId])
 }
 
 enum JobStatus {
@@ -471,6 +510,9 @@ model WorkOrder {
   plannedStart   DateTime
   expectedReturn DateTime
   status         String   @default("OPEN")
+  completedAt    DateTime?
+  maintenancePlanId String?
+  maintenancePlan   MaintenancePlan? @relation(fields: [maintenancePlanId], references: [id])
   assignees      WorkOrderAssignee[]
 }
 
@@ -607,6 +649,7 @@ model StoredFile {
   size        Int
   path        String
   createdAt   DateTime @default(now())
+  unitDocuments UnitDocument[]
 }
 
 model SwapRequest {

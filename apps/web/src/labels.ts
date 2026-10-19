@@ -23,8 +23,12 @@ export const PLAN_LABEL: Record<string, string> = { DRAFT: 'Draft', REVIEW: 'Und
 
 export const URGENCY_LABEL: Record<string, string> = { CRITICAL: 'Critical', HIGH: 'High', NORMAL: 'Normal' }
 
-export const fmtDate = (iso: string, lang = 'en') =>
-  new Date(iso.slice(0, 10)).toLocaleDateString(lang, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+/** "Mon, Oct 19"; the year is added when it is not the current one, so a date next year is never mistaken for this one. */
+export const fmtDate = (iso: string, lang = 'en') => {
+  const d = new Date(iso.slice(0, 10))
+  const otherYear = d.getUTCFullYear() !== new Date().getUTCFullYear()
+  return d.toLocaleDateString(lang, { weekday: 'short', day: 'numeric', month: 'short', ...(otherYear ? { year: 'numeric' } : {}), timeZone: 'UTC' })
+}
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 

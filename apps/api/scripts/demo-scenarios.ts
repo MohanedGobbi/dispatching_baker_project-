@@ -172,6 +172,31 @@ async function main() {
   await prisma.assignment.createMany({ data: past });
   log('H', `${past.length} past assignments recorded: the board's time machine works for the last 3 months`);
 
+  // ---- the jobs those crews worked on, plus a workshop visit now and then, so each unit's 12-month chart has a past
+  let pastJobs = 0, pastShop = 0;
+  for (const [ui, u] of crewedUnits.entries()) {
+    const site = await prisma.site.findFirst({ where: { baseId: u.homeBaseId } });
+    const type = await prisma.unitType.findUniqueOrThrow({ where: { id: u.unitTypeId } });
+    if (!site) continue;
+    for (let block = 0; block < 4; block++) {
+      const from = -112 + block * 28;
+      if ((ui + block) % 4 === 3) {
+        await prisma.workOrder.create({ data: { unitId: u.id, baseId: u.homeBaseId, type: 'corrective', description: 'Hydraulics repair', status: 'DONE', plannedStart: d(from + 3), expectedReturn: d(from + 8), completedAt: d(from + 8) } });
+        pastShop++;
+        continue;
+      }
+      const job = await prisma.job.create({
+        data: {
+          ref: `HIST-${u.code}-${block + 1}`, wellName: `${site.name}-${block + 1}`, rigName: `RIG ${200 + ui}`, client: 'Sonatrach', siteId: site.id,
+          serviceType: type.name, plannedStart: d(from + 1), plannedEnd: d(from + 24), actualStart: d(from + 1), actualEnd: d(from + 24), status: 'COMPLETED',
+        },
+      });
+      await prisma.unitDeployment.create({ data: { unitId: u.id, jobId: job.id, start: d(from + 1), end: d(from + 24) } });
+      pastJobs++;
+    }
+  }
+  log('H', `${pastJobs} past jobs and ${pastShop} past workshop visits recorded for the unit charts`);
+
   // ---- let the rules look at the world and send the daily reminders
   const rec = await call('POST', '/analytics/recommendations/run', ops);
   const daily = await call('POST', '/notifications/run-daily', disp);

@@ -161,7 +161,10 @@ class MaintenanceController {
     if (!next || !STATUSES.includes(next)) throw new BadRequestException(`status must be one of ${STATUSES.join(', ')}`);
     if (!NEXT[w.status].includes(next)) throw new BadRequestException(`A work order that is ${w.status.toLowerCase().replace('_', ' ')} cannot become ${next.toLowerCase().replace('_', ' ')}`);
 
-    const after = await this.prisma.workOrder.update({ where: { id }, data: { status: next }, include: INCLUDE });
+    const done = next === 'DONE';
+    const after = await this.prisma.workOrder.update({ where: { id }, data: { status: next, ...(done ? { completedAt: new Date() } : {}) }, include: INCLUDE });
+    // Finishing a preventive work order records the service, which sets when the next one is due.
+    if (done && w.maintenancePlanId) await this.prisma.maintenancePlan.update({ where: { id: w.maintenancePlanId }, data: { lastDone: startOfDay(new Date()) } });
     await audit(this.prisma, req.user?.sub, 'WorkOrder', id, 'status', { status: w.status }, { status: next }, body?.note);
     let unitBack = false;
     if (['DONE', 'CANCELLED'].includes(next)) {

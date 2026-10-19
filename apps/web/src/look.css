@@ -535,3 +535,18 @@ small, .why, .muted small { font-size: 12px; }
 .units-table td.row-actions button.danger { color: var(--bad); }
 .modal button.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
 .table-scroll { overflow-x: auto; }
+
+/* unit page */
+.unit-page h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.unit-page .panel h2 { display: flex; align-items: center; gap: 10px; }
+.unit-page .panel h2 .small-btn { margin-inline-start: auto; }
+.small-btn { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+.small-btn.danger { color: var(--bad); }
+.unit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--s3); }
+.doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.doc-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.doc-list li > div { flex: 1; min-width: 0; display: grid; }
+.usage-chart { width: 100%; min-width: 520px; height: auto; display: block; }
+.usage-label { font-size: 11px; fill: var(--muted); }
+.usage-val { font-size: 11px; fill: #fff; font-weight: 700; }
+.pp-full { color: inherit; text-decoration: underline; font-weight: 600; }

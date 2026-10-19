@@ -36,6 +36,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [codes, push])
   const value = useMemo<Ctx>(() => ({ openPerson: id => push({ kind: 'person', id }), openUnit: id => push({ kind: 'unit', id }), openUnitByCode: c => void openUnitByCode(c) }), [push, openUnitByCode])
   const top = stack[stack.length - 1]
+  // Following a link out of the panel (e.g. to a unit's full page) closes it.
+  useEffect(() => {
+    const onNav = () => setStack([])
+    window.addEventListener('hashchange', onNav)
+    return () => window.removeEventListener('hashchange', onNav)
+  }, [])
   useEffect(() => {
     if (!top) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setStack([]) }
@@ -315,7 +321,7 @@ function UnitProfile({ id }: { id: string }) {
         <span className="pp-av"><Truck size={26} aria-hidden /></span>
         <div className="pp-title">
           <h2>{x.code}</h2>
-          <p>{x.unitType.name} · <MapPin size={12} aria-hidden /> {x.homeBase.code} · {x.homeBase.name}</p>
+          <p>{x.unitType.name} · <MapPin size={12} aria-hidden /> {x.homeBase.code} · {x.homeBase.name} · <a className="pp-full" href={`#/units/${x.id}`}>{t('fullPage', 'Full page')}</a></p>
           <div className="pp-pills"><span style={{ background: stColor }}>{stLabel}</span>{current && <span>{current.job.wellName}{current.job.rigName ? ` · ${current.job.rigName}` : ''}</span>}</div>
         </div>
         <Ring value={filled} max={req} color="#fff" size={52} />
