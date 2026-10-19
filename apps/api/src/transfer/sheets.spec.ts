@@ -62,7 +62,7 @@ describe('import rows', () => {
 
   it('accepts Excel date cells and serial numbers, skips blank lines, and sums up', () => {
     const b = mapHeaders('bases', ['Code', 'Name', 'Latitude', 'Active']).index;
-    const rows = validateRows('bases', [['new', 'New base', '31,5', 'oui'], [null, '', null, null], ['HMD', 'Hassi', 31.6, true]], b, lookups,
+    const rows = validateRows('bases', [['new', 'New base', '31,5', 'Y'], [null, '', null, null], ['HMD', 'Hassi', 31.6, true]], b, lookups,
       new Map([['HMD', { id: 'b1', values: { code: 'HMD', name: 'Hassi', lat: 31.6, active: true } }]]));
     expect(rows.map(r => r.action)).toEqual(['create', 'unchanged']);
     expect(rows[0].data).toMatchObject({ code: 'NEW', lat: 31.5, active: true });

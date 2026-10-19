@@ -118,8 +118,8 @@ function parseBool(v: Cell): boolean | null {
   if (typeof v === 'boolean') return v;
   if (typeof v === 'number') return v === 1 ? true : v === 0 ? false : null;
   const s = norm(String(v));
-  if (['yes', 'y', 'true', '1', 'oui', 'o', 'نعم'].includes(s)) return true;
-  if (['no', 'n', 'false', '0', 'non', 'لا'].includes(s)) return false;
+  if (['yes', 'y', 'true', '1'].includes(s)) return true;
+  if (['no', 'n', 'false', '0'].includes(s)) return false;
   return null;
 }
 

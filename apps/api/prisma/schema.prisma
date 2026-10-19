@@ -579,7 +579,6 @@ model AuditLog {
 model UserPrefs {
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lang   String @default("en")
   inApp  Json   @default("{}")  // type -> false to mute
   email  Json   @default("{}")  // type -> true/false overrides the default
 }

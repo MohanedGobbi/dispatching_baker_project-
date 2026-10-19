@@ -9,7 +9,7 @@ import { CalendarCoreModule, CalendarService } from '../calendar/calendar.servic
 import { audit, page } from '../common/validate';
 import { startOfDay } from '../domain/status';
 import { MailerService } from '../mail/mailer';
-import { CATALOG, catalogForPrefs, isType, Lang, LANGS, NotificationType, render } from './templates';
+import { CATALOG, catalogForPrefs, isType, NotificationType, render } from './templates';
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -69,7 +69,7 @@ export class NotificationsService {
 
   async prefsOf(userId: string) {
     const p = await this.prisma.userPrefs.findUnique({ where: { userId } });
-    return { lang: (LANGS.includes(p?.lang as Lang) ? p!.lang : 'en') as Lang, inApp: (p?.inApp ?? {}) as Record<string, boolean>, email: (p?.email ?? {}) as Record<string, boolean> };
+    return { inApp: (p?.inApp ?? {}) as Record<string, boolean>, email: (p?.email ?? {}) as Record<string, boolean> };
   }
 
   /** Create in-app notifications (and queue emails) for everyone the input resolves to. Returns how many were created. */
@@ -95,7 +95,7 @@ export class NotificationsService {
         const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { employee: { select: { email: true } } } });
         const to = u?.employee?.email;
         if (to) {
-          const text = render(input.type, input.payload, prefs.lang);
+          const text = render(input.type, input.payload);
           await this.prisma.emailOutbox.create({ data: { toEmail: to, userId, type: input.type, subject: text.title, body: text.body } });
         }
       }
@@ -186,7 +186,7 @@ class NotificationsController {
       items: rows.map(n => {
         const payload = (n.payload ?? {}) as Record<string, unknown>;
         const { _key, ...visible } = payload; void _key;
-        return { id: n.id, type: n.type, ...render(n.type, payload, prefs.lang), payload: visible, requiresAck: n.requiresAck, acknowledgedAt: n.acknowledgedAt, readAt: n.readAt, createdAt: n.createdAt };
+        return { id: n.id, type: n.type, ...render(n.type, payload), payload: visible, requiresAck: n.requiresAck, acknowledgedAt: n.acknowledgedAt, readAt: n.readAt, createdAt: n.createdAt };
       }),
     };
   }
@@ -211,20 +211,18 @@ class NotificationsController {
   async getPrefs(@Req() req: AuthedRequest) {
     const p = await this.svc.prefsOf(req.user!.sub);
     return {
-      lang: p.lang,
-      types: catalogForPrefs(p.lang).map(t => ({ ...t, inApp: t.ack ? true : p.inApp[t.type] !== false, email: p.email[t.type] ?? t.emailDefault, locked: t.ack })),
+      types: catalogForPrefs().map(t => ({ ...t, inApp: t.ack ? true : p.inApp[t.type] !== false, email: p.email[t.type] ?? t.emailDefault, locked: t.ack })),
     };
   }
 
   @Put('preferences')
-  async setPrefs(@Req() req: AuthedRequest, @Body() body: { lang?: string; inApp?: Record<string, boolean>; email?: Record<string, boolean> }) {
-    if (body?.lang !== undefined && !LANGS.includes(body.lang as Lang)) throw new BadRequestException('lang must be en, fr or ar');
+  async setPrefs(@Req() req: AuthedRequest, @Body() body: { inApp?: Record<string, boolean>; email?: Record<string, boolean> }) {
     for (const m of [body?.inApp, body?.email]) for (const [k, v] of Object.entries(m ?? {})) {
       if (!isType(k)) throw new BadRequestException(`Unknown notification type "${k}"`);
       if (typeof v !== 'boolean') throw new BadRequestException(`"${k}" must be true or false`);
     }
     const cur = await this.svc.prefsOf(req.user!.sub);
-    const data = { lang: body?.lang ?? cur.lang, inApp: { ...cur.inApp, ...(body?.inApp ?? {}) }, email: { ...cur.email, ...(body?.email ?? {}) } };
+    const data = { inApp: { ...cur.inApp, ...(body?.inApp ?? {}) }, email: { ...cur.email, ...(body?.email ?? {}) } };
     await this.prisma.userPrefs.upsert({ where: { userId: req.user!.sub }, create: { userId: req.user!.sub, ...data }, update: data });
     return this.getPrefs(req);
   }

@@ -12,7 +12,7 @@ export interface Notice {
 }
 interface NoticePage { total: number; unread: number; pendingAck: number; items: Notice[] }
 interface PrefType { type: string; label: string; ack: boolean; inApp: boolean; email: boolean; locked: boolean }
-interface Prefs { lang: string; types: PrefType[] }
+interface Prefs { types: PrefType[] }
 
 /** Unread and "please confirm" counters for the bell, refreshed on every change and once a minute. */
 export function useUnread() {

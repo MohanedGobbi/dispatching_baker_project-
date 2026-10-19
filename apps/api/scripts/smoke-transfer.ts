@@ -92,10 +92,10 @@ async function main() {
   const bwb = new ExcelJS.Workbook();
   const bs = bwb.addWorksheet('Bases');
   bs.addRow(['code', 'name', 'latitude', 'longitude', 'active']);
-  bs.addRow([`${tag}b`, 'Import base', '29,1', 6.2, 'oui']);
+  bs.addRow([`${tag}b`, 'Import base', '29,1', 6.2, 'Y']);
   const bcommit = await call('POST', '/transfer/bases/commit', ops, { file: await b64(bwb) });
   const base = await prisma.base.findUnique({ where: { code: `${tag}B` } });
-  check('a hand-made sheet works: headers by key, code upper-cased, decimal comma, "oui"', bcommit.status === 201 && base?.lat === 29.1 && base.active === true, bcommit.json);
+  check('a hand-made sheet works: headers by key, code upper-cased, decimal comma, "Y"', bcommit.status === 201 && base?.lat === 29.1 && base.active === true, bcommit.json);
   const nwb = new ExcelJS.Workbook(); nwb.addWorksheet('Employees').addRow(['Employee number', 'First name']);
   const missing = await call('POST', '/transfer/employees/validate', hr, { file: await b64(nwb) });
   check('missing required columns are reported up front', missing.status === 201 && missing.json.fatal[0]?.includes('Last name'));

@@ -97,19 +97,14 @@ async function main() {
   const ac = prefs.types.find((t: any) => t.type === 'assignment_changed'), cc = prefs.types.find((t: any) => t.type === 'crew_change_48h');
   check('preferences: acknowledgement types are locked on; others can be muted', ac.locked && ac.inApp === true && !cc.locked && cc.inApp === false, [ac, cc]);
   check('unknown type in preferences is refused', (await call('PUT', '/notifications/preferences', tok.O3, { inApp: { nope: false } })).status === 400);
-  check('bad language is refused', (await call('PUT', '/notifications/preferences', tok.O3, { lang: 'de' })).status === 400);
   const un = await call('POST', `/assignments/${aO3.id}/unassign`, disp, { from: at(10) });
   check('unassign works', un.status === 201, un.json);
   check('the released person still gets the acknowledgement notice even though they muted that type', ofType(await inbox(tok.O3), 'assignment_changed', n => n.payload.action === 'released' && n.requiresAck).length === 1);
   check('the dispatcher who did it gets no notice', ofType(await inbox(disp), 'assignment_changed').length === 0);
 
-  // ================= language =================
-  await call('PUT', '/notifications/preferences', tok.S, { lang: 'fr' });
-  const fr = ofType(await inbox(tok.S), 'replacement_confirmed')[0];
-  check('texts follow the person\'s language (French)', fr.title === 'Remplacement confirmé' && fr.body.includes('couvre'), fr);
-  await call('PUT', '/notifications/preferences', tok.S, { lang: 'ar' });
-  check('…and Arabic', /[؀-ۿ]/.test(ofType(await inbox(tok.S), 'replacement_confirmed')[0].title));
-  await call('PUT', '/notifications/preferences', tok.S, { lang: 'fr' });
+  // ================= texts (English only) =================
+  const notice = ofType(await inbox(tok.S), 'replacement_confirmed')[0];
+  check('texts are rendered in English', notice.title === 'Replacement confirmed' && notice.body.includes('covers'), notice);
 
   // ================= daily job =================
   // a crew change tomorrow on the driver seat, a clearance wait, a short base, a task due tomorrow
@@ -142,7 +137,7 @@ async function main() {
   await call('POST', `/leaves/${req.json.leave?.id ?? req.json.id}/approve`, hr, {});
   const outbox = await call('GET', '/notifications/outbox?limit=200', admin);
   const mail = outbox.json.filter((m: any) => m.toEmail === people.S.employeeNo.toLowerCase() + '@crewboard.test');
-  check('emails are queued for types that email by default, rendered in the person\'s language', mail.some((m: any) => m.type === 'leave_decided' && /cong/i.test(m.subject)), mail.map((m: any) => m.subject));
+  check('emails are queued for types that email by default', mail.some((m: any) => m.type === 'leave_decided' && m.subject === 'Leave approved'), mail.map((m: any) => m.subject));
   check('types that do not email by default queue nothing (replacement confirmed)', !mail.some((m: any) => m.type === 'replacement_confirmed'));
   check('the extension notice was queued by email too', outbox.json.some((m: any) => m.type === 'extension_approved' && m.toEmail === people.O1.employeeNo.toLowerCase() + '@crewboard.test'));
   check('only an admin can read the outbox', (await call('GET', '/notifications/outbox', disp)).status === 403);

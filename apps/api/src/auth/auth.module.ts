@@ -82,11 +82,10 @@ export class AuthGuard implements CanActivate {
   }
 }
 
-const RESET_TEXT: Record<string, (link: string, minutes: number) => { subject: string; body: string }> = {
-  en: (link, m) => ({ subject: 'Reset your CrewBoard password', body: `Someone asked to reset the password of your CrewBoard account.\n\nOpen this link within ${m} minutes to choose a new one:\n${link}\n\nIf it was not you, ignore this message: your password stays as it is.` }),
-  fr: (link, m) => ({ subject: 'Réinitialiser votre mot de passe CrewBoard', body: `Une réinitialisation du mot de passe de votre compte CrewBoard a été demandée.\n\nOuvrez ce lien dans les ${m} minutes pour en choisir un nouveau :\n${link}\n\nSi ce n'était pas vous, ignorez ce message : votre mot de passe ne change pas.` }),
-  ar: (link, m) => ({ subject: 'إعادة تعيين كلمة مرور CrewBoard', body: `طُلبت إعادة تعيين كلمة مرور حسابك في CrewBoard.\n\nافتح هذا الرابط خلال ${m} دقيقة لاختيار كلمة مرور جديدة:\n${link}\n\nإذا لم تكن أنت، تجاهل هذه الرسالة: كلمة مرورك لن تتغير.` }),
-};
+const resetText = (link: string, m: number) => ({
+  subject: 'Reset your CrewBoard password',
+  body: `Someone asked to reset the password of your CrewBoard account.\n\nOpen this link within ${m} minutes to choose a new one:\n${link}\n\nIf it was not you, ignore this message: your password stays as it is.`,
+});
 
 @Controller('auth')
 class AuthController {
@@ -136,7 +135,7 @@ class AuthController {
   async forgot(@Body() body: { login?: string }) {
     const login = typeof body?.login === 'string' ? body.login.trim() : '';
     if (!login) throw new BadRequestException('login is required');
-    const user = await this.prisma.user.findUnique({ where: { login }, include: { employee: { select: { email: true } }, prefs: true } });
+    const user = await this.prisma.user.findUnique({ where: { login }, include: { employee: { select: { email: true } } } });
     const to = user?.email ?? user?.employee?.email;
     if (!user || !user.active || !to) return { ok: true };
     const recent = await this.prisma.passwordResetToken.count({ where: { userId: user.id, createdAt: { gte: new Date(Date.now() - 15 * 60_000) } } });
@@ -146,7 +145,7 @@ class AuthController {
     const token = randomToken();
     await this.prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + minutes * 60_000) } });
     const link = `${(process.env.APP_URL ?? 'http://localhost:5173').replace(/\/$/, '')}/#/reset?token=${token}`;
-    const text = (RESET_TEXT[user.prefs?.lang ?? 'en'] ?? RESET_TEXT.en)(link, minutes);
+    const text = resetText(link, minutes);
     await this.prisma.emailOutbox.create({ data: { toEmail: to, userId: user.id, type: 'password_reset', subject: text.subject, body: text.body } });
     await audit(this.prisma, undefined, 'User', user.id, 'password_reset_requested');
     this.mailer.flush().catch(e => console.error('mail sender failed', e));
