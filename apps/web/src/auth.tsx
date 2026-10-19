@@ -2,10 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { api, getToken, setToken, whenUnauthorized } from './api'
 
-export interface Me { sub: string; roles: { role: string; baseScope?: string | null }[]; employeeId?: string | null }
+export interface Me { sub: string; roles: { role: string; baseScope?: string | null }[]; employeeId?: string | null; mustChangePassword?: boolean }
 interface AuthState {
   me: Me | null
   login: (login: string, password: string) => Promise<void>
+  /** Take a new token (after a password change) and reload who is signed in. */
+  adoptToken: (token: string) => Promise<void>
   logout: () => void
   can: (...roles: string[]) => boolean
 }
@@ -30,14 +32,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => whenUnauthorized(logout), [logout])
 
   const login = useCallback(async (loginName: string, password: string) => {
-    const r = await api<{ token: string; user: { id: string; roles: Me['roles']; employeeId: string | null } }>('/auth/login', { method: 'POST', body: { login: loginName, password } })
+    const r = await api<{ token: string; user: { id: string; roles: Me['roles']; employeeId: string | null; mustChangePassword: boolean } }>('/auth/login', { method: 'POST', body: { login: loginName, password } })
     setToken(r.token)
-    setMe({ sub: r.user.id, roles: r.user.roles, employeeId: r.user.employeeId })
+    setMe({ sub: r.user.id, roles: r.user.roles, employeeId: r.user.employeeId, mustChangePassword: r.user.mustChangePassword })
+  }, [])
+
+  const adoptToken = useCallback(async (token: string) => {
+    setToken(token)
+    setMe(await api<Me>('/auth/me'))
   }, [])
 
   const value = useMemo<AuthState>(() => ({
-    me, login, logout, can: (...roles) => !!me?.roles.some(r => roles.includes(r.role)),
-  }), [me, login, logout])
+    me, login, adoptToken, logout, can: (...roles) => !!me?.roles.some(r => roles.includes(r.role)),
+  }), [me, login, adoptToken, logout])
 
   if (!ready) return null
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

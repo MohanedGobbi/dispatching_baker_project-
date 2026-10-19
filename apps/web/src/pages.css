@@ -112,3 +112,21 @@ td.row-actions button { margin-inline-start: 6px; }
   .split { grid-template-columns: 1fr; }
   .detail { position: static; }
 }
+
+/* accounts: users screen, password forms, audit log */
+.modal label.check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+.modal label.check input[type='checkbox'] { width: auto; }
+.modal label.check select { margin-inline-start: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; background: var(--bg); color: var(--text); }
+.role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px var(--s3); }
+.temp-pw { display: flex; align-items: center; gap: var(--s2); }
+.temp-pw code { font-size: 20px; letter-spacing: .06em; padding: 6px 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); user-select: all; }
+.pw-form { display: grid; gap: var(--s3); }
+.pw-form footer { display: flex; justify-content: flex-end; gap: var(--s2); }
+.login-card button.link, .modal button.link { border: 0; background: none; color: var(--accent); padding: 4px; justify-self: center; }
+.audit-diff { box-shadow: none; }
+.audit-diff td { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-word; max-width: 420px; }
+.audit-diff td.del { background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.audit-diff td.add { background: color-mix(in srgb, var(--ok) 8%, transparent); }
+.filters button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 12px; }
+.filters button:disabled { opacity: .5; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

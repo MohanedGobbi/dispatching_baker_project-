@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowLeft, Bell, CalendarDays, Camera, ChevronLeft, ChevronRight, Home, Inbox, LogOut, MapPin, Moon, Repeat, Sun, User, Users, WifiOff, Wrench,
+  ArrowLeft, Bell, CalendarDays, Camera, ChevronLeft, ChevronRight, Home, Inbox, KeyRound, LogOut, MapPin, Moon, Repeat, Sun, User, Users, WifiOff, Wrench,
 } from 'lucide-react'
 import { api } from './api'
 import { useAuth } from './auth'
 import { Modal, ViolationList } from './dialogs'
+import { ChangePasswordDialog } from './account'
 import { errMsg, useApi, useLive, useRoute } from './hooks'
 import { fmtDate, plural } from './labels'
 import { NoticeList, PreferencesPanel, useUnread } from './notifications'
@@ -402,6 +403,7 @@ function MeTab() {
   const [edit, setEdit] = useState(false)
   const [form, setForm] = useState({ phone: '', email: '', emergencyContact: '', homeCity: '' })
   const [dark, setDark] = useState(document.documentElement.dataset.theme === 'dark')
+  const [pwOpen, setPwOpen] = useState(false)
   const p = profile.data, s = stats.data
 
   const startEdit = () => { if (p) { setForm({ phone: p.phone ?? '', email: p.email ?? '', emergencyContact: p.emergencyContact ?? '', homeCity: p.homeCity ?? '' }); setEdit(true) } }
@@ -452,8 +454,10 @@ function MeTab() {
       <PreferencesPanel />
       <div className="btn-row stretch">
         <button type="button" className="pbtn" onClick={theme}>{dark ? <Sun size={18} /> : <Moon size={18} />} {dark ? t('light', 'Light') : t('dark', 'Dark')}</button>
+        <button type="button" className="pbtn" onClick={() => setPwOpen(true)}><KeyRound size={18} /> {t('pwChange', 'Change password')}</button>
         <button type="button" className="pbtn" onClick={logout}><LogOut size={18} /> {t('signOut', 'Sign out')}</button>
       </div>
+      {pwOpen && <ChangePasswordDialog onClose={() => setPwOpen(false)} />}
     </>
   )
 }

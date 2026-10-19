@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, CalendarDays, CalendarRange, ClipboardList, LayoutGrid, LogOut, Moon, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, Wand2, Wrench } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ClipboardList, History, KeyRound, LayoutGrid, LogOut, Moon, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, UserCog, Wand2, Wrench } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api } from './api'
 import { useAuth } from './auth'
@@ -16,10 +16,13 @@ import WorkOrders from './WorkOrders'
 import Analytics from './Analytics'
 import Extensions from './Extensions'
 import Settings from './Settings'
+import Users from './Users'
+import Audit from './Audit'
+import { ChangePasswordDialog } from './account'
 import Portal from './Portal'
 import NotificationsPage, { Bell_, useUnread } from './notifications'
 
-interface Page { path: string; label: string; key: string; Icon: LucideIcon; roles?: string[] }
+interface Page { path: string; label: string; key: string; Icon: LucideIcon; roles?: string[]; iconOnly?: boolean }
 
 // Who sees which screen. The API enforces access too; this only avoids showing buttons that would be refused.
 const PLANNERS = ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER']
@@ -33,7 +36,9 @@ const PAGES: Page[] = [
   { path: 'crew-changes', key: 'nav_changes', label: 'Crew changes', Icon: ClipboardList },
   { path: 'extensions', key: 'nav_extensions', label: 'Extensions', Icon: Timer, roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
   { path: 'analytics', key: 'nav_analytics', label: 'Analytics', Icon: BarChart3, roles: [...PLANNERS, 'HR'] },
-  { path: 'settings', key: 'nav_settings', label: 'Settings', Icon: SettingsIcon, roles: ['SUPER_ADMIN', 'OPS_MANAGER'] },
+  { path: 'settings', key: 'nav_settings', label: 'Settings', Icon: SettingsIcon, roles: ['SUPER_ADMIN', 'OPS_MANAGER'], iconOnly: true },
+  { path: 'users', key: 'nav_users', label: 'Users', Icon: UserCog, roles: ['SUPER_ADMIN', 'OPS_MANAGER'], iconOnly: true },
+  { path: 'audit', key: 'nav_audit', label: 'Audit', Icon: History, roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'HR'], iconOnly: true },
 ]
 
 export default function Shell() {
@@ -41,6 +46,7 @@ export default function Shell() {
   const { me, logout, can } = useAuth()
   const { parts } = useRoute()
   const [dark, setDark] = useState(false)
+  const [pwOpen, setPwOpen] = useState(false)
   const unread = useUnread()
   const employeeOnly = !!me && me.roles.every(r => r.role === 'EMPLOYEE')
 
@@ -71,8 +77,9 @@ export default function Shell() {
         <strong className="brand">{t('app')}</strong>
         <nav aria-label="Screens">
           {visible.map(p => (
-            <a key={p.path} href={`#/${p.path}`} className={p === current ? 'on' : ''} aria-current={p === current ? 'page' : undefined}>
-              <p.Icon size={15} aria-hidden /> {t(p.key, p.label)}
+            <a key={p.path} href={`#/${p.path}`} className={p === current ? 'on' : ''} aria-current={p === current ? 'page' : undefined} title={p.iconOnly ? t(p.key, p.label) : undefined}
+              ref={p === current ? el => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}>
+              <p.Icon size={15} aria-hidden /> <span className={p.iconOnly ? 'sr-only' : undefined}>{t(p.key, p.label)}</span>
             </a>
           ))}
         </nav>
@@ -81,6 +88,7 @@ export default function Shell() {
         <a className={`navlink bellink${onAlerts ? ' on' : ''}`} href="#/notifications" aria-label={t('alertsTitle', 'Notifications')} title={t('alertsTitle', 'Notifications')}><Bell_ count={unread.unread} urgent={unread.pendingAck > 0} /></a>
         {['en', 'fr', 'ar'].map(l => <button key={l} type="button" className={i18n.language === l ? 'on' : ''} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}
         <button type="button" aria-label="Theme" onClick={() => setDark(!dark)}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
+        <button type="button" aria-label={t('pwChange', 'Change password')} title={t('pwChange', 'Change password')} onClick={() => setPwOpen(true)}><KeyRound size={16} /></button>
         <button type="button" aria-label="Sign out" title={me?.roles.map(r => r.role).join(', ')} onClick={logout}><LogOut size={16} /></button>
       </header>
       {onAlerts && <NotificationsPage />}
@@ -94,6 +102,9 @@ export default function Shell() {
       {current?.path === 'analytics' && <Analytics />}
       {current?.path === 'extensions' && <Extensions />}
       {current?.path === 'settings' && <Settings />}
+      {current?.path === 'users' && <Users />}
+      {current?.path === 'audit' && <Audit />}
+      {pwOpen && <ChangePasswordDialog onClose={() => setPwOpen(false)} />}
     </div>
   )
 }
