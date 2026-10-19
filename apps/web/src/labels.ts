@@ -7,7 +7,7 @@ export const TRIGGER_LABEL: Record<string, string> = {
 }
 
 export const RULE_LABEL: Record<string, string> = {
-  rotation_off: 'on days off', availability: 'unavailable', qualification: 'missing qualification', certification: 'certificate problem',
+  rotation_off: 'on days off', availability: 'unavailable', qualification: 'missing qualification', certification: 'missing a mandatory certificate',
   seat_seniority: 'not senior enough', restriction: 'restricted from this work', double_booking: 'already on another seat',
   work_mode: 'wrong work mode', position: 'different position', max_consecutive: 'too many days in a row', crew: 'would break the crew rules',
   crew_experienced: 'no experienced person in the crew', crew_chief: 'no chief of unit',

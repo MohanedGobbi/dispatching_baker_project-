@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Check, Plus, Wand2 } from 'lucide-react'
+import { PageGuide } from './guide'
 import { api, ApiError } from './api'
 import { useAuth } from './auth'
 import { Modal, ViolationList } from './dialogs'
@@ -9,6 +10,7 @@ import { fmtDate, FIX_LABEL, PLAN_LABEL, PLAN_STEPS, plural } from './labels'
 import { SuggestDialog } from './suggest'
 import { Pill, useToast } from './ui'
 import type { Severity } from './types'
+import { PersonLink, SeatLabel } from './profiles'
 
 interface Gap {
   seatId: string; seat: string; from: string; to: string; required: boolean
@@ -66,10 +68,16 @@ function PlanList() {
 
   return (
     <main className="page">
-      <header className="page-head">
-        <div><h1>{t('plansTitle', 'Plans')}</h1><p className="muted">{t('plansIntro', 'Let the engine propose who works where, review it, then publish.')}</p></div>
-        {can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER') && <div className="actions"><button type="button" className="primary" onClick={() => setOpen(!open)}><Plus size={15} aria-hidden /> {t('newPlan', 'New plan')}</button></div>}
-      </header>
+      <PageGuide id="plans" Icon={Wand2} color="#7c3aed" title={t('plansTitle', 'Plans')}
+        purpose={t('plansPurpose', 'Let the planner propose who works where for the coming weeks, check it, then publish it to everyone.')}
+        steps={[
+          t('plStep1', '"New plan": choose the weeks and bases. The planner fills every seat it can while following every rule.'),
+          t('plStep2', 'Open the draft: each assignment says why that person was chosen; empty seats come with ways to fix them.'),
+          t('plStep3', 'Change anything by hand, then submit. A manager approves and publishes it.'),
+          t('plStep4', 'Publishing makes the plan live on the board and notifies everyone concerned. Until then nothing changes.'),
+        ]}>
+        {can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER') && <button type="button" className="primary" onClick={() => setOpen(!open)}><Plus size={15} aria-hidden /> {t('newPlan', 'New plan')}</button>}
+      </PageGuide>
 
       {open && (
         <section className="panel" aria-label="New plan">
@@ -236,7 +244,7 @@ function PlanView({ id }: { id: string }) {
                   {rows.map(a => (
                     <tr key={a.id}>
                       <td className="nowrap">{fmtDate(a.start, i18n.language)} → {fmtDate(a.end, i18n.language)}</td>
-                      <td><strong>{a.employee.firstName} {a.employee.lastName}</strong>{a.type === 'REPLACEMENT' && <span className="tag tag-restr">replacement</span>}{a.overrideReason && <Pill severity="warn">override: {a.overrideReason}</Pill>}
+                      <td><strong><PersonLink id={a.employee.id}>{a.employee.firstName} {a.employee.lastName}</PersonLink></strong>{a.type === 'REPLACEMENT' && <span className="tag tag-restr">replacement</span>}{a.overrideReason && <Pill severity="warn">override: {a.overrideReason}</Pill>}
                         <small className="why">{a.explanation}</small></td>
                       <td className="row-actions end">
                         {editable && <button type="button" onClick={() => changePerson(a)}>{t('change', 'Change')}</button>}
@@ -259,7 +267,7 @@ function PlanView({ id }: { id: string }) {
           {gaps.map((g, i) => (
             <section key={`${g.seatId}-${g.from}-${i}`} className="gap">
               <header>
-                <strong>{g.seat}</strong>
+                <strong><SeatLabel label={g.seat ?? ''} /></strong>
                 <span>{fmtDate(g.from, i18n.language)} → {fmtDate(g.to, i18n.language)}</span>
                 <Pill severity={g.required ? 'bad' : 'info'}>{g.required ? t('required', 'Required') : t('optional', 'Optional')}</Pill>
                 {editable && <button type="button" className="primary" onClick={() => fillGap(g)}>{t('findSomeone', 'Find someone')}</button>}
@@ -280,7 +288,7 @@ function PlanView({ id }: { id: string }) {
 
       {problems && (
         <Modal title={t('publishProblems', 'Some drafts no longer work')} onClose={() => setProblems(null)}>
-          <p className="muted">{t('publishProblemsIntro', 'Things changed since this plan was made (leave, certificates, other assignments). These drafts break a rule now:')}</p>
+          <p className="muted">{t('publishProblemsIntro', 'Things changed since this plan was made (leave, qualifications, other assignments). These drafts break a rule now:')}</p>
           <ul className="problem-list">
             {problems.map(x => {
               const a = p.assignments.find(y => y.id === x.assignmentId)

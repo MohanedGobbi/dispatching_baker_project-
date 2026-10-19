@@ -4,7 +4,7 @@ Written at the end of the build session. The plan is `crew-dispatch-platform-pla
 
 ## State in one paragraph
 
-Plan epics E1-E21 are built (the demo scope), plus most of E10 and E11. The API (NestJS + Prisma + PostgreSQL) covers master data, seats and assignments with a rule validator, leave and medical leave, extensions, the planning engine and plan lifecycle, the replacement center, calendars, the dispatch board, maintenance, notifications, files, swaps, the portal, **analytics (coverage forecast, KPIs, dashboards, map), recommendations and the what-if simulator**. The web app (React + Vite) has the dispatch board, planner screens, work orders, extensions, settings, an Analytics area (overview, forecast heat map, what-if, people, leave, units, base staffing, compliance, map) and a phone-first employee portal that works offline for viewing. `DEMO.md` is the demo script. A follow-up session added **user admin, password change and reset, the SMTP sender (E2/E20), the audit log screen (E26) and Excel import/export (E27)**. Not started: E28-E30 polish.
+Plan epics E1-E21 are built (the demo scope), plus most of E10 and E11. The API (NestJS + Prisma + PostgreSQL) covers master data, seats and assignments with a rule validator, leave and medical leave, extensions, the planning engine and plan lifecycle, the replacement center, calendars, the dispatch board, maintenance, notifications, files, swaps, the portal, **analytics (coverage forecast, KPIs, dashboards, map), recommendations and the what-if simulator**. The web app (React + Vite) has the dispatch board, planner screens, work orders, extensions, settings, an Analytics area (overview, forecast heat map, what-if, people, leave, units, base staffing, map), person and unit profile panels opened from any name or unit code, forms to add units and jobs, and a phone-first employee portal that works offline for viewing. `DEMO.md` is the demo script. A follow-up session added **user admin, password change and reset, the SMTP sender (E2/E20), the audit log screen (E26) and Excel import/export (E27)**. A UI rework and a design audit followed (see "UI rework and design audit" below). Not started: E28-E30.
 
 ## Run it
 
@@ -14,12 +14,14 @@ npm run db:up                      # Postgres on 5440 (not 5432: other container
 cd apps/api && cp .env.example .env && npx prisma migrate deploy && npm run seed
 npm run start:dev                  # API :3000
 npm run dev:web                    # web :5173, proxies /api to the API
-npm run demo                       # (API running) 8 units on jobs, a published plan, a medical leave, an expired cert
+npm run demo                       # (API running) 8 units on jobs, a published plan, a medical leave and the planted scenarios
 ```
 
 Logins, password `demo1234`: `dispatcher`, `ops`, `hr`, `basemanager` (scoped to HMD), `admin`, `chief` (no employee behind it), `employee` (linked to the first field operator), and every employee by employee number, e.g. `e1044`.
 
-Checks: `cd apps/api && npm run typecheck && npm test` (85 unit tests), `npm run smoke` (10 live suites, needs the API running; they mutate data, so reseed afterwards; they pass as one chain on a fresh seed), `cd apps/web && node scripts/test-sw.mjs` (service worker with a mock cache).
+Windows shortcut: `start-crewboard.cmd` / `stop-crewboard.cmd` at the repo root (scripts in `scripts/`) start Docker, the database, the API and the web app and open the browser. They are Windows-only; in the cloud use the commands above.
+
+Checks: `cd apps/api && npm run typecheck && npm test` (84 unit tests), `npm run smoke` (10 live suites, needs the API running; they mutate data, so reseed afterwards; they pass as one chain on a fresh seed), `cd apps/web && node scripts/test-sw.mjs` (service worker with a mock cache).
 
 ## Where things are
 
@@ -37,6 +39,15 @@ apps/api/scripts/           smoke-*.ts live suites, lib.ts helpers, demo-plan.ts
 apps/web/src/               Shell (nav, role routing), Board, Replacements, Plans, Leave, Timeline, CrewChanges,
                             WorkOrders, Extensions, Settings, Users, Audit, DataTransfer, account.tsx (password screens),
                             Analytics, WhatIf, Portal (employee app), notifications.tsx, hooks.ts, api.ts, i18n*.ts
+   guide.tsx      PageGuide (page header with "How it works"), Legend, Donut, Ring, BASE_COLORS
+   profiles.tsx   ProfileProvider + PersonLink / UnitLink / SeatLabel: any name or unit code opens a side panel
+                  (person: contact, status, schedule, history; unit: job, crew, maintenance with notes, jobs, crew history)
+   assign.tsx     click-to-assign picker (planner's best matches with a span choice, or everyone free today)
+   unitforms.tsx  AddUnitDialog, NewJobDialog (create a job and optionally deploy a unit)
+   fleetmap.tsx   SVG map of bases and active sites drawn from coordinates (no tiles)
+   a11y.ts        useDialogFocus: focus in, Tab trap, focus restored to the opener (Modal and the profile panel use it)
+   look.css       the current visual layer (sidebar, guides, cards, board, replacement center, timeline focus, profiles,
+                  P1 audit fixes for contrast, 12px text floor, scroll cues, phone layout, 44px touch targets)
 apps/web/public/            manifest, icons, sw.js (service worker)
 ```
 
@@ -49,6 +60,7 @@ apps/web/public/            manifest, icons, sw.js (service worker)
 - **Plans are drafts until published.** Draft assignments never count as live. Publishing re-validates each draft against current facts (person-level rules only) and opens a replacement task for any it has to skip.
 - **Leave and restrictions free seats** through `absence.service.ts`: the person's live assignment is trimmed or split and a replacement task is opened per freed span of a required seat. Only live assignments are touched, never drafts.
 - **Filling a seat closes the task it was for** (`AbsenceService.coverTasks`): direct assignment, transfer, split, replacement confirm and plan publish all do it.
+- **Certificates do not expire** (user decision, 2026-10-19). A certificate is held or not; `Certification.expiresAt` is nullable and unused. Expiry rules, board badges, notifications, the compliance dashboard, the certificate KPI and the renewal recommendation were removed.
 - **Medical privacy.** Others see "Unavailable", never the reason, in board, calendar, leave lists and notifications (even the notification type name is neutral). Certificates live in a separate folder; opening someone else's is logged.
 - **Employees see only themselves.** Employee-only accounts get 403 on the board, seat grid, lists of people and calendars of others; assignments, leave, extensions and swaps are filtered to their own.
 - **Swaps are for upcoming stretches only**; running ones need a dispatcher handover. Moves between seats use the atomic `POST /assignments/:id/transfer`, not release-then-assign.
@@ -83,7 +95,46 @@ apps/web/public/            manifest, icons, sw.js (service worker)
 - Entry points load `apps/api/.env` through `src/env.ts` (the generated Prisma client does not read it); new scripts should `import '../src/env'` first.
 - Auth decorators live in `auth/decorators.ts` so modules that `auth.module.ts` imports (settings) do not form an import cycle.
 
+- Some files have Windows line endings (CRLF), some do not. Scripted search-and-replace over source must normalise line endings first or it silently misses; the editor tools handle both.
+- The web app is `look.css` on top of four older stylesheets (`App.css`, `pages.css`, `analytics.css`, `portal.css`, imported in that order from `App.tsx`). `look.css` is imported last and wins, sometimes with `!important`; change the visual layer there, not in the older files.
+
+## UI rework and design audit (2026-10-19, local session)
+
+What changed in the web app, at the user's request:
+- **Navigation:** grouped, coloured sidebar (Today / Planning / Insights / Administration) with a one-line description per screen; collapses to icons, and on phones (under 760px) becomes a slide-in menu from a menu button. Language switch becomes a single picker on phones; password and sign-out move into the menu.
+- **Page guides:** every main screen starts with `PageGuide`: purpose in one sentence and numbered "How it works" steps (open on the first visit to a screen, folded afterwards, remembered per screen in localStorage).
+- **Board:** coloured KPI tiles (clickable filters), an overview with the base/site map, an "everyone today" donut and crew health per base, filter chips (base, OH/CH, crew state), full-colour unit cards with a crew ring, "Assign someone" on every empty seat (picker, then the usual rule check), people lanes. Unit card headers open the unit profile. "New job" and "Add a unit" buttons.
+- **Replacement center:** urgency tiles, a four-week bar chart of open tasks, tasks grouped by how soon, ranked candidates with fit bars and a chart of why others are ruled out.
+- **Timeline:** clicking a person shows only them (13-week strip, month calendar, day split, stretches); "Full profile" opens the profile panel.
+- **Profiles:** every name and unit code across the app is clickable (board, replacement center, leave, extensions, crew changes, plans, work orders, analytics, assign picker).
+- **Units:** send to the workshop with a note and expected return (opens a corrective work order), mark repaired, give it a job, end its job, out of service / back in service, edit notes.
+- **Scrollbars** are hidden app-wide except on sideways scrollers (timeline, heat map, four-week chart, tables on phones, lists, panels), which show a thin themed bar.
+
+An `impeccable` design audit was run (detector + rendered checks on every screen at 1366px and 375px, light and dark). Score before fixes: 11/20. **All P1 issues are fixed and re-verified:** phone layout (no page wider than 375px), dialog and panel focus, text contrast (0 failures on the checked screens in light and dark; status and identity colours were darkened in `tokens.css`, `--ink-*` tokens added for text on pale tints, `--accent-fill` for filled buttons), no text under 12px, scroll cues, shorter board header, 44px touch targets on touch screens.
+
+**Remaining audit work (P2 first), for the next session:**
+1. `apps/web/index.html` title is still "web"; set it to "CrewBoard".
+2. Fonts: Inter and IBM Plex Sans Arabic are named in `tokens.css` but never loaded; everything falls back to system fonts. Self-host both (Arabic matters for the AR locale).
+3. Theme: the light/dark choice is not remembered and ignores the system preference (`Shell.tsx` `useState(false)`).
+4. One 608 KB JS bundle: lazy-load Analytics/WhatIf, Portal, Users/Audit/DataTransfer/Settings, and the profile panel.
+5. CSS consolidation: dead rules from the old board and replacement center remain (`App.css` `.unit`, `.seat`, `.column`, `.summary`, `.kpi`, `.side-grid`, `.staffing`; `pages.css` `.task`, `.split`, `.detail`), `PersonDrawer.tsx` is unused, and `look.css` relies on `!important`. Fold everything into tokens + one component stylesheet.
+6. About 140 hard-coded hex colours in TSX inline styles (KPI tiles, urgency, role and base colours). Move them to tokens with dark-mode values.
+7. FR/AR: every string added in the rework (sidebar, guides, board, picker, profiles, replacement center, timeline focus, unit/job forms) has only its English default. Also RTL: the profile panel slides in from the wrong side and the sidebar's active marker is drawn on the left.
+8. Dispatchers see "Repaired" in the unit panel but the API refuses it (maintenance is view-only for them); hide it for them or change the role matrix.
+9. Touch: chips let the page scroll (`touch-action: pan-y`), so drag-and-drop is effectively mouse-only; "Assign someone" is the touch path. Consider a dnd-kit TouchSensor with a long press.
+10. P3: thick coloured side stripes on cards (`border-inline-start` 4-5px, flagged by the detector), very high colour volume (saturated gradients everywhere dilute the red "act now" signal; keep strong colour for state and OH/CH identity, calm the rest), and Escape in a dialog opened over the profile panel closes both.
+
+There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/impeccable document` would capture the product brief and the current design system so future design work has a reference.
+
+## Continuing in the cloud
+
+- Start from `master` on GitHub (everything above is pushed there). Nothing local is needed except data, which the seed recreates.
+- The cloud machine needs PostgreSQL. With Docker: `npm run db:up` (port 5440). Without Docker, install Postgres and point `DATABASE_URL` in `apps/api/.env` at it (copy `.env.example`). Then `npx prisma migrate deploy`, `npm run seed`, start the API, and `npm run demo` for the demo story.
+- To check the web app without a browser login, the API smoke suites cover behaviour; for the UI, run `npm run build` in `apps/web` and `node scripts/test-sw.mjs`. Rendered checks need the app running and a signed-in browser (token in `localStorage['crewboard.token']`, from `POST /api/auth/login`).
+- After any change: `npm run typecheck && npm test` and `npm run smoke` in `apps/api` (reseed afterwards), `npx tsc --noEmit -p tsconfig.app.json && npm run build` in `apps/web`.
+
 ## Suggested next steps
 
-1. Before real people use it: set `JWT_SECRET`, `APP_URL` and SMTP; add a login rate limit; turn off the demo accounts.
-2. Import the remaining sheets (certificates, base staffing rules, sites) and PDF exports; then E28-E30 (performance test at 5x volume, polish, WCAG audit).
+1. The P2 list above (fonts, title, theme, bundle splitting, CSS and colour tokens, FR/AR strings).
+2. Before real people use it: set `JWT_SECRET`, `APP_URL` and SMTP; add a login rate limit; turn off the demo accounts.
+3. Import the remaining sheets (certificates, base staffing rules, sites) and PDF exports; then E28-E30 (performance test at 5x volume, WCAG audit).

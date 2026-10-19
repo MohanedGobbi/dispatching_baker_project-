@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Check, Clock, X } from 'lucide-react'
+import { AlertTriangle, BarChart3, Check, Clock, X } from 'lucide-react'
+import { PageGuide } from './guide'
 import { api } from './api'
 import { useAuth } from './auth'
 import { errMsg, useApi, useLive } from './hooks'
@@ -8,6 +9,7 @@ import { fmtDate } from './labels'
 import { Pill, useToast } from './ui'
 import WhatIf from './WhatIf'
 import './analytics.css'
+import { UnitLink } from './profiles'
 
 interface Point { date: string; required: number; available: number }
 interface Heat { date: string; ratio: number | null; worst: string | null }
@@ -25,8 +27,8 @@ interface Overview {
   crews: { deployed: number; compliant: number; nonCompliant: { id: string; code: string; base: string; type: string; required: number; filled: number; issues: string[] }[] }
   basePostsBelowMin: { base: string; position: string; present: number; min: number }[]; openTasks: Record<string, number>; crewChangesNext7Days: number
 }
-type Tab = 'overview' | 'forecast' | 'whatif' | 'people' | 'leave' | 'units' | 'staffing' | 'compliance' | 'map'
-const TABS: [Tab, string][] = [['overview', 'Overview'], ['forecast', 'Forecast'], ['whatif', 'What if'], ['people', 'People & fairness'], ['leave', 'Leave & absence'], ['units', 'Units & maintenance'], ['staffing', 'Base staffing'], ['compliance', 'Compliance'], ['map', 'Map']]
+type Tab = 'overview' | 'forecast' | 'whatif' | 'people' | 'leave' | 'units' | 'staffing' | 'map'
+const TABS: [Tab, string][] = [['overview', 'Overview'], ['forecast', 'Forecast'], ['whatif', 'What if'], ['people', 'People & fairness'], ['leave', 'Leave & absence'], ['units', 'Units & maintenance'], ['staffing', 'Base staffing'], ['map', 'Map']]
 const STATUS_COLOR: Record<string, string> = { ON_UNIT: 'var(--st-unit)', ON_BASE_POST: 'var(--st-base)', STANDBY: 'var(--st-standby)', DAYS_OFF: 'var(--st-off)', UNAVAILABLE: 'var(--st-medical)', ON_LEAVE: 'var(--st-leave)' }
 const STATUS_NAME: Record<string, string> = { ON_UNIT: 'On unit', ON_BASE_POST: 'Base post', STANDBY: 'Standby', DAYS_OFF: 'Days off', UNAVAILABLE: 'Unavailable', ON_LEAVE: 'On leave' }
 
@@ -41,7 +43,13 @@ export default function Analytics({ initial }: { initial?: Tab }) {
   const tabs = TABS.filter(([k]) => k !== 'leave' || can('SUPER_ADMIN', 'OPS_MANAGER', 'HR', 'BASE_MANAGER'))
   return (
     <main className="page wide">
-      <header className="page-head"><div><h1>{t('anTitle', 'Analytics')}</h1><p className="muted">{t('anIntro', 'Where the company is short, who is overworked, and what to do about it.')}</p></div></header>
+      <PageGuide id="analytics" Icon={BarChart3} color="#16a34a" title={t('anTitle', 'Analytics')}
+        purpose={t('anPurpose', 'Where the company will be short of people, who is overworked, and what to do about it.')}
+        steps={[
+          t('anStep1', 'Overview: today\'s numbers and recommendations you can accept, snooze or dismiss.'),
+          t('anStep2', 'Forecast: the coming months, base by base. Red cells are days without enough people of a kind.'),
+          t('anStep3', 'What if: try a change (a new job, people leaving) and see which days would go uncovered. Nothing is saved.'),
+        ]} />
       <div className="subtabs" role="tablist">
         {tabs.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`an_${k}`, label)}</button>)}
       </div>
@@ -52,7 +60,6 @@ export default function Analytics({ initial }: { initial?: Tab }) {
       {tab === 'leave' && <LeaveTab />}
       {tab === 'units' && <UnitsTab />}
       {tab === 'staffing' && <StaffingTab />}
-      {tab === 'compliance' && <ComplianceTab />}
       {tab === 'map' && <MapTab />}
     </main>
   )
@@ -112,7 +119,7 @@ function OverviewTab({ go }: { go: (t: Tab) => void }) {
             <h2>{t('anCrewIssues', 'Crews not meeting the rules')}</h2>
             {o.crews.nonCompliant.length === 0 ? <p className="muted">{t('anAllGood', 'Every deployed crew is complete and compliant.')}</p> : (
               <ul className="an-list">{o.crews.nonCompliant.map(c => (
-                <li key={c.id}><strong>{c.code}</strong> <span className="muted">{c.base} · {c.type}</span> <span>{c.filled}/{c.required}</span>{c.issues.map(i => <Pill key={i} severity="warn">{i}</Pill>)}</li>
+                <li key={c.id}><strong><UnitLink id={c.id} code={c.code} /></strong> <span className="muted">{c.base} · {c.type}</span> <span>{c.filled}/{c.required}</span>{c.issues.map(i => <Pill key={i} severity="warn">{i}</Pill>)}</li>
               ))}</ul>
             )}
             {o.basePostsBelowMin.length > 0 && <><h3>{t('anPostsLow', 'Base posts below minimum')}</h3><ul className="an-list">{o.basePostsBelowMin.map(p => <li key={p.base + p.position}>{p.base} · {p.position}: {p.present}/{p.min}</li>)}</ul></>}
@@ -259,11 +266,11 @@ function LineChart({ title, dates, required, available }: { title: string; dates
     <section className="panel" aria-label={`${title} over time`}>
       <h2>{title}</h2>
       <svg viewBox={`0 0 ${W} ${H}`} className="an-line" role="img" aria-label={`${title}: required and available per day`}>
-        {[0, 0.5, 1].map(f => <g key={f}><line x1={P} x2={W - P} y1={y(max * f)} y2={y(max * f)} stroke="var(--border)" /><text x={4} y={y(max * f) + 4} fontSize="10" fill="var(--muted)">{Math.round(max * f)}</text></g>)}
+        {[0, 0.5, 1].map(f => <g key={f}><line x1={P} x2={W - P} y1={y(max * f)} y2={y(max * f)} stroke="var(--border)" /><text x={4} y={y(max * f) + 4} fontSize="13" fill="var(--muted)">{Math.round(max * f)}</text></g>)}
         {gaps.map(i => <rect key={i} x={x(i) - 2} y={P / 2} width={4} height={H - P * 1.5} fill="#fca5a5" opacity=".45" />)}
         <path d={path(required)} fill="none" stroke="var(--bad)" strokeWidth="2" strokeDasharray="5 3" />
         <path d={path(available)} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
-        {[0, Math.floor(dates.length / 2), dates.length - 1].map(i => <text key={i} x={x(i)} y={H - 8} fontSize="10" textAnchor="middle" fill="var(--muted)">{dates[i].slice(5)}</text>)}
+        {[0, Math.floor(dates.length / 2), dates.length - 1].map(i => <text key={i} x={x(i)} y={H - 6} fontSize="13" textAnchor="middle" fill="var(--muted)">{dates[i].slice(5)}</text>)}
       </svg>
       <p className="an-key"><i style={{ background: 'var(--accent)' }} /> {t('anAvail', 'available')} <i style={{ background: 'var(--bad)' }} /> {t('anRequired', 'required')}</p>
     </section>
@@ -359,7 +366,7 @@ function UnitsTab() {
           <table className="table">
             <thead><tr><th>{t('unit', 'Unit')}</th><th>{t('base', 'Base')}</th><th>{t('type', 'Type')}</th><th>{t('jobs', 'Jobs')}</th><th>{t('anUtilShort', 'Working')}</th><th>{t('anDown', 'Workshop')}</th></tr></thead>
             <tbody>{x.units.map(u => (
-              <tr key={u.code}><th scope="row">{u.code}</th><td>{u.base}</td><td>{u.type}</td><td>{u.jobs}</td>
+              <tr key={u.code}><th scope="row"><UnitLink code={u.code} /></th><td>{u.base}</td><td>{u.type}</td><td>{u.jobs}</td>
                 <td><div className="an-bar"><div><i style={{ width: `${Math.min(100, u.utilization)}%`, background: 'var(--st-unit)' }} /></div><b>{u.utilization}%</b></div></td>
                 <td>{u.downtime ? <Pill severity="warn">{u.downtime}%</Pill> : '–'}</td></tr>
             ))}</tbody>
@@ -394,32 +401,6 @@ function StaffingTab() {
           </div>
           <p className="an-key"><i style={{ background: '#fca5a5' }} /> {t('anUnderMin', 'under minimum')} <i style={{ background: '#fde68a' }} /> {t('anUnderTarget', 'under target')} <i style={{ background: '#bbf7d0' }} /> {t('anOk', 'at or above target')}</p>
         </section>
-      )}
-    </>
-  )
-}
-
-// ------------------------------------------------------------------ compliance
-function ComplianceTab() {
-  const { t } = useTranslation()
-  const d = useApi<{ compliancePct: number; people: number; expiring30: number; expiring60: number; expiring: { name: string; base: string; cert: string; expires: string; days: number }[] }>('/analytics/compliance')
-  const x = d.data
-  return (
-    <>
-      <Loading q={d} />
-      {x && (
-        <>
-          <div className="an-kpis">
-            <Card label={t('anCertOk', 'People with valid certificates')} value={`${x.compliancePct}%`} detail={`${x.people} ${t('anPeopleChecked', 'people')}`} tone={x.compliancePct < 95 ? 'warn' : 'ok'} />
-            <Card label={t('anExp30', 'Expiring within 30 days')} value={x.expiring30} tone={x.expiring30 ? 'warn' : undefined} />
-            <Card label={t('anExp60', 'Expiring within 60 days')} value={x.expiring60} />
-          </div>
-          <section className="panel">
-            <h2>{t('anSoon', 'Next to expire')}</h2>
-            <table className="table"><thead><tr><th>{t('anPerson', 'Person')}</th><th>{t('base', 'Base')}</th><th>{t('anCert', 'Certificate')}</th><th>{t('anExpires', 'Expires')}</th><th /></tr></thead>
-              <tbody>{x.expiring.slice(0, 40).map((e, i) => <tr key={i}><th scope="row">{e.name}</th><td>{e.base}</td><td>{e.cert}</td><td>{fmtDate(e.expires)}</td><td><Pill severity={e.days <= 14 ? 'bad' : e.days <= 30 ? 'warn' : 'info'}>{e.days} {t('days', 'days')}</Pill></td></tr>)}</tbody></table>
-          </section>
-        </>
       )}
     </>
   )

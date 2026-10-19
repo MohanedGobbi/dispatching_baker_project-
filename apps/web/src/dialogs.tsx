@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useDialogFocus } from './a11y'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowRight, X } from 'lucide-react'
@@ -8,7 +9,9 @@ import type { Person, Preview, SeatCard, UnitCardData, Violation } from './types
 const DAY = 86_400_000
 export const addDaysIso = (iso: string, n: number) => new Date(Date.parse(iso) + n * DAY).toISOString().slice(0, 10)
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  const box = useRef<HTMLDivElement>(null)
+  useDialogFocus(box)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -16,7 +19,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   }, [onClose])
   return (
     <div className="modal-back" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={box} className={`modal${wide ? " wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header><h2>{title}</h2><button type="button" aria-label="Close" onClick={onClose}><X size={18} /></button></header>
         {children}
       </div>
@@ -36,14 +39,14 @@ export function ViolationList({ violations }: { violations: Violation[] }) {
 }
 
 /** A person is dropped on a seat: show what would happen first, then save. */
-export function AssignDialog({ person, seat, unit, date, transferFrom, onClose, onDone }: {
+export function AssignDialog({ person, seat, unit, date, transferFrom, initialEnd, onClose, onDone }: {
   person: Person; seat: SeatCard; unit: UnitCardData; date: string
-  transferFrom?: { assignmentId: string; label: string }
+  transferFrom?: { assignmentId: string; label: string }; initialEnd?: string
   onClose: () => void
   onDone: (text: string, undo?: () => Promise<void>) => void
 }) {
   const { t } = useTranslation()
-  const [end, setEnd] = useState(addDaysIso(date, 27))
+  const [end, setEnd] = useState(initialEnd ?? addDaysIso(date, 27))
   const [preview, setPreview] = useState<Preview | null>(null)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)

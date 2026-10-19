@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ClipboardList } from 'lucide-react'
+import { PageGuide } from './guide'
 import { useApi, useLive } from './hooks'
 import { fmtDate, plural } from './labels'
 import { Pill } from './ui'
+import { PersonLink, SeatLabel } from './profiles'
 
 interface Change {
   date: string; daysAway: number; seatId: string; seat: string
@@ -29,9 +31,12 @@ export default function CrewChanges() {
 
   return (
     <main className="page">
-      <header className="page-head">
-        <div><h1>{t('changesTitle', 'Crew changes')}</h1><p className="muted">{t('changesIntro', 'Who leaves a seat, who arrives, and whether it is settled.')}</p></div>
-      </header>
+      <PageGuide id="changes" Icon={ClipboardList} color="#0d9488" title={t('changesTitle', 'Crew changes')}
+        purpose={t('changesPurpose', 'Every handover in the coming days: who leaves a seat, who arrives, and whether someone is actually coming.')}
+        steps={[
+          t('ccStep1', 'Green rows are settled: someone is coming. Red rows have nobody to take over yet.'),
+          t('ccStep2', 'Open the replacement center from a red row to find someone in time.'),
+        ]} />
       <div className="filters">
         <div className="seg" role="group" aria-label="Range">
           {[7, 14, 30].map(n => <button key={n} type="button" className={days === n ? 'on' : ''} onClick={() => setDays(n)}>{n} {t('days', 'days')}</button>)}
@@ -52,11 +57,11 @@ export default function CrewChanges() {
             {c.changes.map(r => (
               <tr key={r.seatId + r.date} className={r.status === 'missing' ? 'row-bad' : ''}>
                 <td className="nowrap"><strong>{fmtDate(r.date, i18n.language)}</strong><small className="why">{r.daysAway === 0 ? t('today', 'Today') : r.daysAway === 1 ? t('tomorrow', 'Tomorrow') : `${t('in', 'in')} ${plural(r.daysAway, 'day')}`}</small></td>
-                <td>{r.seat}</td>
+                <td><SeatLabel label={r.seat} /></td>
                 <td className="handover">
-                  <span>{r.outgoing?.name ?? <em className="muted">{t('newCrew', 'new crew')}</em>}</span>
+                  <span>{r.outgoing ? <PersonLink id={r.outgoing.id}>{r.outgoing.name}</PersonLink> : <em className="muted">{t('newCrew', 'new crew')}</em>}</span>
                   <ArrowRight size={14} aria-hidden />
-                  <span>{r.incoming?.name ?? <em className="gap-text">{t('nobody', 'nobody yet')}</em>}</span>
+                  <span>{r.incoming ? <PersonLink id={r.incoming.id}>{r.incoming.name}</PersonLink> : <em className="gap-text">{t('nobody', 'nobody yet')}</em>}</span>
                 </td>
                 <td>{status(r.status)}{r.status === 'missing' && <a className="inline-link" href="#/replacements">{t('openCenter', 'Open replacement center')}</a>}</td>
                 <td className="muted">{r.travel ? `${r.travel.site}${r.travel.hours ? ` · ${r.travel.hours} h` : ''}` : '—'}</td>

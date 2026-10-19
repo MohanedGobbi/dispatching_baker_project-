@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus } from 'lucide-react'
+import { Plus, Wrench } from 'lucide-react'
+import { PageGuide } from './guide'
 import { api } from './api'
 import { useAuth } from './auth'
 import { Modal } from './dialogs'
 import { errMsg, useApi, useDebounced, useLive } from './hooks'
 import { fmtDate } from './labels'
 import { Pill, useToast } from './ui'
+import { PersonLink, UnitLink } from './profiles'
 
 interface WO {
   id: string; unit: { id: string; code: string }; base: { id: string; code: string }; type: string; priority: string
@@ -37,10 +39,14 @@ export default function WorkOrders() {
 
   return (
     <main className="page wide">
-      <header className="page-head">
-        <div><h1>{t('woTitle', 'Work orders')}</h1><p className="muted">{t('woIntro', 'Maintenance on units. While one is open the unit counts as under maintenance.')}</p></div>
-        {editor && <div className="actions"><button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newWo', 'New work order')}</button></div>}
-      </header>
+      <PageGuide id="workorders" Icon={Wrench} color="#b45309" title={t('woTitle', 'Work orders')}
+        purpose={t('woPurpose', 'Units in the workshop. While a work order is open the unit is under maintenance and its crew seats are not needed.')}
+        steps={[
+          t('woStep1', 'Open a work order with the expected return date and the mechanics working on it.'),
+          t('woStep2', 'Move it across the columns as the work goes on. "Done" makes the unit available again.'),
+        ]}>
+        {editor && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newWo', 'New work order')}</button>}
+      </PageGuide>
       <div className="filters">
         <select value={baseId} onChange={e => setBaseId(e.target.value)} aria-label="Base">
           <option value="">{t('allBases', 'All bases')}</option>{bases.data?.map(b => <option key={b.id} value={b.id}>{b.code}</option>)}
@@ -55,10 +61,10 @@ export default function WorkOrders() {
               <h2>{t(`wo_col_${status}`, title)} <span className="muted">{col.length}</span></h2>
               {col.map(w => (
                 <article key={w.id} className="wo-card">
-                  <header><strong>{w.unit.code}</strong><span className="muted">{w.base.code}</span><Pill severity={PRIORITY_SEV[w.priority as keyof typeof PRIORITY_SEV] ?? 'info'}>{w.priority}</Pill></header>
+                  <header><strong><UnitLink id={w.unit.id} code={w.unit.code} /></strong><span className="muted">{w.base.code}</span><Pill severity={PRIORITY_SEV[w.priority as keyof typeof PRIORITY_SEV] ?? 'info'}>{w.priority}</Pill></header>
                   <p>{w.type.replace('_', ' ')}{w.description ? ` · ${w.description}` : ''}</p>
                   <small className="muted">{t('backBy', 'back by')} {fmtDate(w.expectedReturn, i18n.language)}</small>
-                  <small>{w.assignees.length ? w.assignees.map(a => a.name).join(', ') : <em className="muted">{t('unassigned', 'Nobody assigned')}</em>}</small>
+                  <small>{w.assignees.length ? w.assignees.map((a, i) => <span key={a.id}>{i ? ', ' : ''}<PersonLink id={a.id}>{a.name}</PersonLink></span>) : <em className="muted">{t('unassigned', 'Nobody assigned')}</em>}</small>
                   {editor && (NEXT[w.status] ?? []).length > 0 && <div className="btn-row">{NEXT[w.status].map(n => <button type="button" key={n} onClick={() => void move(w.id, n)}>{t(`wo_${n}`, LABEL[n])}</button>)}</div>}
                 </article>
               ))}

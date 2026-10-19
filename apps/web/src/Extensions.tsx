@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus } from 'lucide-react'
+import { Plus, Timer } from 'lucide-react'
+import { PageGuide } from './guide'
 import { api, ApiError } from './api'
 import { useAuth } from './auth'
 import { Modal } from './dialogs'
 import { errMsg, useApi, useLive } from './hooks'
 import { fmtDate } from './labels'
 import { Pill, useToast } from './ui'
+import { PersonLink, UnitLink } from './profiles'
 
 interface Ext {
   id: string; days: number; reason: string; status: string; acknowledgedAt: string | null; overrideReason: string | null; createdAt: string
@@ -49,10 +51,15 @@ export default function Extensions() {
 
   return (
     <main className="page wide">
-      <header className="page-head">
-        <div><h1>{t('extTitle', 'Extensions')}</h1><p className="muted">{t('extIntro', 'Keeping someone on the unit past the planned end. Every extra day is added to their rest balance.')}</p></div>
-        {requester && <div className="actions"><button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('extNew', 'Request extension')}</button></div>}
-      </header>
+      <PageGuide id="extensions" Icon={Timer} color="#ea580c" title={t('extTitle', 'Extensions')}
+        purpose={t('extPurpose', 'Keeping someone on a unit past the planned end. Every extra day is owed back to them as rest.')}
+        steps={[
+          t('exStep1', 'A dispatcher or chief requests extra days and says why.'),
+          t('exStep2', 'The operations manager approves; beyond the limits a reason is required.'),
+          t('exStep3', '"Rest balances" shows who is owed the most rest, so their relief comes first.'),
+        ]}>
+        {requester && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('extNew', 'Request extension')}</button>}
+      </PageGuide>
       <div className="subtabs" role="tablist">
         {(['requests', 'balances', 'report'] as const).map(k => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`ext_${k}`, { requests: 'Requests', balances: 'Rest balances', report: 'Report' }[k])}</button>)}
       </div>
@@ -66,8 +73,8 @@ export default function Extensions() {
             <tbody>
               {list.data?.items.map(x => (
                 <tr key={x.id}>
-                  <th scope="row">{x.employee.firstName} {x.employee.lastName}<br /><small className="muted">{x.employee.employeeNo}</small></th>
-                  <td>{x.assignment.seat.unit?.code ?? x.assignment.seat.base?.code}<br /><small className="muted">{fmtDate(x.assignment.start, i18n.language)} – {fmtDate(x.assignment.plannedEnd, i18n.language)}</small></td>
+                  <th scope="row"><PersonLink id={x.employee.id}>{x.employee.firstName} {x.employee.lastName}</PersonLink><br /><small className="muted">{x.employee.employeeNo}</small></th>
+                  <td>{x.assignment.seat.unit ? <UnitLink code={x.assignment.seat.unit.code} /> : x.assignment.seat.base?.code}<br /><small className="muted">{fmtDate(x.assignment.start, i18n.language)} – {fmtDate(x.assignment.plannedEnd, i18n.language)}</small></td>
                   <td>+{x.days}</td><td>{reasonLabel(x.reason)}{x.overrideReason && <><br /><small className="muted">{x.overrideReason}</small></>}</td>
                   <td><Pill severity={SEV[x.status as keyof typeof SEV] ?? 'info'}>{x.status.toLowerCase()}</Pill>{x.status === 'APPROVED' && !x.acknowledgedAt && <small className="muted"> · {t('extWaitingAck', 'not yet acknowledged')}</small>}</td>
                   <td className="row-actions">{approver && x.status === 'REQUESTED' && <><button type="button" onClick={() => approve(x)}>{t('approve', 'Approve')}</button><button type="button" onClick={() => setDeciding({ ext: x, reject: true })}>{t('reject', 'Reject')}</button></>}</td>
@@ -84,7 +91,7 @@ export default function Extensions() {
           <h2>{t('extBalances', 'Who is owed rest')}</h2>
           <table className="table"><thead><tr><th>{t('person', 'Person')}</th><th>{t('base', 'Base')}</th><th>{t('extOwed', 'Days owed')}</th><th /></tr></thead>
             <tbody>
-              {balances.data?.map(b => <tr key={b.id}><th scope="row">{b.firstName} {b.lastName} <small className="muted">{b.employeeNo}</small></th><td>{b.homeBase.code}</td><td><Pill severity={b.balance >= 8 ? 'bad' : b.balance >= 5 ? 'warn' : 'info'}>{b.balance}</Pill></td>
+              {balances.data?.map(b => <tr key={b.id}><th scope="row"><PersonLink id={b.id}>{b.firstName} {b.lastName}</PersonLink> <small className="muted">{b.employeeNo}</small></th><td>{b.homeBase.code}</td><td><Pill severity={b.balance >= 8 ? 'bad' : b.balance >= 5 ? 'warn' : 'info'}>{b.balance}</Pill></td>
                 <td className="row-actions">{approver && <button type="button" onClick={() => setAdjusting({ id: b.id, name: `${b.firstName} ${b.lastName}` })}>{t('extAdjust', 'Adjust')}</button>}</td></tr>)}
               {balances.data?.length === 0 && <tr><td colSpan={4} className="muted">{t('anNobody', 'Nobody is owed rest days.')}</td></tr>}
             </tbody></table>

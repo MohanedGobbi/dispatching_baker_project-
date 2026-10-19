@@ -26,7 +26,7 @@ interface Today {
   nextDaysOff: string | null; nextBackOn: string | null; unread: number; pendingAck: number
 }
 interface Stats { year: number; seniority: string; yearsOfService: number; fieldDaysYear: number; fieldDaysTotal: number; baseDaysYear: number; extensionDaysYear: number; daysOffBalance: number; annualLeave: { entitled: number; taken: number; pending: number; remaining: number } }
-interface Profile { id: string; employeeNo: string; name: string; position: string; base: string; hireDate: string; phone: string | null; email: string | null; emergencyContact: string | null; homeCity: string | null; rotation: string | null; restrictions: { kind: string; until: string | null }[]; qualifications: { name: string; obtained: string }[]; certifications: { id: string; name: string; expires: string; validity: 'valid' | 'expiring' | 'expired' }[] }
+interface Profile { id: string; employeeNo: string; name: string; position: string; base: string; hireDate: string; phone: string | null; email: string | null; emergencyContact: string | null; homeCity: string | null; rotation: string | null; restrictions: { kind: string; until: string | null }[]; qualifications: { name: string; obtained: string }[]; certifications: { id: string; name: string; issued: string }[] }
 interface CalDay { date: string; status: string; label?: string }
 interface Cal { days: CalDay[] }
 interface LeaveRow { id: string; start: string; end: string; status: string; type: { name: string; category: string }; decisionNote?: string | null }
@@ -411,7 +411,6 @@ function MeTab() {
     try { await api('/portal/profile', { method: 'PUT', body: form }); toast(t('saved', 'Saved')); setEdit(false); await profile.reload() } catch (e) { toast(errMsg(e), 'error') }
   }
   const theme = () => { const n = !dark; setDark(n); document.documentElement.dataset.theme = n ? 'dark' : 'light' }
-  const CERT: Record<string, ['ok' | 'warn' | 'bad', string]> = { valid: ['ok', 'Valid'], expiring: ['warn', 'Expiring soon'], expired: ['bad', 'Expired'] }
 
   return (
     <>
@@ -447,7 +446,7 @@ function MeTab() {
         <Card title={t('qualsCerts', 'Qualifications and certificates')}>
           <ul className="rows">
             {p.qualifications.map(q => <li key={q.name}><strong>{q.name}</strong><small className="muted">{t('since', 'since')} {fmtDate(q.obtained, i18n.language)}</small></li>)}
-            {p.certifications.map(c => { const [sev, text] = CERT[c.validity]; return <li key={c.id}><div><strong>{c.name}</strong><small className="muted">{t('expires', 'expires')} {fmtDate(c.expires, i18n.language)}</small></div><Pill severity={sev}>{text}</Pill></li> })}
+            {p.certifications.map(c => <li key={c.id}><div><strong>{c.name}</strong><small className="muted">{t('since', 'since')} {fmtDate(c.issued, i18n.language)}</small></div><Pill severity="ok">{t('held', 'Held')}</Pill></li>)}
           </ul>
         </Card>
       )}

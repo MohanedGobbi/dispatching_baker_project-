@@ -3,3 +3,6 @@ dist
 .env
 
 apps/api/storage/
+
+# machine-specific shortcut (points at this folder's absolute path)
+CrewBoard.lnk

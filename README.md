@@ -20,7 +20,7 @@ npm run start:dev                   # API on http://localhost:3000
 In a second terminal: `npm run dev:web` (http://localhost:5173, proxies `/api` to the API).
 
 To fill the board with something to look at (8 units on jobs, a published four-week plan, a medical leave,
-an expired certificate, a leave starting in 5 days), with the API running:
+a leave starting in 5 days), with the API running:
 
 ```bash
 cd apps/api && npm run demo
@@ -66,7 +66,7 @@ The smoke suites change data: run `npm run seed` afterwards to reset.
 | E20 notifications | in-app and email (outbox sent over SMTP when `SMTP_HOST` is set, otherwise kept queued), EN/FR/AR, acknowledgements, preferences, broadcast, a daily job that runs hourly inside the API |
 | E21 employee portal (PWA) | Today, Calendar, Requests (leave with certificate upload, swaps, work orders), Alerts, Me; installable, works offline for viewing |
 | E18 what-if | `POST /planning/what-if` runs the planner on a modified copy (deploy idle units, lose people, absences) and compares with today; web tab under Analytics |
-| E22-E25 analytics, forecast, recommendations, map | API and web: 90-day coverage forecast with heat map, 14 KPIs, 8 dashboards, recommendations (recruit, transfer, relief, spread leave, train, promote, certificates), offline-friendly map |
+| E22-E25 analytics, forecast, recommendations, map | API and web: 90-day coverage forecast with heat map, 13 KPIs, 7 dashboards, recommendations (recruit, transfer, relief, spread leave, train, promote), offline-friendly map |
 | Web: extensions, settings | extension requests/approval/balances/report; settings editor |
 | E26 audit log | audit screen with filters and field-by-field before/after; medical entries redacted for readers without medical access; setting changes audited |
 | E27 import / export | Excel templates, export, validate-first import with a row-by-row report, then commit, for employees (incl. rotation sheet), units and bases. PDF export not built |

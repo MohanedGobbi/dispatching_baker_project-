@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, LogOut, Moon, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, UserCog, Wand2, Wrench } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, KeyRound, LayoutGrid, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Repeat, Settings as SettingsIcon, Smartphone, Sun, Timer, UserCog, Wand2, Wrench, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api } from './api'
 import { useAuth } from './auth'
@@ -21,27 +21,30 @@ import Audit from './Audit'
 import DataTransfer from './DataTransfer'
 import { ChangePasswordDialog } from './account'
 import Portal from './Portal'
+import { ProfileProvider } from './profiles'
 import NotificationsPage, { Bell_, useUnread } from './notifications'
 
-interface Page { path: string; label: string; key: string; Icon: LucideIcon; roles?: string[]; iconOnly?: boolean }
+interface Page { path: string; label: string; key: string; Icon: LucideIcon; color: string; hint: string; group: string; roles?: string[] }
 
 // Who sees which screen. The API enforces access too; this only avoids showing buttons that would be refused.
 const PLANNERS = ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER']
+const GROUPS: [string, string][] = [['today', 'Today'], ['planning', 'Planning'], ['insights', 'Insights'], ['admin', 'Administration']]
 const PAGES: Page[] = [
-  { path: 'board', key: 'nav_board', label: 'Board', Icon: LayoutGrid },
-  { path: 'replacements', key: 'nav_replacements', label: 'Replacements', Icon: Repeat, roles: PLANNERS },
-  { path: 'plans', key: 'nav_plans', label: 'Plans', Icon: Wand2, roles: PLANNERS },
-  { path: 'leave', key: 'nav_leave', label: 'Leave', Icon: CalendarDays, roles: [...PLANNERS, 'HR'] },
-  { path: 'work-orders', key: 'nav_workorders', label: 'Work orders', Icon: Wrench, roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
-  { path: 'timeline', key: 'nav_timeline', label: 'Timeline', Icon: CalendarRange },
-  { path: 'crew-changes', key: 'nav_changes', label: 'Crew changes', Icon: ClipboardList },
-  { path: 'extensions', key: 'nav_extensions', label: 'Extensions', Icon: Timer, roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
-  { path: 'analytics', key: 'nav_analytics', label: 'Analytics', Icon: BarChart3, roles: [...PLANNERS, 'HR'] },
-  { path: 'settings', key: 'nav_settings', label: 'Settings', Icon: SettingsIcon, roles: ['SUPER_ADMIN', 'OPS_MANAGER'], iconOnly: true },
-  { path: 'users', key: 'nav_users', label: 'Users', Icon: UserCog, roles: ['SUPER_ADMIN', 'OPS_MANAGER'], iconOnly: true },
-  { path: 'data', key: 'nav_data', label: 'Import / export', Icon: FileSpreadsheet, roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'], iconOnly: true },
-  { path: 'audit', key: 'nav_audit', label: 'Audit', Icon: History, roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'HR'], iconOnly: true },
+  { group: 'today', path: 'board', key: 'nav_board', label: 'Board', Icon: LayoutGrid, color: '#2563eb', hint: 'Who is on which unit today' },
+  { group: 'today', path: 'replacements', key: 'nav_replacements', label: 'Replacements', Icon: Repeat, color: '#dc2626', hint: 'Seats that need someone', roles: PLANNERS },
+  { group: 'today', path: 'crew-changes', key: 'nav_changes', label: 'Crew changes', Icon: ClipboardList, color: '#0d9488', hint: 'Who goes out and comes back' },
+  { group: 'planning', path: 'plans', key: 'nav_plans', label: 'Plans', Icon: Wand2, color: '#7c3aed', hint: 'Let the planner fill the coming weeks', roles: PLANNERS },
+  { group: 'planning', path: 'timeline', key: 'nav_timeline', label: 'Timeline', Icon: CalendarRange, color: '#0891b2', hint: 'Everyone day by day' },
+  { group: 'planning', path: 'leave', key: 'nav_leave', label: 'Leave', Icon: CalendarDays, color: '#9333ea', hint: 'Requests, medical leave, swaps', roles: [...PLANNERS, 'HR'] },
+  { group: 'planning', path: 'extensions', key: 'nav_extensions', label: 'Extensions', Icon: Timer, color: '#ea580c', hint: 'Keeping someone longer on a unit', roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
+  { group: 'planning', path: 'work-orders', key: 'nav_workorders', label: 'Work orders', Icon: Wrench, color: '#b45309', hint: 'Units in the workshop', roles: [...PLANNERS, 'CHIEF_OF_UNIT'] },
+  { group: 'insights', path: 'analytics', key: 'nav_analytics', label: 'Analytics', Icon: BarChart3, color: '#16a34a', hint: 'Forecast, KPIs, what-if', roles: [...PLANNERS, 'HR'] },
+  { group: 'admin', path: 'users', key: 'nav_users', label: 'Users', Icon: UserCog, color: '#475569', hint: 'Accounts and roles', roles: ['SUPER_ADMIN', 'OPS_MANAGER'] },
+  { group: 'admin', path: 'settings', key: 'nav_settings', label: 'Settings', Icon: SettingsIcon, color: '#475569', hint: 'Rules and numbers', roles: ['SUPER_ADMIN', 'OPS_MANAGER'] },
+  { group: 'admin', path: 'data', key: 'nav_data', label: 'Import / export', Icon: FileSpreadsheet, color: '#475569', hint: 'Excel in and out', roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'] },
+  { group: 'admin', path: 'audit', key: 'nav_audit', label: 'Audit', Icon: History, color: '#475569', hint: 'Who changed what', roles: ['SUPER_ADMIN', 'OPS_MANAGER', 'HR'] },
 ]
+const ROLE_NAME: Record<string, string> = { SUPER_ADMIN: 'Administrator', OPS_MANAGER: 'Operations manager', DISPATCHER: 'Dispatcher', BASE_MANAGER: 'Base manager', HR: 'HR', CHIEF_OF_UNIT: 'Chief of unit', EMPLOYEE: 'Employee' }
 
 export default function Shell() {
   const { t, i18n } = useTranslation()
@@ -49,6 +52,11 @@ export default function Shell() {
   const { parts } = useRoute()
   const [dark, setDark] = useState(false)
   const [pwOpen, setPwOpen] = useState(false)
+  const [slim, setSlim] = useState(() => { try { return localStorage.getItem('crewboard.slim') === '1' } catch { return false } })
+  useEffect(() => { try { localStorage.setItem('crewboard.slim', slim ? '1' : '0') } catch { /* private mode */ } }, [slim])
+  // phones: the menu slides in over the page and closes again once a screen is picked
+  const [menuOpen, setMenuOpen] = useState(false)
+  useEffect(() => { setMenuOpen(false) }, [parts[0]])
   const unread = useUnread()
   const employeeOnly = !!me && me.roles.every(r => r.role === 'EMPLOYEE')
 
@@ -73,25 +81,57 @@ export default function Shell() {
   const onAlerts = parts[0] === 'notifications'
   const current = visible.find(p => p.path === parts[0]) ?? (onAlerts ? undefined : visible[0])
 
+  const role = me?.roles[0]?.role ?? ''
   return (
-    <div className="shell">
-      <header className="nav">
-        <strong className="brand">{t('app')}</strong>
-        <nav aria-label="Screens">
-          {visible.map(p => (
-            <a key={p.path} href={`#/${p.path}`} className={p === current ? 'on' : ''} aria-current={p === current ? 'page' : undefined} title={p.iconOnly ? t(p.key, p.label) : undefined}
-              ref={p === current ? el => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}>
-              <p.Icon size={15} aria-hidden /> <span className={p.iconOnly ? 'sr-only' : undefined}>{t(p.key, p.label)}</span>
-            </a>
-          ))}
+    <ProfileProvider>
+    <div className={`shell2${slim ? ' slim' : ''}${menuOpen ? ' menu-open' : ''}`}>
+      {menuOpen && <div className="menu-scrim" aria-hidden onClick={() => setMenuOpen(false)} />}
+      <aside className="side-nav" id="side-nav" aria-label="Screens">
+        <div className="side-brand">
+          <span className="logo" aria-hidden>CB</span>
+          <span className="side-label"><strong>{t('app')}</strong><small>{t('tagline', 'Crew rotation & dispatch')}</small></span>
+          <button type="button" className="slim-toggle" aria-label={slim ? 'Expand menu' : 'Collapse menu'} onClick={() => setSlim(!slim)}>{slim ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
+        </div>
+        <nav>
+          {GROUPS.map(([g, gl]) => {
+            const items = visible.filter(p => p.group === g)
+            if (!items.length) return null
+            return (
+              <div key={g} className="side-group">
+                <span className="side-group-title side-label">{t(`grp_${g}`, gl)}</span>
+                {items.map(p => (
+                  <a key={p.path} href={`#/${p.path}`} className={p === current ? 'on' : ''} aria-current={p === current ? 'page' : undefined} style={{ ['--c' as string]: p.color }} title={slim ? `${t(p.key, p.label)} · ${p.hint}` : p.hint}>
+                    <span className="side-icon"><p.Icon size={16} aria-hidden /></span>
+                    <span className="side-label"><b>{t(p.key, p.label)}</b><small>{t(`hint_${p.path}`, p.hint)}</small></span>
+                  </a>
+                ))}
+              </div>
+            )
+          })}
         </nav>
+        <div className="side-me side-label">
+          <span className="avatar-sm" aria-hidden>{(ROLE_NAME[role] ?? role).split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+          <span><b>{t('signedInAs', 'Signed in as')}</b><small>{ROLE_NAME[role] ?? role}{me?.roles[0]?.baseScope ? ` · ${me.roles[0].baseScope}` : ''}</small></span>
+        </div>
+        <div className="side-account">
+          <button type="button" onClick={() => setPwOpen(true)}><KeyRound size={16} aria-hidden /> {t('pwChange', 'Change password')}</button>
+          <button type="button" onClick={logout}><LogOut size={16} aria-hidden /> {t('signOut', 'Sign out')}</button>
+        </div>
+      </aside>
+      <div className="main-col">
+      <header className="nav">
+        <button type="button" className="menu-btn" aria-label={t('menu', 'Menu')} aria-controls="side-nav" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
+        <strong className="crumb" style={{ ['--c' as string]: current?.color ?? 'var(--accent)' }}>{current && <current.Icon size={16} aria-hidden />} {current ? t(current.key, current.label) : t('alertsTitle', 'Notifications')}</strong>
         <span className="spacer" />
         {me?.employeeId && <a className="navlink" href="#/portal/today" title={t('myPortal', 'My portal')}><Smartphone size={16} aria-hidden /> <span className="hide-sm">{t('myPortal', 'My portal')}</span></a>}
         <a className={`navlink bellink${onAlerts ? ' on' : ''}`} href="#/notifications" aria-label={t('alertsTitle', 'Notifications')} title={t('alertsTitle', 'Notifications')}><Bell_ count={unread.unread} urgent={unread.pendingAck > 0} /></a>
-        {['en', 'fr', 'ar'].map(l => <button key={l} type="button" className={i18n.language === l ? 'on' : ''} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}
+        <span className="lang-btns">{['en', 'fr', 'ar'].map(l => <button key={l} type="button" className={i18n.language === l ? 'on' : ''} aria-pressed={i18n.language === l} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}</span>
+        <select className="lang-select" value={i18n.language} onChange={e => setLang(e.target.value)} aria-label={t('language', 'Language')}>
+          <option value="en">EN</option><option value="fr">FR</option><option value="ar">AR</option>
+        </select>
         <button type="button" aria-label="Theme" onClick={() => setDark(!dark)}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
-        <button type="button" aria-label={t('pwChange', 'Change password')} title={t('pwChange', 'Change password')} onClick={() => setPwOpen(true)}><KeyRound size={16} /></button>
-        <button type="button" aria-label="Sign out" title={me?.roles.map(r => r.role).join(', ')} onClick={logout}><LogOut size={16} /></button>
+        <button type="button" className="acct" aria-label={t('pwChange', 'Change password')} title={t('pwChange', 'Change password')} onClick={() => setPwOpen(true)}><KeyRound size={16} /></button>
+        <button type="button" className="acct" aria-label={t('signOut', 'Sign out')} title={me?.roles.map(r => r.role).join(', ')} onClick={logout}><LogOut size={16} /></button>
       </header>
       {onAlerts && <NotificationsPage />}
       {current?.path === 'board' && <Board />}
@@ -108,6 +148,8 @@ export default function Shell() {
       {current?.path === 'audit' && <Audit />}
       {current?.path === 'data' && <DataTransfer />}
       {pwOpen && <ChangePasswordDialog onClose={() => setPwOpen(false)} />}
+      </div>
     </div>
+    </ProfileProvider>
   )
 }

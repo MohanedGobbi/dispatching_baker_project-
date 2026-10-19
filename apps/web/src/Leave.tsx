@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus } from 'lucide-react'
+import { CalendarDays, Plus } from 'lucide-react'
+import { PageGuide } from './guide'
 import { api } from './api'
 import { useAuth } from './auth'
 import { Modal, RuleDialog } from './dialogs'
@@ -8,6 +9,7 @@ import { errMsg, useApi, useDebounced, useLive } from './hooks'
 import { fmtDate, plural } from './labels'
 import { Pill, useToast } from './ui'
 import type { Violation } from './types'
+import { PersonLink, SeatLabel } from './profiles'
 
 interface LeaveRow {
   id: string; employeeId: string; start: string; end: string; status: string; longTerm: boolean
@@ -36,10 +38,16 @@ export default function Leave() {
 
   return (
     <main className="page">
-      <header className="page-head">
-        <div><h1>{t('leaveTitle', 'Leave')}</h1><p className="muted">{t('leaveIntro', 'Requests to decide, who is away, and who is waiting to be cleared for duty.')}</p></div>
-        {manager && <div className="actions"><button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newLeave', 'New leave')}</button></div>}
-      </header>
+      <PageGuide id="leave" Icon={CalendarDays} color="#9333ea" title={t('leaveTitle', 'Leave')}
+        purpose={t('leavePurpose', 'Leave requests to decide, who is away, who must be cleared before working again, and swap requests.')}
+        steps={[
+          t('lvStep1', 'Approve or refuse requests. A warning shows when too many people of the same kind would be away at once.'),
+          t('lvStep2', 'Approving frees the person\'s seat and opens a replacement task automatically.'),
+          t('lvStep3', 'Medical leave is private: everyone else only sees "Unavailable".'),
+          t('lvStep4', 'After a long medical leave the person waits here for clearance, possibly with limits such as "base posts only".'),
+        ]}>
+        {manager && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newLeave', 'New leave')}</button>}
+      </PageGuide>
       <nav className="subtabs" aria-label="Leave sections">
         <button type="button" className={tab === 'requests' ? 'on' : ''} onClick={() => setTab('requests')}>{t('requests', 'Requests')}</button>
         <button type="button" className={tab === 'all' ? 'on' : ''} onClick={() => setTab('all')}>{t('allLeave', 'All leave')}</button>
@@ -111,7 +119,7 @@ function LeaveTable({ query, manager, medicalEdit, emptyText }: { query: string;
               const mayDecide = l.status === 'SUBMITTED' && (isMedical ? medicalEdit : manager)
               return (
                 <tr key={l.id}>
-                  <td><strong>{l.employee.firstName} {l.employee.lastName}</strong> <span className="muted">{l.employee.homeBase}</span></td>
+                  <td><strong><PersonLink id={l.employee.id}>{l.employee.firstName} {l.employee.lastName}</PersonLink></strong> <span className="muted">{l.employee.homeBase}</span></td>
                   <td>{l.type.name}{l.longTerm && <Pill severity="warn">{t('longTerm', 'long-term')}</Pill>}</td>
                   <td className="nowrap">{fmtDate(l.start, i18n.language)} → {fmtDate(l.end, i18n.language)} <span className="muted">· {plural(days(l.start, l.end), 'day')}</span></td>
                   <td><Pill severity={STATUS_SEV[l.status] ?? 'info'}>{STATUS_TEXT[l.status] ?? l.status}</Pill>{l.decisionNote && <small className="why">{l.decisionNote}</small>}</td>
@@ -176,7 +184,7 @@ function Clearance({ canClear }: { canClear: boolean }) {
           <tbody>
             {rows.map(r => (
               <tr key={r.leaveId}>
-                <td><strong>{r.employee.firstName} {r.employee.lastName}</strong> <span className="muted">{r.employee.employeeNo} · {r.employee.homeBase.code}</span></td>
+                <td><strong><PersonLink id={r.employee.id}>{r.employee.firstName} {r.employee.lastName}</PersonLink></strong> <span className="muted">{r.employee.employeeNo} · {r.employee.homeBase.code}</span></td>
                 <td>{fmtDate(r.endedOn, i18n.language)} <span className="muted">· {plural(r.leaveDays, 'day')} of leave</span></td>
                 <td>{plural(r.waitingDays, 'day')}</td>
                 <td className="row-actions end">{canClear && <button type="button" className="primary" onClick={() => setRow(r)}>{t('clear', 'Clear for duty')}</button>}</td>
@@ -313,7 +321,7 @@ function SwapApprovals() {
             {rows.map(r => (
               <tr key={r.id}>
                 <td><strong>{r.requester.name}</strong> ⇄ <strong>{r.colleague.name}</strong>{r.note && <small className='why'>{r.note}</small>}</td>
-                <td>{r.a.seat} <span className='muted'>({fmtDate(r.a.from, i18n.language)} → {fmtDate(r.a.to, i18n.language)})</span><br />{r.b.seat} <span className='muted'>({fmtDate(r.b.from, i18n.language)} → {fmtDate(r.b.to, i18n.language)})</span></td>
+                <td><SeatLabel label={r.a.seat} /> <span className='muted'>({fmtDate(r.a.from, i18n.language)} → {fmtDate(r.a.to, i18n.language)})</span><br /><SeatLabel label={r.b.seat} /> <span className='muted'>({fmtDate(r.b.from, i18n.language)} → {fmtDate(r.b.to, i18n.language)})</span></td>
                 <td className='row-actions end'><button type='button' className='primary' onClick={() => void approve(r)}>{t('approve', 'Approve')}</button><button type='button' onClick={() => { setRejecting(r); setReason('') }}>{t('reject', 'Reject')}</button></td>
               </tr>
             ))}

@@ -38,7 +38,6 @@ Names below are what the seed produces; if you change the seed they will differ,
 | 9 | Experienced Cased Hole shortage in about 6 weeks | Analytics → Forecast: red band from mid-November; recommendation "Recruit 5 …" |
 | 10 | Standby surplus at one base, gaps at another | Analytics → Overview → Recommendations: several "Transfer …" |
 | 11 | Three people owed 8–11 rest days | Extensions → Rest balances; recommendation "Prioritise relief" |
-| 12 | Certificates expiring during a rotation | Analytics → Compliance; notifications to the people concerned |
 | 13 | Unit back from the workshop in 3 days | Work orders: **HL-6791**, expected return in 3 days |
 | 14 | Swap request waiting for a manager | Leave → Swaps (as `ops` or `dispatcher`) |
 
@@ -69,7 +68,7 @@ Edit a couple of assignments in the draft as `dispatcher`, Submit. As `ops`: App
 Extensions → Request extension (any active person, 3 days, "replacement late"). As `ops` approve. Rest balances shows the new total; the next plan favours that person's relief, and Analytics → Overview lists "Prioritise relief for …".
 
 **9. Unit in maintenance → crew seats optional → forecast updates.**
-Work orders → New work order on a deployed unit (HL-6721, expected return in 10 days). Its crew seats stop being required for those days; Analytics → Forecast changes accordingly.
+Board → click the coloured header of a deployed unit (HL-6721) → "Send to the workshop", describe the problem, expected back in 10 days. (Or Work orders → New work order.) Its crew seats stop being required for those days; Analytics → Forecast changes accordingly.
 
 **10. Forecast shows an Experienced Cased Hole shortage → recruitment recommendation.**
 Analytics → Forecast, profile *Experienced Cased Hole operators*: coverage falls to 17 % from mid-November. Overview → Recommendations: "Recruit 5 Experienced Cased Hole operators", with the data behind it. Accept, snooze or dismiss.
@@ -80,12 +79,20 @@ The planted swap is already past the colleague step. As `ops`: Leave → Swaps �
 **12. Board time machine.**
 Board → date picker (or the arrows) → go back up to three months. The same board is shown with the crews of the day (four earlier rotations are in the demo data).
 
+## Adding trucks and jobs, and profiles
+
+* **New truck:** Board → "Add a unit" (ops manager or admin): code, type, home base, plate/model/year. Its crew seats are created from the type.
+* **New job:** Board → "New job" (dispatcher and above): well, rig, client, base and site, dates, and optionally the unit to send. The unit's empty seats then appear in the replacement center and in the planner.
+* **Click any person's name** (board, replacement center, leave, extensions, crew changes, plans, work orders) for their profile: contact (phone, email, emergency contact), status today, seniority, qualifications and certificates, a 10-week schedule, and the history of assignments and leave.
+* **Click any unit** (the coloured header on the board, or a unit code anywhere) for its profile: current job, crew today, utilization, jobs past and coming, maintenance history, crew history, notes. From there: send it to the workshop with a note, mark a repair done, give it a job, end its job, or take it out of service.
+* Certificates are simply held or not; they do not expire.
+
 ## Extra tour: analytics and what-if
 
 * **Analytics → Overview**: headcount by status, crews not meeting the rules, key figures, recommendations.
 * **Forecast**: heat map of available against needed people per base and day (click a cell for the numbers); pick a profile to see the line chart and shortage windows.
 * **What if**: "Put an idle unit to work" and "Lose 4 experienced Field Operators" → Run. Shows uncovered days before and after, by base, and the biggest new gaps. Nothing is saved.
-* **People & fairness, Leave & absence** (HR, ops, base manager only), **Units & maintenance**, **Base staffing**, **Compliance**, **Map** (offline-friendly, no map tiles).
+* **People & fairness, Leave & absence** (HR, ops, base manager only), **Units & maintenance**, **Base staffing**, **Map** (offline-friendly, no map tiles).
 * **Settings** (`admin`): every threshold and engine weight, e.g. change *maxConsecutiveDays* and watch rules react.
 * **Languages**: EN / FR / AR buttons in the top bar; Arabic flips the layout right-to-left.
 * **Phone / PWA**: log in as `employee`, resize to phone width; install from the browser menu. Today, Calendar, Requests, Alerts, Me work offline for viewing.
