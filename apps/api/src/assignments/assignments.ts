@@ -550,6 +550,65 @@ class AssignmentsController {
     if (result.tail) await this.tell(result.tail.employeeId, a.seatId, result.tail.start, result.tail.plannedEnd, 'assigned', req.user?.sub);
     return { ...result, violations: ev?.violations ?? [], crews: ev?.crews ?? [] };
   }
+
+  /**
+   * Move a crew change to another day on one or more seats (one seat from the crew-change list, or a whole unit).
+   * On each seat the person leaving on `from` now leaves on `to` and the person arriving on `from` now arrives on
+   * `to`; nobody else changes. Without anyone arriving, the open replacement task for that day moves with it.
+   */
+  @Post('assignments/crew-change') @Require('assignments', 'edit')
+  async moveCrewChange(@Body() body: { seatIds?: string[]; from?: string; to?: string; overrideReason?: string }, @Req() req: AuthedRequest) {
+    if (!body?.seatIds?.length || !body.from || !body.to) throw new BadRequestException('seatIds, from and to are required');
+    const from = startOfDay(parseDate(body.from)), to = startOfDay(parseDate(body.to));
+    if (from.getTime() === to.getTime()) throw new BadRequestException('The new date is the same as the current one');
+    await this.assertScope(req, body.seatIds);
+    const today = startOfDay(new Date());
+    const dayBefore = (d: Date) => new Date(d.getTime() - DAY);
+
+    const live = await this.prisma.assignment.findMany({
+      where: { seatId: { in: body.seatIds }, status: { in: [...LIVE] }, OR: [{ plannedEnd: dayBefore(from) }, { start: from }] },
+      include: { employee: { select: { firstName: true, lastName: true } } },
+    });
+    const name = (a: (typeof live)[number]) => `${a.employee.firstName} ${a.employee.lastName}`;
+    const moves: { a: (typeof live)[number]; start: Date; end: Date }[] = [];
+    const lonely: string[] = []; // seats where nobody arrives: the gap moves
+    for (const seatId of body.seatIds) {
+      const out = live.find(a => a.seatId === seatId && startOfDay(a.plannedEnd).getTime() === dayBefore(from).getTime());
+      const inc = live.find(a => a.seatId === seatId && startOfDay(a.start).getTime() === from.getTime() && a.id !== out?.id);
+      if (out) {
+        if (dayBefore(to) < startOfDay(out.start)) throw new BadRequestException(`${name(out)} would leave before arriving (${iso(out.start)})`);
+        moves.push({ a: out, start: startOfDay(out.start), end: dayBefore(to) });
+      }
+      if (inc) {
+        if (to > startOfDay(inc.plannedEnd)) throw new BadRequestException(`${name(inc)} would arrive after leaving (${iso(inc.plannedEnd)})`);
+        moves.push({ a: inc, start: to, end: startOfDay(inc.plannedEnd) });
+      } else if (out) lonely.push(seatId);
+    }
+    if (!moves.length) throw new BadRequestException(`No crew change on ${iso(from)} on these seats`);
+
+    const ids = moves.map(m => m.a.id);
+    for (const m of moves) await this.svc.assertSeatFree(m.a.seatId, m.start, m.end, ids);
+    const ev = await this.svc.evaluate(moves.map(m => ({ employeeId: m.a.employeeId, seatId: m.a.seatId, start: m.start, end: m.end })), ids);
+    await this.svc.requireOverride(ev, body.overrideReason);
+
+    await this.prisma.$transaction(async tx => {
+      for (const m of moves) {
+        const arriving = m.start.getTime() === to.getTime();
+        await tx.assignment.update({
+          where: { id: m.a.id },
+          data: arriving ? { start: m.start, status: m.start <= today ? 'ACTIVE' : 'CONFIRMED' } : { plannedEnd: m.end },
+        });
+      }
+      // The seat is uncovered from the new date instead: move the task that was waiting for the old one.
+      const tasks = lonely.length ? await tx.replacementTask.findMany({ where: { seatId: { in: lonely }, status: { in: ['OPEN', 'ESCALATED', 'CANDIDATE_PROPOSED'] }, fromDate: from } }) : [];
+      for (const t of tasks) {
+        await tx.replacementTask.update({ where: { id: t.id }, data: to > t.toDate ? { status: 'CLOSED', closedAt: new Date() } : { fromDate: to, deadline: to } });
+      }
+    });
+    await audit(this.prisma, req.user?.sub, 'Assignment', ids.join(','), 'crew_change_moved', { from: iso(from) }, { to: iso(to), seats: body.seatIds }, body.overrideReason);
+    for (const m of moves) await this.tell(m.a.employeeId, m.a.seatId, m.start, m.end, 'moved', req.user?.sub);
+    return { moved: moves.length, seats: new Set(moves.map(m => m.a.seatId)).size, from: iso(from), to: iso(to), violations: ev.violations, crews: ev.crews };
+  }
 }
 
 @Module({ imports: [SettingsModule, InsightsModule, AbsenceModule], controllers: [AssignmentsController], providers: [AssignmentsService], exports: [AssignmentsService] })

@@ -120,6 +120,7 @@ class CalendarController {
 
     const name = (e: { firstName: string; lastName: string }) => `${e.firstName} ${e.lastName}`;
     const seatLabel = (a: (typeof live)[number]) => `${a.seat.unit?.code ?? `${a.seat.base?.code} base`} · ${a.seat.position.name} #${a.seat.index}`;
+    const unitOf = (a: (typeof live)[number]) => ({ unitId: a.seat.unit?.id ?? null, unitCode: a.seat.unit?.code ?? null });
     const stillNeeded = (a: (typeof live)[number], on: Date) => a.seat.unit
       ? a.seat.requiredFlag && deployments.some(d => d.unitId === a.seat.unit!.id && d.start <= on && on <= d.end)
       : a.seat.requiredFlag;
@@ -138,7 +139,7 @@ class CalendarController {
       if (!next && !draft && !stillNeeded(a, changeDate)) continue; // nobody is needed there afterwards
       seen.add(a.seatId + iso(changeDate));
       out.push({
-        date: iso(changeDate), daysAway: Math.round((changeDate.getTime() - today.getTime()) / DAY), seatId: a.seatId, seat: seatLabel(a),
+        date: iso(changeDate), daysAway: Math.round((changeDate.getTime() - today.getTime()) / DAY), seatId: a.seatId, seat: seatLabel(a), ...unitOf(a),
         outgoing: { id: a.employee.id, name: name(a.employee) },
         incoming: next ? { id: next.employee.id, name: name(next.employee) } : draft ? { id: draft.employee.id, name: name(draft.employee) } : null,
         status: next ? 'confirmed' : draft ? 'suggested' : 'missing', travel: travel(a, changeDate),
@@ -149,7 +150,7 @@ class CalendarController {
       if (b.start <= today || b.start > horizon || seen.has(b.seatId + iso(b.start))) continue;
       if (live.some(a => a.id !== b.id && a.seatId === b.seatId && addDays(a.plannedEnd, 1).getTime() === startOfDay(b.start).getTime())) continue;
       out.push({
-        date: iso(b.start), daysAway: Math.round((startOfDay(b.start).getTime() - today.getTime()) / DAY), seatId: b.seatId, seat: seatLabel(b),
+        date: iso(b.start), daysAway: Math.round((startOfDay(b.start).getTime() - today.getTime()) / DAY), seatId: b.seatId, seat: seatLabel(b), ...unitOf(b),
         outgoing: null, incoming: { id: b.employee.id, name: name(b.employee) }, status: 'confirmed', travel: travel(b, addDays(b.start, -1)),
       });
     }

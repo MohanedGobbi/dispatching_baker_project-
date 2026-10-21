@@ -226,3 +226,13 @@ Bulk action `startState` sets or clears the mark for a whole selection.
 
 The same two buttons are on **People** too: next to each person's "Today" status, and in the bulk bar for everyone
 selected. Someone with no rotation yet gets 35/28 when pressed there (as typing a date on Work & days off does).
+
+## Moving a crew change (2026-10-21)
+
+`POST /assignments/crew-change` `{ seatIds, from, to, overrideReason? }` moves the crew change on `from` to `to` on
+each seat: whoever leaves on `from` now stays until `to − 1`, whoever arrives on `from` now starts on `to`. All seats
+go through the crew rules together (422 + reason, as elsewhere). A seat where nobody arrives keeps its gap: the open
+replacement task for `from` moves to `to`. Crew-change rows now carry `unitId`/`unitCode`.
+In the app: the calendar button on each row of **Crew changes**, and on the unit page under "Crew today" (one line
+per day the crew changes, plus the date on each seat). The dialog moves one seat or the whole unit's crew changing
+that day. Draft-plan arrivals ("suggested") are not moved. Live checks: `scripts/smoke-crewchange.ts`.

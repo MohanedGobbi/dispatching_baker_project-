@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, ClipboardList } from 'lucide-react'
+import { ArrowRight, CalendarClock, ClipboardList } from 'lucide-react'
+import { CrewChangeDialog } from './crewchange'
 import { PageGuide } from './guide'
 import { useApi, useLive } from './hooks'
 import { fmtDate, plural } from './labels'
@@ -8,7 +9,7 @@ import { Pill } from './ui'
 import { PersonLink, SeatLabel } from './profiles'
 
 interface Change {
-  date: string; daysAway: number; seatId: string; seat: string
+  date: string; daysAway: number; seatId: string; seat: string; unitId: string | null; unitCode: string | null
   outgoing: { id: string; name: string } | null; incoming: { id: string; name: string } | null
   status: 'confirmed' | 'suggested' | 'missing'; travel: { site: string; hours: number | null } | null
 }
@@ -23,6 +24,9 @@ export default function CrewChanges() {
   const data = useApi<Data>(`/calendar/crew-changes?days=${days}${baseId ? `&baseId=${baseId}` : ''}`)
   useLive(data.reload)
   const c = data.data
+  const [moving, setMoving] = useState<Change | null>(null)
+  // A unit's crew usually changes together, so the dialog offers the other seats of the unit changing that day.
+  const sameDay = (r: Change) => c?.changes.filter(x => x.date === r.date && (r.unitId ? x.unitId === r.unitId : x.seatId === r.seatId)) ?? [r]
 
   const status = (s: Change['status']) =>
     s === 'confirmed' ? <Pill severity="ok">{t('confirmed', 'Confirmed')}</Pill>
@@ -36,6 +40,7 @@ export default function CrewChanges() {
         steps={[
           t('ccStep1', 'Green rows are settled: someone is coming. Red rows have nobody to take over yet.'),
           t('ccStep2', 'Open the replacement center from a red row to find someone in time.'),
+          t('ccStep3', 'The calendar button on a row moves that crew change to another day, for one seat or the whole unit.'),
         ]} />
       <div className="filters">
         <div className="seg" role="group" aria-label="Range">
@@ -52,7 +57,7 @@ export default function CrewChanges() {
       {c && c.changes.length === 0 && <p className="empty-note">{t('noChanges', 'No crew changes in this period.')}</p>}
       {c && c.changes.length > 0 && (
         <table className="table">
-          <thead><tr><th>{t('date', 'Date')}</th><th>{t('seat', 'Seat')}</th><th>{t('handover', 'Handover')}</th><th>{t('status', 'Status')}</th><th>{t('travel', 'Travel')}</th></tr></thead>
+          <thead><tr><th>{t('date', 'Date')}</th><th>{t('seat', 'Seat')}</th><th>{t('handover', 'Handover')}</th><th>{t('status', 'Status')}</th><th>{t('travel', 'Travel')}</th><th /></tr></thead>
           <tbody>
             {c.changes.map(r => (
               <tr key={r.seatId + r.date} className={r.status === 'missing' ? 'row-bad' : ''}>
@@ -65,11 +70,13 @@ export default function CrewChanges() {
                 </td>
                 <td>{status(r.status)}{r.status === 'missing' && <a className="inline-link" href="#/replacements">{t('openCenter', 'Open replacement center')}</a>}</td>
                 <td className="muted">{r.travel ? `${r.travel.site}${r.travel.hours ? ` · ${r.travel.hours} h` : ''}` : '—'}</td>
+                <td className="row-actions"><button type="button" onClick={() => setMoving(r)} title={t('ccChangeDate', 'Change the crew change date')} aria-label={`${t('ccChangeDate', 'Change the crew change date')} ${r.seat}`}><CalendarClock size={14} aria-hidden /></button></td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      {moving && <CrewChangeDialog rows={sameDay(moving)} only={moving.seatId} onClose={() => setMoving(null)} onDone={() => void data.reload()} />}
     </main>
   )
 }

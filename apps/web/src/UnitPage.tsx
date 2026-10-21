@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ArrowRightLeft, Ban, CalendarCheck, CheckCircle2, Download, FileText, Gauge, Pencil, Plus, Trash2, Truck, Wrench } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Ban, CalendarCheck, CalendarClock, CheckCircle2, Download, FileText, Gauge, Pencil, Plus, Trash2, Truck, Wrench } from 'lucide-react'
 import { api, download } from './api'
+import { CrewChangeDialog } from './crewchange'
+import type { ChangeRow } from './crewchange'
 import { Modal } from './dialogs'
 import { errMsg, go, useApi, useLive } from './hooks'
 import { fmtDate } from './labels'
@@ -48,8 +50,11 @@ export default function UnitPage({ id }: { id: string }) {
   const plans = useApi<Plan[]>(`/units/${id}/maintenance-plans`)
   const docs = useApi<Doc[]>(`/units/${id}/documents`)
   const bases = useApi<{ id: string; code: string }[]>('/bases')
-  const reloadAll = () => { void u.reload(); void hist.reload(); void plans.reload(); void docs.reload() }
+  const changes = useApi<{ changes: ChangeRow[] }>('/calendar/crew-changes?days=30')
+  const reloadAll = () => { void u.reload(); void hist.reload(); void plans.reload(); void docs.reload(); void changes.reload() }
   useLive(u.reload)
+  useLive(changes.reload)
+  const [moving, setMoving] = useState<{ date: string; only?: string } | null>(null)
   const [dialog, setDialog] = useState<null | 'edit' | 'move' | 'delete' | 'workshop' | 'job' | 'doc' | { plan: Plan | null } | { book: Plan } | { done: Plan }>(null)
   const [acting, setActing] = useState<SeatHolderRef | null>(null)
   const x = u.data
@@ -69,10 +74,15 @@ export default function UnitPage({ id }: { id: string }) {
   }
   const act = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); toast(ok); reloadAll() } catch (e) { toast(errMsg(e), 'error') } }
   const close = () => setDialog(null)
+  // Crew changes on this unit in the next 30 days, by day: the whole crew usually changes together.
+  const unitChanges = (changes.data?.changes ?? []).filter(c => c.unitId === x.id)
+  const changeDays = [...new Set(unitChanges.map(c => c.date))]
+  const changeOf = (seatId: string) => unitChanges.find(c => c.seatId === seatId)
 
   return (
     <main className="page wide unit-page">
       <a className="back" href="#/units"><ArrowLeft size={15} aria-hidden /> {t('allUnits', 'All units')}</a>
+      {moving && <CrewChangeDialog rows={unitChanges.filter(c => c.date === moving.date)} only={moving.only} onClose={() => setMoving(null)} onDone={reloadAll} />}
       {acting && <SeatActionsDialog target={acting} onClose={() => setActing(null)} onDone={text => { toast(text); reloadAll() }} />}
       <header className="page-head">
         <div>
@@ -112,12 +122,20 @@ export default function UnitPage({ id }: { id: string }) {
       <div className="unit-grid">
         <section className="panel">
           <h2>{t('crewNow', 'Crew today')}</h2>
+          {changeDays.map(d => (
+            <p key={d} className="cc-next">
+              <CalendarClock size={14} aria-hidden /> {t('crewChange', 'Crew change')} <strong>{fmt(d)}</strong>
+              <span className="muted">· {unitChanges.filter(c => c.date === d).length} {unitChanges.filter(c => c.date === d).length === 1 ? t('seatLc', 'seat') : t('seatsLc', 'seats')}</span>
+              <button type="button" className="small-btn" onClick={() => setMoving({ date: d })}>{t('ccChangeDate2', 'Change date')}</button>
+            </p>
+          ))}
           <table className="table compact">
             <tbody>
               {x.seats.map(s => (
                 <tr key={s.id}>
                   <td>{s.position} #{s.index}{!s.required && <small className="muted"> · {t('optional', 'optional')}</small>}</td>
                   <td>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : <span className={current && s.required ? 'error' : 'muted'}>{t('empty', 'Empty')}</span>}</td>
+                  <td className="muted">{changeOf(s.id) && <button type="button" className="small-btn" onClick={() => setMoving({ date: changeOf(s.id)!.date, only: s.id })} title={t('ccChangeDate', 'Change the crew change date')}><CalendarClock size={13} aria-hidden /> {fmt(changeOf(s.id)!.date)}</button>}</td>
                   <td className="num">{s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}</td>
                 </tr>
               ))}

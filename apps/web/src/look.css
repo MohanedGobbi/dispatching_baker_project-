@@ -1111,3 +1111,7 @@ small, .why, .muted small { font-size: 12px; }
 .now-pick { display: inline-flex; gap: 4px; }
 .now-pick button { border: 1px solid var(--border); background: var(--bg); color: var(--muted); border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
 .now-pick button.on { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; font-weight: 600; }
+
+/* ---------- moving a crew change */
+.cc-moves { margin: 0; padding-inline-start: 18px; display: grid; gap: 2px; font-size: 13px; }
+.cc-next { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; font-size: 13px; }
