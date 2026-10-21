@@ -1094,3 +1094,16 @@ small, .why, .muted small { font-size: 12px; }
 .rot-now.on { color: var(--st-unit); }
 .rot-now.off { color: var(--muted); }
 .rot-table .unit-note { margin-inline-start: 6px; }
+
+/* ---- Ticking rows to change several at once */
+.pick-col { width: 34px; text-align: center; padding-inline: 6px; }
+.pick-col input[type='checkbox'] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-fill); }
+.table tr.picked > td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.bulk-bar { position: sticky; top: 56px; z-index: 22; display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; background: var(--surface); border: 1px solid var(--accent-fill); border-radius: 14px; padding: 8px 12px; box-shadow: var(--shadow); }
+.bulk-bar > strong { background: var(--accent-fill); color: #fff; border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+.bulk-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.bulk-field select, .bulk-field input[type='date'] { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 5px 8px; min-height: 34px; }
+.bulk-bar button { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 13px; min-height: 34px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.bulk-bar button:hover:not(:disabled) { border-color: var(--accent-fill); }
+.bulk-bar button:disabled { opacity: .55; cursor: default; }
+@media (max-width: 760px) { .bulk-bar { position: static; } }

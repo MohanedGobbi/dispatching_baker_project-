@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Archive, ListOrdered, Pencil, Plus, Users } from 'lucide-react'
 import { api } from './api'
+import { BulkBar, RowBox, SelectAllBox, useSelection } from './bulk'
 import { Modal } from './dialogs'
 import { PageGuide } from './guide'
 import { errMsg, useApi, useLive } from './hooks'
@@ -10,6 +11,8 @@ import type { PersonRow } from './personform'
 import { PersonLink } from './profiles'
 import { useQuick } from './quickctx'
 import { SENIORITY_LABEL, STATUS_META, useToast } from './ui'
+
+const LEVELS = ['SENIOR', 'EXPERIENCED', 'JUNIOR', 'NEW_RECRUIT']
 
 /** Everyone in the company: add people, change their rank or details, pair back-to-back partners, archive leavers. */
 export default function People() {
@@ -24,6 +27,8 @@ export default function People() {
   const [editing, setEditing] = useState<string | null>(null) // employee id, or 'new'
   const [leaving, setLeaving] = useState<PersonRow | null>(null)
   const [ranking, setRanking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const bases = useApi<{ id: string; code: string; name: string }[]>('/bases')
   const quick = useQuick()
 
   const all = useMemo(() => list.data?.items ?? [], [list.data])
@@ -33,6 +38,16 @@ export default function People() {
     .filter(p => !rank || (rank === '-' ? !rankOf(ranks, p.tags) : p.tags.includes(rank)))
     .filter(p => !q || `${p.firstName} ${p.lastName} ${p.lastName} ${p.firstName} ${p.employeeNo} ${p.phone ?? ''}`.toLowerCase().includes(q))
     .sort((a, b) => rankOrder(ranks, a.tags) - rankOrder(ranks, b.tags) || a.lastName.localeCompare(b.lastName))
+  const pick = useSelection(rows.map(p => p.id))
+
+  const applyBulk = async (action: string, value: string) => {
+    setBusy(true)
+    try {
+      const r = await api<{ updated: number }>('/employees/bulk', { method: 'POST', body: { ids: pick.ids, action, value } })
+      toast(`${r.updated} ${t('peopleUpdated', 'people updated')}`); await list.reload()
+    } catch (e) { toast(errMsg(e), 'error') }
+    setBusy(false)
+  }
 
   return (
     <main className="page wide">
@@ -68,15 +83,23 @@ export default function People() {
       </div>
       {list.error && <div className="banner error" role="alert">{list.error}</div>}
 
+      <BulkBar count={pick.count} busy={busy} onApply={applyBulk} onClear={pick.clear}
+        fields={[
+          { key: 'rank', label: t('setRank', 'Rank'), options: ranks.map(r => ({ value: r.label, label: r.label })) },
+          { key: 'seniority', label: t('setLevel', 'Level'), options: [...LEVELS.map(l => ({ value: l, label: SENIORITY_LABEL[l] })), { value: '', label: t('levelFromRank', 'from the rank again') }] },
+          { key: 'homeBase', label: t('setBase', 'Base'), options: (bases.data ?? []).map(b => ({ value: b.id, label: b.name })) },
+        ]} />
+
       <div className="table-scroll">
         <table className="table compact">
-          <thead><tr><th>{t('name', 'Name')}</th><th>{t('empNo', 'No.')}</th><th>{t('rank', 'Rank')}</th><th>{t('level', 'Level')}</th><th>{t('today', 'Today')}</th><th>{t('partner', 'Back-to-back partner')}</th><th>{t('phone', 'Phone')}</th><th /></tr></thead>
+          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAll', 'Select everyone shown')} /></th><th>{t('name', 'Name')}</th><th>{t('empNo', 'No.')}</th><th>{t('rank', 'Rank')}</th><th>{t('level', 'Level')}</th><th>{t('today', 'Today')}</th><th>{t('partner', 'Back-to-back partner')}</th><th>{t('phone', 'Phone')}</th><th /></tr></thead>
           <tbody>
             {rows.map(p => {
               const st = STATUS_META[p.status] ?? STATUS_META.STANDBY
               const partner = p.backToBackId ? byId.get(p.backToBackId) : undefined
               return (
-                <tr key={p.id}>
+                <tr key={p.id} className={pick.has(p.id) ? 'picked' : ''}>
+                  <td className="pick-col"><RowBox on={pick.has(p.id)} onChange={on => pick.toggle(p.id, on)} label={`${p.firstName} ${p.lastName}`} /></td>
                   <td><strong><PersonLink id={p.id}>{p.firstName} {p.lastName}</PersonLink></strong></td>
                   <td>{p.employeeNo}</td>
                   <td>{rankOf(ranks, p.tags)?.label ?? <span className="muted">{p.position.name}</span>}</td>
@@ -92,7 +115,7 @@ export default function People() {
                 </tr>
               )
             })}
-            {list.data && rows.length === 0 && <tr><td colSpan={8} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
+            {list.data && rows.length === 0 && <tr><td colSpan={9} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
           </tbody>
         </table>
       </div>

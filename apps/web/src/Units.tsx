@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowRightLeft, Ban, CalendarCheck, CheckCircle2, Pencil, Plus, Trash2, Truck, Wrench } from 'lucide-react'
 import { api } from './api'
+import { BulkBar, RowBox, SelectAllBox, useSelection } from './bulk'
 import { PageGuide } from './guide'
 import { errMsg, useApi, useDebounced, useLive, useRoute } from './hooks'
 import { fmtDate } from './labels'
@@ -42,11 +43,22 @@ function UnitList() {
   const [editing, setEditing] = useState<UnitRow | null>(null)
   const [moving, setMoving] = useState<UnitRow | null>(null)
   const [deleting, setDeleting] = useState<UnitRow | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const all = list.data?.items ?? []
   const serviceDue = (u: UnitRow) => u.nextService && u.nextService.state !== 'ok'
   const rows = status === 'PROBLEM' ? all.filter(u => u.problem) : status === 'SERVICE' ? all.filter(serviceDue) : status ? all.filter(u => u.status === status) : all
   const count = (s: string) => all.filter(u => u.status === s).length
+  const pick = useSelection(rows.map(u => u.id))
+  const applyBulk = async (action: string, value: string) => {
+    setBusy(true)
+    try {
+      const r = await api<{ updated: number; failed: { code: string; reason: string }[] }>('/units/bulk', { method: 'POST', body: { ids: pick.ids, action, value } })
+      const failed = r.failed.length ? ` · ${r.failed.map(f => `${f.code}: ${f.reason}`).join('; ')}` : ''
+      toast(`${r.updated} ${t('unitsUpdated', 'units updated')}${failed}`, r.failed.length ? 'error' : 'ok'); await list.reload()
+    } catch (e) { toast(errMsg(e), 'error') }
+    setBusy(false)
+  }
   const setService = async (u: UnitRow, out: boolean) => {
     try {
       await api(`/units/${u.id}/status`, { method: 'PUT', body: { status: out ? 'OUT_OF_SERVICE' : 'AVAILABLE' } })
@@ -92,14 +104,22 @@ function UnitList() {
       </div>
       {list.error && <div className="banner error" role="alert">{list.error}</div>}
 
+      <BulkBar count={pick.count} busy={busy} onApply={applyBulk} onClear={pick.clear}
+        fields={[
+          { key: 'unitType', label: t('unitType', 'Type'), options: (types.data ?? []).map(x => ({ value: x.id, label: x.name })) },
+          { key: 'homeBase', label: t('homeBase', 'Home base'), options: (bases.data ?? []).map(b => ({ value: b.id, label: b.code })) },
+          { key: 'status', label: t('status', 'Status'), options: [{ value: 'AVAILABLE', label: t('us_AVAILABLE', 'Available') }, { value: 'OUT_OF_SERVICE', label: t('outService', 'Out of service') }, { value: 'IN_TRANSIT', label: t('us_IN_TRANSIT', 'In transit') }] },
+        ]} />
+
       <div className="table-scroll">
         <table className="table compact units-table">
-          <thead><tr><th>{t('unit', 'Unit')}</th><th>{t('unitType', 'Type')}</th><th>{t('homeBase', 'Home base')}</th><th>{t('status', 'Status')}</th><th>{t('today', 'Today')}</th><th>{t('crew', 'Crew')}</th><th>{t('nextService', 'Next service')}</th><th>{t('vehicle', 'Plate · model · year')}</th><th /></tr></thead>
+          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAllUnits', 'Select every unit shown')} /></th><th>{t('unit', 'Unit')}</th><th>{t('unitType', 'Type')}</th><th>{t('homeBase', 'Home base')}</th><th>{t('status', 'Status')}</th><th>{t('today', 'Today')}</th><th>{t('crew', 'Crew')}</th><th>{t('nextService', 'Next service')}</th><th>{t('vehicle', 'Plate · model · year')}</th><th /></tr></thead>
           <tbody>
             {rows.map(u => {
               const m = STATUS[u.status] ?? { label: u.status, sev: 'info' as Severity }
               return (
-                <tr key={u.id} className={u.problem ? 'row-bad' : ''}>
+                <tr key={u.id} className={`${u.problem ? 'row-bad' : ''}${pick.has(u.id) ? ' picked' : ''}`}>
+                  <td className="pick-col"><RowBox on={pick.has(u.id)} onChange={on => pick.toggle(u.id, on)} label={u.code} /></td>
                   <td><strong><a className="name-link unit" href={`#/units/${u.id}`}>{u.code}</a></strong>{u.notes && <small className="muted unit-note" title={u.notes}>{u.notes}</small>}</td>
                   <td><span className={`tag tag-${u.colorKey === 'amber' ? 'CH' : 'OH'}`}>{u.type}</span></td>
                   <td>{u.home.code}</td>
@@ -124,7 +144,7 @@ function UnitList() {
                 </tr>
               )
             })}
-            {list.data && rows.length === 0 && <tr><td colSpan={9} className="muted">{t('noUnitsMatch', 'No unit matches.')}</td></tr>}
+            {list.data && rows.length === 0 && <tr><td colSpan={10} className="muted">{t('noUnitsMatch', 'No unit matches.')}</td></tr>}
           </tbody>
         </table>
       </div>

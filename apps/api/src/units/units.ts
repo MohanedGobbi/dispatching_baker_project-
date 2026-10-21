@@ -238,6 +238,34 @@ class UnitsController {
     return { deleted: true };
   }
 
+  /**
+   * The same change to several units at once (the fleet list lets the manager tick rows): move them to another
+   * base, change their type or set them available / out of service. Each one is checked and audited on its own,
+   * and a unit that cannot take the change is reported instead of stopping the rest.
+   */
+  @Post('bulk') @Require('units', 'edit')
+  async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }, @Req() req: AuthedRequest) {
+    const { ids, action, value } = body ?? {};
+    if (!Array.isArray(ids) || !ids.length || !value) throw new BadRequestException('ids[] and value are required');
+    if (!['homeBase', 'unitType', 'status'].includes(action ?? '')) throw new BadRequestException('action must be homeBase, unitType or status');
+    if (action === 'status' && !MANUAL_STATUSES.includes(value)) throw new BadRequestException(`status must be one of ${MANUAL_STATUSES.join(', ')}`);
+
+    const units = await this.prisma.unit.findMany({ where: { id: { in: ids } } });
+    const failed: { code: string; reason: string }[] = [];
+    let updated = 0;
+    for (const u of units) {
+      try {
+        if (action === 'homeBase') await this.transfer(u.id, { baseId: value }, req);
+        else if (action === 'unitType') await this.update(u.id, { unitTypeId: value }, req);
+        else await this.setStatus(u.id, { status: value }, req);
+        updated++;
+      } catch (e) {
+        failed.push({ code: u.code, reason: (e as { response?: { message?: string } }).response?.message ?? (e as Error).message });
+      }
+    }
+    return { updated, failed };
+  }
+
   @Post(':id/transfer') @Require('units', 'full')
   async transfer(@Param('id') id: string, @Body() body: { baseId?: string; reason?: string }, @Req() req: AuthedRequest) {
     if (!body?.baseId) throw new BadRequestException('baseId is required');
@@ -246,7 +274,7 @@ class UnitsController {
     ]);
     if (!unit) throw new NotFoundException('Unit not found');
     if (!base || !base.active) throw new BadRequestException('Target base does not exist or is archived');
-    if (unit.homeBaseId === base.id) throw new BadRequestException('Unit is already based there');
+    if (unit.homeBaseId === base.id) return unit; // already there: nothing to do (bulk moves pass whole selections)
     const after = await this.prisma.unit.update({ where: { id }, data: { homeBaseId: base.id } });
     await audit(this.prisma, req.user?.sub, 'Unit', id, 'transfer', { homeBaseId: unit.homeBaseId }, { homeBaseId: base.id }, body.reason);
     return after;

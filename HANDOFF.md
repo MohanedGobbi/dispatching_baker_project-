@@ -189,3 +189,11 @@ The Board's "Base staff" view, the "Base posts below minimum" tile and Analytics
 
 - **Quick actions** (`quick.tsx`, context in `quickctx.ts`): right-click any person chip or name link, or the "⋯" that appears on hover over a chip (and on People rows), for: open profile, edit details, work and days off (rotation), medical leave, leave or extra days off, extend days of work (only when on a seat: request + approve in one go, with "extend anyway" over limits and "delay their start" when someone takes over the seat). Leave is created through `POST /leaves`, so seats are freed and replacement tasks opened as before.
 - **Work & days off** (Planning → `Rotations.tsx`): everyone's rotation pattern and "first day on" (`rotationAnchorDate`), partners listed together, an 8-week strip, "Today" / "Off today" shortcuts and ⇄ to give the partner the opposite stretches. Nobody has a first day yet after `seed:real`; until set, nobody counts as on days off.
+
+## Bulk editing and the 35/28 rotation (2026-10-21)
+
+- **Tick rows to change them together** (`bulk.tsx`: `useSelection`, `SelectAllBox`, `RowBox`, `BulkBar`). The header box selects everything currently shown, so filtering first narrows what a change touches. Choosing a value in the bar applies it at once and keeps the selection.
+  - **People:** rank, level, home base. `POST /employees/bulk` gained `rank` (tag + position + level together), `seniority` (empty = back to the rank's level, or computed when there is no rank) and `rotationAnchor`.
+  - **Units:** type, home base, status. New `POST /units/bulk` reuses the single-unit handlers per row and reports the ones it could not change instead of failing the batch; `/units/:id/transfer` to the base a unit is already on is now a no-op rather than a 400.
+  - **Work & days off:** rotation, first day on (date, "Today", "None") and "Off today", which is worked out per person because it depends on their own days-on.
+- **35/28 (5 weeks on, 4 weeks off)** is the company's rotation: `seed-real.ts` creates it, makes it both positions' default and puts everyone on it. It was also added to the live database and applied to all 74 people. The other patterns stay for anyone on a different cycle. Note `rules.maxConsecutiveDays` is 35, so a full stretch sits exactly on the limit.

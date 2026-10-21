@@ -29,6 +29,7 @@ class EmployeesController {
   constructor(
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(EmployeeInsightsService) private insights: EmployeeInsightsService,
+    @Inject(SettingsService) private settings: SettingsService,
   ) {}
 
   @Get() @Require('employees', 'view')
@@ -229,11 +230,53 @@ class EmployeesController {
     return result;
   }
 
+  /**
+   * The same change to several people at once (the lists let the manager tick rows). `value` is the base id,
+   * the rank name, the level, the rotation pattern id or the first day of a work stretch; an empty value clears
+   * the ones that can be cleared (level back to computed, no first day).
+   */
   @Post('bulk') @Require('employees', 'full')
   async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }, @Req() req: AuthedRequest) {
-    const { ids, action, value } = body ?? {};
-    if (!Array.isArray(ids) || !ids.length || !value) throw new BadRequestException('ids[] and value are required');
-    if (action === 'homeBase') {
+    const { ids, action } = body ?? {};
+    const value = body?.value ?? '';
+    const CLEARABLE = ['seniority', 'rotationAnchor'];
+    if (!Array.isArray(ids) || !ids.length) throw new BadRequestException('ids[] is required');
+    if (!value && !CLEARABLE.includes(action ?? '')) throw new BadRequestException('value is required');
+    if (action === 'rank') {
+      // The rank decides the seats someone takes and the level the crew rules use, so all three move together.
+      const ranks = (await this.settings.all())['people.ranks'] as { label: string; position: string; seniority: string }[];
+      const rank = ranks.find(r => r.label === value);
+      if (!rank) throw new BadRequestException(`Unknown rank "${value}"`);
+      const position = await this.prisma.position.findUnique({ where: { name: rank.position } });
+      if (!position) throw new BadRequestException(`Position ${rank.position} does not exist`);
+      const rows = await this.prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, tags: true } });
+      await this.prisma.$transaction(rows.map(r => this.prisma.employee.update({
+        where: { id: r.id },
+        data: {
+          tags: [rank.label, ...r.tags.filter(t => t !== rank.label && !ranks.some(x => x.label === t))],
+          positionId: position.id, seniorityOverride: rank.seniority as Seniority, seniorityReason: `Rank: ${rank.label}`,
+        },
+      })));
+    } else if (action === 'seniority') {
+      if (value && !SENIORITY.includes(value)) throw new BadRequestException(`level must be one of ${SENIORITY.join(', ')} or empty`);
+      if (value) {
+        await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { seniorityOverride: value as Seniority, seniorityReason: 'Set by the manager' } });
+      } else {
+        // Empty: undo a hand-set level. Back to what the rank gives, or computed from service for someone with no rank.
+        const ranks = (await this.settings.all())['people.ranks'] as { label: string; seniority: string }[];
+        const rows = await this.prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, tags: true } });
+        await this.prisma.$transaction(rows.map(r => {
+          const rank = ranks.find(x => r.tags.includes(x.label));
+          return this.prisma.employee.update({
+            where: { id: r.id },
+            data: rank ? { seniorityOverride: rank.seniority as Seniority, seniorityReason: `Rank: ${rank.label}` } : { seniorityOverride: null, seniorityReason: null },
+          });
+        }));
+      }
+    } else if (action === 'rotationAnchor') {
+      const anchor = value ? startOfDay(parseDate(value)) : null;
+      await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { rotationAnchorDate: anchor } });
+    } else if (action === 'homeBase') {
       await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { homeBaseId: value } });
     } else if (action === 'rotation') {
       await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { rotationPatternId: value } });
@@ -241,7 +284,7 @@ class EmployeesController {
       const rows = await this.prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, tags: true } });
       await this.prisma.$transaction(rows.filter(r => !r.tags.includes(value)).map(r =>
         this.prisma.employee.update({ where: { id: r.id }, data: { tags: [...r.tags, value] } })));
-    } else throw new BadRequestException('action must be homeBase, rotation or addTag');
+    } else throw new BadRequestException('action must be rank, seniority, homeBase, rotation, rotationAnchor or addTag');
     await audit(this.prisma, req.user?.sub, 'Employee', ids.join(','), `bulk_${action}`, null, { value, count: ids.length });
     return { updated: ids.length };
   }

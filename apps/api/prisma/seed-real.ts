@@ -45,11 +45,13 @@ async function main() {
   const qOH = await prisma.qualification.create({ data: { name: 'Open Hole' } });
   const qCH = await prisma.qualification.create({ data: { name: 'Cased Hole' } });
   for (const name of ['H2S', 'First aid', 'Heavy driving licence']) await prisma.certificationType.create({ data: { name } });
+  // The company works 5 weeks on, 4 weeks off; the others are kept so a person can be put on a different cycle.
+  const r3528 = await prisma.rotationPattern.create({ data: { name: '35/28', type: 'cycle', daysOn: 35, daysOff: 28 } });
   const r2828 = await prisma.rotationPattern.create({ data: { name: '28/28', type: 'cycle', daysOn: 28, daysOff: 28 } });
   await prisma.rotationPattern.create({ data: { name: '14/14', type: 'cycle', daysOn: 14, daysOff: 14 } });
   await prisma.rotationPattern.create({ data: { name: '21/7', type: 'cycle', daysOn: 21, daysOff: 7 } });
-  const chief = await prisma.position.create({ data: { name: 'Chief of Unit', category: 'FIELD_CREW', canFillUnitSeat: true, defaultRotationId: r2828.id } });
-  const operator = await prisma.position.create({ data: { name: 'Field Operator', category: 'FIELD_CREW', canFillUnitSeat: true, defaultRotationId: r2828.id } });
+  const chief = await prisma.position.create({ data: { name: 'Chief of Unit', category: 'FIELD_CREW', canFillUnitSeat: true, defaultRotationId: r3528.id } });
+  const operator = await prisma.position.create({ data: { name: 'Field Operator', category: 'FIELD_CREW', canFillUnitSeat: true, defaultRotationId: r3528.id } });
   for (const [name, category, needsDocument] of [
     ['Annual leave', 'leave', false], ['Medical leave', 'medical', true], ['Recovery days', 'leave', false], ['Training', 'training', false],
     ['Exceptional leave', 'leave', false], ['Unpaid leave', 'leave', false], ['Unjustified absence', 'absence', false],
@@ -77,7 +79,7 @@ async function main() {
     const e = await prisma.employee.create({ data: {
       employeeNo: `E${String(i + 1).padStart(3, '0')}`, firstName: p.first, lastName: p.last,
       positionId: rank.position === 'Chief of Unit' ? chief.id : operator.id, workMode: 'FIELD', hireDate: today,
-      homeBaseId: base.id, rotationPatternId: r2828.id, seniorityOverride: rank.seniority, seniorityReason: `Rank: ${rank.label}`,
+      homeBaseId: base.id, rotationPatternId: r3528.id, seniorityOverride: rank.seniority, seniorityReason: `Rank: ${rank.label}`,
       tags: [rank.label],
       qualifications: { create: [qOH, qCH].map(q => ({ qualificationId: q.id, obtainedAt: today })) },
     } });

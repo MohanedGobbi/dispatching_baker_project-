@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeftRight, CalendarRange } from 'lucide-react'
 import { api } from './api'
+import { BulkBar, RowBox, SelectAllBox, useSelection } from './bulk'
 import { PageGuide } from './guide'
 import { errMsg, useApi, useLive } from './hooks'
 import { rankOf, rankOrder, useRanks } from './personform'
@@ -32,6 +33,7 @@ export default function Rotations() {
   const [text, setText] = useState('')
   const [onlyMissing, setOnlyMissing] = useState(false)
   const [busy, setBusy] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const all = useMemo(() => list.data?.items ?? [], [list.data])
   const byId = useMemo(() => new Map(all.map(p => [p.id, p])), [all])
@@ -51,6 +53,32 @@ export default function Rotations() {
   const q = text.trim().toLowerCase()
   const rows = ordered.filter(({ row: r }) => (!onlyMissing || !r.rotationAnchorDate) && (!q || `${r.firstName} ${r.lastName} ${r.lastName} ${r.firstName}`.toLowerCase().includes(q)))
   const missing = all.filter(r => !r.rotationAnchorDate).length
+  const pick = useSelection(rows.map(({ row: r }) => r.id))
+  const applyBulk = async (action: string, value: string) => {
+    setBulkBusy(true)
+    try {
+      const r = await api<{ updated: number }>('/employees/bulk', { method: 'POST', body: { ids: pick.ids, action, value } })
+      toast(`${r.updated} ${t('peopleUpdated', 'people updated')}`); await list.reload()
+    } catch (e) { toast(errMsg(e), 'error') }
+    setBulkBusy(false)
+  }
+  // "Off today" needs each person's own pattern, so it is worked out per row rather than sent as one date.
+  const bulkOffToday = async () => {
+    setBulkBusy(true)
+    try {
+      const groups = new Map<string, string[]>()
+      for (const id of pick.ids) {
+        const r = byId.get(id); const p = r && patternOf(r)
+        if (!p || p.type !== 'cycle') continue
+        const date = plus(today(), -(p.daysOn ?? 28))
+        groups.set(date, [...(groups.get(date) ?? []), id])
+      }
+      for (const [date, ids] of groups) await api('/employees/bulk', { method: 'POST', body: { ids, action: 'rotationAnchor', value: date } })
+      const n = [...groups.values()].reduce((a, b) => a + b.length, 0)
+      toast(n ? `${n} ${t('peopleUpdated', 'people updated')}` : t('needPattern', 'Give them a rotation first'), n ? 'ok' : 'error'); await list.reload()
+    } catch (e) { toast(errMsg(e), 'error') }
+    setBulkBusy(false)
+  }
 
   const save = async (r: Row, body: { rotationPatternId?: string | null; rotationAnchorDate?: string | null }, quiet = false) => {
     setBusy(r.id)
@@ -83,9 +111,17 @@ export default function Rotations() {
       </div>
       {list.error && <div className="banner error" role="alert">{list.error}</div>}
 
+      <BulkBar count={pick.count} busy={bulkBusy} onApply={applyBulk} onClear={pick.clear}
+        fields={[
+          { key: 'rotation', label: t('rotation', 'Rotation'), options: (patterns.data ?? []).map(x => ({ value: x.id, label: x.name })) },
+          { key: 'rotationAnchor', label: t('firstDayOn', 'First day on'), type: 'date', buttons: [{ label: t('today', 'Today'), value: () => today(), title: t('startsToday', 'A work stretch starts today') }, { label: t('noDate', 'None'), value: () => '', title: t('clearAnchor', 'Forget the first day again') }] },
+        ]}>
+        <button type="button" disabled={bulkBusy} onClick={() => void bulkOffToday()} title={t('offTodayHint', 'Today is their first day off: the stretch before it has just ended')}>{t('offToday', 'Off today')}</button>
+      </BulkBar>
+
       <div className="table-scroll">
         <table className="table compact rot-table">
-          <thead><tr><th>{t('name', 'Name')}</th><th>{t('rank', 'Rank')}</th><th>{t('rotation', 'Rotation')}</th><th>{t('firstDayOn', 'First day on')}</th><th>{t('today', 'Today')}</th><th>{t('next8', 'Next 8 weeks')}</th><th /></tr></thead>
+          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAll', 'Select everyone shown')} /></th><th>{t('name', 'Name')}</th><th>{t('rank', 'Rank')}</th><th>{t('rotation', 'Rotation')}</th><th>{t('firstDayOn', 'First day on')}</th><th>{t('today', 'Today')}</th><th>{t('next8', 'Next 8 weeks')}</th><th /></tr></thead>
           <tbody>
             {rows.map(({ row: r, paired }) => {
               const p = patternOf(r)
@@ -93,7 +129,8 @@ export default function Rotations() {
               const now = rotationNow(p, anchor || null)
               const mate = r.backToBackId ? byId.get(r.backToBackId) : undefined
               return (
-                <tr key={r.id} className={paired ? 'paired' : mate ? 'pair-top' : ''}>
+                <tr key={r.id} className={`${paired ? 'paired' : mate ? 'pair-top' : ''}${pick.has(r.id) ? ' picked' : ''}`}>
+                  <td className="pick-col"><RowBox on={pick.has(r.id)} onChange={on => pick.toggle(r.id, on)} label={`${r.firstName} ${r.lastName}`} /></td>
                   <td><strong><PersonLink id={r.id}>{r.firstName} {r.lastName}</PersonLink></strong>{paired && <small className="muted unit-note">{t('partnerOf', 'partner')}</small>}</td>
                   <td>{rankOf(ranks, r.tags)?.label ?? <span className="muted">{r.position.name}</span>}</td>
                   <td>
@@ -114,7 +151,7 @@ export default function Rotations() {
                 </tr>
               )
             })}
-            {list.data && rows.length === 0 && <tr><td colSpan={7} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
+            {list.data && rows.length === 0 && <tr><td colSpan={8} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
           </tbody>
         </table>
       </div>
