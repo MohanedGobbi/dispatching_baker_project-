@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrewBoard user manual</title>
+<style>
+  :root { --ink: #0f172a; --muted: #556275; --line: #e2e8f0; --bg: #f6f7f9; --card: #fff; --accent: #2563eb; --red: #b91c1c; --navy: #14204a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.6 Inter, system-ui, Segoe UI, sans-serif; color: var(--ink); background: var(--bg); }
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+  nav.toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--navy); color: #cbd5e1; padding: 24px 18px; font-size: 14px; }
+  nav.toc h2 { color: #fff; font-size: 18px; margin: 0 0 4px; }
+  nav.toc p { margin: 0 0 16px; color: #94a3b8; font-size: 13px; }
+  nav.toc a { display: block; color: #cbd5e1; text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  nav.toc a:hover { background: rgba(255,255,255,.1); color: #fff; }
+  nav.toc .grp { margin: 14px 8px 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #94a3b8; font-weight: 700; }
+  main { max-width: 980px; padding: 40px 40px 80px; }
+  h1 { font-size: 38px; line-height: 1.15; margin: 0 0 8px; }
+  h2 { font-size: 27px; margin: 56px 0 8px; padding-top: 16px; border-top: 2px solid var(--line); }
+  h3 { font-size: 20px; margin: 32px 0 6px; }
+  h4 { font-size: 16px; margin: 20px 0 4px; }
+  p, li { max-width: 74ch; }
+  .lead { font-size: 18px; color: var(--muted); max-width: 70ch; }
+  figure { margin: 18px 0 26px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 6px; margin: 0 auto; }
+  figure.phone img { max-width: 300px; }
+  .phones { display: flex; flex-wrap: wrap; gap: 16px; }
+  .phones figure { flex: 1 1 240px; max-width: 300px; margin: 8px 0 18px; }
+  figcaption { font-size: 14px; color: var(--muted); padding: 8px 6px 2px; }
+  .tip, .warn, .note { border-radius: 10px; padding: 10px 14px; margin: 14px 0; max-width: 74ch; }
+  .tip { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .warn { background: #fef2f2; border: 1px solid #fecaca; }
+  .note { background: #f1f5f9; border: 1px solid var(--line); }
+  .tip::before { content: "Tip. "; font-weight: 700; color: #1d4ed8; }
+  .warn::before { content: "Careful. "; font-weight: 700; color: var(--red); }
+  .note::before { content: "Good to know. "; font-weight: 700; }
+  table { border-collapse: collapse; width: 100%; background: var(--card); margin: 14px 0 22px; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f1f5f9; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  code, kbd { font: 13.5px ui-monospace, Consolas, monospace; background: #e8edf5; padding: 1px 6px; border-radius: 5px; }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  ol.steps { padding-left: 22px; } ol.steps li { margin: 6px 0; }
+  .cover { background: var(--navy); color: #fff; border-radius: 16px; padding: 36px; margin-bottom: 36px; }
+  .cover h1 { color: #fff; } .cover p { color: #cbd5e1; margin: 4px 0; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } table { display: block; overflow-x: auto; } pre { white-space: pre-wrap; } nav.toc { position: static; height: auto; } main { padding: 24px 16px 60px; } }
+  @media print {
+    body { background: #fff; font-size: 11.5pt; } .layout { display: block; } nav.toc { display: none; }
+    main { max-width: none; padding: 0; } h2 { break-before: page; border: 0; } figure, table, .tip, .warn, .note { break-inside: avoid; }
+    .cover { background: #fff; color: #000; border: 2px solid var(--navy); } .cover h1, .cover p { color: #000; }
+    figure img { max-height: 235mm; width: auto; }
+    @page { margin: 16mm 14mm; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <h2>CrewBoard</h2><p>User manual</p>
+  <a href="#start">1. Start here</a>
+  <a href="#around">2. Finding your way around</a>
+  <a href="#day">3. A day with CrewBoard</a>
+  <div class="grp">Today</div>
+  <a href="#board">Board</a>
+  <a href="#units">Units</a>
+  <a href="#replacements">Replacements</a>
+  <a href="#changes">Crew changes</a>
+  <div class="grp">Planning</div>
+  <a href="#plans">Plans</a>
+  <a href="#timeline">Timeline</a>
+  <a href="#extensions">Extensions</a>
+  <div class="grp">Insights</div>
+  <a href="#analytics">Analytics</a>
+  <div class="grp">Administration</div>
+  <a href="#settings">Settings</a>
+  <a href="#data">Import / export</a>
+  <a href="#audit">Audit</a>
+  <a href="#notifications">Notifications</a>
+  <div class="grp">Reference</div>
+  <a href="#rules">How the rules work</a>
+  <a href="#colours">Colours and labels</a>
+  <a href="#setup">Running and setting up</a>
+  <a href="#faq">Questions and fixes</a>
+</nav>
+
+<main>
+<div class="cover">
+  <h1>CrewBoard user manual</h1>
+  <p>Crew rotation and dispatch: every screen, every concept, and how to work with it.</p>
+  <p>Screenshots show the demo data that ships with the platform. Your own data will look the same but with your names, bases and units.</p>
+</div>
+
+<h2 id="start">1. Start here</h2>
+<p class="lead">CrewBoard answers one question every day: <strong>is every seat on every unit filled by the right person, and what do I do where it is not?</strong></p>
+
+<h3>What it does</h3>
+<ul>
+  <li><strong>Shows the day.</strong> Every unit (truck / rig) with its crew, every base, and everyone who is free.</li>
+  <li><strong>Plans.</strong> The planner proposes who works where for the coming weeks, following the crew rules; you review and publish.</li>
+  <li><strong>Covers gaps.</strong> When a seat is left empty, a replacement task opens with the best people ranked. Put one on the seat and the task turns green: fixed.</li>
+  <li><strong>Keeps the fleet in order.</strong> Unit status, jobs, the workshop, preventive maintenance, papers (registration, insurance, inspection).</li>
+  <li><strong>Shows where you will be short.</strong> A few key numbers and the coverage of the next 12 weeks, base by base.</li>
+</ul>
+
+<h3>Who uses it</h3>
+<p>CrewBoard has <strong>one user: the manager</strong>, who plans, dispatches and decides everything. There are no other accounts, no employee app and no approval steps. The manager signs in as <code>admin</code>.</p>
+<p class="note">Other account types still exist inside the system for later and for the automated tests, but they cannot use the web app: they are told it is for the manager only.</p>
+
+<h3>Signing in</h3>
+<figure><img src="img/01-sign-in.png" alt="Sign-in page"><figcaption>The sign-in page. The manager signs in as <code>admin</code>.</figcaption></figure>
+<ol class="steps">
+  <li>Open the web address of your CrewBoard (during local use: <code>http://localhost:5173</code>).</li>
+  <li>Type your login and password and press <strong>Sign in</strong>. Demo password: <code>demo1234</code>.</li>
+  <li>If your password is temporary, CrewBoard asks you to choose your own before continuing.</li>
+  <li>Forgot it? Use the <strong>Forgot password</strong> link; a reset link is emailed if email sending is set up.</li>
+</ol>
+
+<h2 id="around">2. Finding your way around</h2>
+<figure><img src="img/10-board-top.png" alt="The board with sidebar and top bar"><figcaption>The sidebar on the left, the top bar on the right, and the page itself in the middle.</figcaption></figure>
+
+<h3>The sidebar</h3>
+<p>Screens are grouped by what you do with them. Each entry has a short description under its name.</p>
+<table>
+  <tr><th>Group</th><th>Screens</th></tr>
+  <tr><td><strong>Today</strong></td><td>Board, Units, Replacements, Crew changes</td></tr>
+  <tr><td><strong>Planning</strong></td><td>Plans, Timeline, Extensions</td></tr>
+  <tr><td><strong>Insights</strong></td><td>Analytics</td></tr>
+  <tr><td><strong>Administration</strong></td><td>Settings, Import / export, Audit</td></tr>
+</table>
+<p>Use the small button at the top of the sidebar to collapse it to icons. On a phone the sidebar becomes a menu you open with the menu button.</p>
+
+<h3>The top bar</h3>
+<ul>
+  <li><strong>Bell:</strong> your notifications; the number is what you have not read yet.</li>
+  <li><strong>Moon / sun:</strong> switch between light and dark appearance. CrewBoard remembers your choice; until you choose, it follows your computer.</li>
+  <li><strong>Key:</strong> change your password.</li>
+  <li><strong>Door arrow:</strong> sign out.</li>
+</ul>
+
+<h3>Page guides</h3>
+<p>Every main screen starts with a short guide: one sentence on what the screen is for and numbered steps for how it works. It is open the first time you visit a screen and folded afterwards. Press <strong>How it works</strong> to open or fold it again.</p>
+
+<h3>Names and unit codes are links</h3>
+<p>Anywhere in CrewBoard, click a person's name to open their <strong>profile panel</strong> on the right (contact details, status, schedule, history), and click a unit code such as <code>HL-6700</code> to open that unit's panel (job, crew, maintenance, history). Press <kbd>Esc</kbd> to close a panel or dialog.</p>
+<figure><img src="img/15-person-profile-panel.png" alt="A person's profile panel"><figcaption>A person's profile panel, opened from a name.</figcaption></figure>
+
+<h3>Searching</h3>
+<p>On the board, press <kbd>Ctrl</kbd> + <kbd>K</kbd> or click the search box to find a person or a unit by name or code.</p>
+
+<h3>Live updates</h3>
+<p>Screens refresh by themselves when something changes (a plan is published, a task is fixed). You do not need to reload.</p>
+
+<h2 id="day">3. A day with CrewBoard</h2>
+<p>A typical morning for the manager:</p>
+<ol class="steps">
+  <li><strong>Open the Board.</strong> Look at the red tiles first. They tell you how many crews need attention and how many seats are waiting for someone.</li>
+  <li><strong>Open Replacements</strong> if seats are waiting. Work from the most urgent task down: pick the best person and press <strong>Put on this seat</strong>. The task turns green and moves to "Fixed this week".</li>
+  <li><strong>Someone cannot work today?</strong> Click them on the board and press <strong>Unassign</strong> (or <strong>Replace</strong> to put someone else in straight away).</li>
+  <li><strong>Look at Crew changes</strong> for the coming days: green rows are settled, red rows have nobody coming yet.</li>
+  <li><strong>Glance at Units</strong> for services due and papers expiring, and for units in the workshop.</li>
+  <li><strong>Once a week or month</strong> open Plans to generate and publish the next stretch, and Analytics to see where you will be short of people.</li>
+</ol>
+<p class="tip">The thing that needs action today is always the loudest thing on screen. Red solid tiles mean "act now"; everything else is quiet on purpose.</p>
+
+<!-- ============ TODAY ============ -->
+<h2 id="board">Board</h2>
+<p class="lead">Where everyone is on the chosen day: every unit with its crew, every base, and who is free.</p>
+<figure><img src="img/10-board-top.png" alt="The board overview"><figcaption>The top of the board: toolbar, summary tiles, map, "everyone today" donut and crew health per base.</figcaption></figure>
+
+<h3>The toolbar</h3>
+<ul>
+  <li><strong>Date, arrows, Today, In a week</strong>: look at any other day. The board then shows who held each seat on that day.</li>
+  <li><strong>New job / Add a unit / Hide overview / TV / How it works</strong>: create a job, add a unit, collapse the map and charts, show the wall display, open the guide.</li>
+</ul>
+
+<h3>The summary tiles</h3>
+<table>
+  <tr><th>Tile</th><th>Meaning</th><th>Click to</th></tr>
+  <tr><td>Units on a job</td><td>How many units are working today</td><td>Show units in the field</td></tr>
+  <tr><td>Crews needing attention</td><td>Crews that break a rule or have an empty required seat. Turns solid red when above zero.</td><td>Filter to those crews</td></tr>
+  <tr><td>Seats waiting for someone</td><td>Open replacement tasks, with how many are critical</td><td>Open the Replacement center</td></tr>
+  <tr><td>Crew changes this week</td><td>Handovers in the next seven days</td><td>Open Crew changes</td></tr>
+</table>
+
+<h3>Reading a unit card</h3>
+<figure><img src="img/10-board-units.png" alt="Unit cards grouped under a base banner"><figcaption>Unit cards under the HMD base banner.</figcaption></figure>
+<ul>
+  <li><strong>Header colour:</strong> green = Open Hole (OH), amber = Cased Hole (CH), grey = at base without a job. The ring shows seats filled (for example 3/4).</li>
+  <li><strong>Status line:</strong> "Crew complete and compliant", or the number of issues, or "At base, no job", or "Under maintenance". Also the next crew change ("crew change in 14 d").</li>
+  <li><strong>Seats:</strong> Chief and Operator 1 to 3 (a field operator is also the driver). The star on Operator 1 marks the seat that needs an experienced person. Each person shows initials, name, position and a small dot for their state today.</li>
+  <li><strong>Red outline:</strong> the crew breaks a rule. Click the card header to read the issues in the unit panel.</li>
+  <li><strong>"Assign someone":</strong> an empty seat. A solid red-tinted one is an empty required seat.</li>
+</ul>
+
+<h3>Filling a seat</h3>
+<figure><img src="img/11-board-assign.png" alt="Who should take this seat?"><figcaption>Press "Assign someone" and CrewBoard ranks the people who can take the seat.</figcaption></figure>
+<ol class="steps">
+  <li>Press <strong>Assign someone</strong> on an empty seat.</li>
+  <li>Choose how long the person is needed (3, 7, 14 or 28 days).</li>
+  <li><strong>Best matches</strong> lists people the planner recommends: qualified, rested, fair and close to this base. Each line says why ("Experienced, no rest owed, same base, covers 7 days"). <strong>Everyone free today</strong> lists everybody available.</li>
+  <li>Press <strong>Choose</strong>. CrewBoard checks every crew rule before it saves.</li>
+  <li>"Why others were ruled out" explains who cannot take the seat and why.</li>
+</ol>
+<p>You can also <strong>drag</strong> a person from the lanes at the bottom of the board (Standby, Days off) onto a seat.</p>
+<p class="warn">If a choice would break a hard rule, CrewBoard stops you and asks for an <strong>override reason</strong>. The reason is stored in the audit log. Use overrides sparingly.</p>
+
+<h3>Replacing someone, or taking them off a seat</h3>
+<p>Click a person on a unit card (anywhere on their chip except the name, which opens their profile), or the small person-and-gear button that appears at the end of the row when you point at it.</p>
+<figure><img src="img/11-seat-actions.png" alt="Replace or unassign dialog"><figcaption>Replace or unassign: choose the day (today by default) and, if you like, a reason.</figcaption></figure>
+<ol class="steps">
+  <li><strong>From:</strong> the first day the change applies. It is today unless you pick another day, up to the end of the person's stretch on this seat.</li>
+  <li><strong>Reason</strong> (optional): written to the audit log with the change.</li>
+  <li><strong>Unassign</strong> takes the person off the seat from that day. If the seat is required, a replacement task opens for the empty days so the gap shows up in Replacements.</li>
+  <li><strong>Replace…</strong> opens the same ranked list as "Assign someone", for the rest of the stretch. Pick someone, check what would happen, and confirm. The person leaves the seat and the new one takes it the same day, in one step, so the seat is never left empty and no replacement task is opened.</li>
+</ol>
+<figure><img src="img/11-seat-replace-picker.png" alt="Who replaces this person?"><figcaption>Choosing who replaces someone. When nobody fits every rule for the whole stretch, pick from "Everyone free that day" and give an override reason.</figcaption></figure>
+<p>The same actions are available wherever a person sits on a seat: in the <strong>unit panel</strong> (Crew today), on the <strong>unit page</strong> (Crew today table) and in the <strong>person's profile panel</strong> under "Seats now and coming up", which you can open from any name in CrewBoard.</p>
+
+<h3>The unit panel</h3>
+<figure><img src="img/11-board-unit-panel.png" alt="Unit panel opened from a card header"><figcaption>Click a unit card header to open its panel: job, crew, maintenance, jobs and crew history.</figcaption></figure>
+
+<h3>Filters and the overview</h3>
+<p>Click a base on the map, a slice of a chart or any coloured chip (base, Open Hole / Cased Hole, crew state) to filter the board. Press the chip again, or "All", to clear.</p>
+
+<h3>New job</h3>
+<figure><img src="img/12-new-job.png" alt="New job dialog"><figcaption>Create a job and, optionally, deploy a unit on it straight away.</figcaption></figure>
+<p>A job is a piece of work at a site (a well and rig) with start and end dates. If you deploy a unit with it, the unit's seats open for the job's dates and, if nobody covers them, replacement tasks appear.</p>
+
+<h3>TV mode</h3>
+<figure><img src="img/18-tv-mode.png" alt="TV mode"><figcaption>TV mode: a large, read-only wall display of the day. Press <kbd>Esc</kbd> to leave it.</figcaption></figure>
+
+<h3>Time machine</h3>
+<p>Move the date back to see who held a seat on a past day. This is built from the assignment records; if something was recorded late (for example someone taken off a past stretch afterwards), the past view may not show exactly what was on screen that day.</p>
+
+<h3>Dark mode</h3>
+<figure><img src="img/20-board-dark.png" alt="Board in dark mode"><figcaption>Dark appearance, useful for control rooms and night shifts.</figcaption></figure>
+
+<h2 id="units">Units</h2>
+<p class="lead">The whole fleet: where each truck is based, what it is doing today, its crew and its details.</p>
+<figure><img src="img/10-units.png" alt="Units page"><figcaption>The Units page with the page guide open.</figcaption></figure>
+<ul>
+  <li><strong>Tiles</strong> count units by status today (All, Service due, Available, On a job, In the workshop, In transit, Out of service). Click one to show only those. The Service due tile turns solid red when a service is overdue.</li>
+  <li><strong>Search and filters</strong>: code, plate, model or note; base; type; status.</li>
+  <li><strong>The table</strong> shows type, home base, status, today's job, crew filled, next service, plate, model and year.</li>
+  <li><strong>Row buttons:</strong> edit details, move to another base, send to the workshop (or mark repaired), out of service / back in service, delete.</li>
+</ul>
+
+<h3>Add a unit</h3>
+<figure><img src="img/12-add-unit.png" alt="Add a unit"><figcaption>Add a unit: code, type, home base and details. New units get the crew seats of their type.</figcaption></figure>
+<h3>Status of a unit</h3>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td>Available</td><td>At base, ready, no job</td></tr>
+  <tr><td>On a job</td><td>Deployed on a job today</td></tr>
+  <tr><td>In the workshop</td><td>Sent to the workshop with a return date; its crew seats are not needed</td></tr>
+  <tr><td>In transit</td><td>Moving to another base</td></tr>
+  <tr><td>Out of service</td><td>Retired or unusable; kept with its history</td></tr>
+</table>
+<p class="note">Status is worked out from jobs and the workshop; you do not set "On a job" by hand. Create a job, or send the unit to the workshop, and the status follows.</p>
+<p class="warn"><strong>Delete</strong> is only for a unit entered by mistake. A unit with any crew assignment, job or workshop visit cannot be deleted; CrewBoard offers <strong>Out of service</strong> instead.</p>
+
+<h3>The unit page</h3>
+<p>Click a unit code (or open the unit panel and follow its link) for the full unit page.</p>
+<figure><img src="img/13-unit-page.png" alt="Unit page"><figcaption>The full page of one unit.</figcaption></figure>
+<ul>
+  <li><strong>Tiles:</strong> share of the last 12 months on a job and in the workshop, crew seats filled today, next service, papers expired or expiring.</li>
+  <li><strong>The last 12 months:</strong> a bar per month, split into on a job (blue), in the workshop (orange) and at base (grey).</li>
+  <li><strong>Crew today</strong> and <strong>Crew history</strong>: who holds each seat now and who held it before. The button next to each person replaces or unassigns them (see Board, "Replacing someone").</li>
+  <li><strong>Papers:</strong> registration, insurance, technical inspection. Add one with its expiry date and attach the file; expired or soon-to-expire papers turn red.</li>
+  <li><strong>Preventive maintenance:</strong> a plan per service ("every 90 days"). When a service falls due, CrewBoard sends the unit to the workshop for the due date, after any job the unit is on. <strong>Book</strong> opens it early, <strong>Done</strong> records a service done elsewhere. Pressing Repaired on that visit records the service and sets the next due date.</li>
+  <li><strong>Workshop visits</strong> (with a Repaired button while one is open) and <strong>Jobs</strong> of this unit.</li>
+  <li><strong>Edit, Move to another base, Delete</strong> at the top.</li>
+</ul>
+
+<h3>Sending a unit to the workshop</h3>
+<ol class="steps">
+  <li>On the Units page press the wrench on the unit (or use the unit panel).</li>
+  <li>Write a note and the expected return date.</li>
+  <li>CrewBoard marks the unit as in the workshop with that return date and stops requiring its crew seats.</li>
+  <li>When the work is finished, press <strong>Repaired</strong> on the unit (in its panel or on its page): the unit becomes available again.</li>
+</ol>
+
+<h2 id="replacements">Replacements</h2>
+<p class="lead">Every seat that has lost its person or never had one, most urgent first, with the best people to fill it.</p>
+<figure><img src="img/10-replacements.png" alt="Replacement center"><figcaption>The replacement center: urgency tiles, a four-week chart of open gaps and the task list.</figcaption></figure>
+
+<h3>Where tasks come from</h3>
+<p>You do not create these tasks. One appears by itself when a seat is left empty: you take someone off it, a unit gets a job without a full crew, or a crew change has nobody coming. <strong>Scan next 4 weeks</strong> checks the coming weeks for anything missed.</p>
+
+<h3>Urgency</h3>
+<table>
+  <tr><th>Level</th><th>Meaning</th></tr>
+  <tr><td><strong>Critical</strong></td><td>The seat is empty today or tomorrow</td></tr>
+  <tr><td><strong>High</strong></td><td>Within the week</td></tr>
+  <tr><td><strong>Normal</strong></td><td>Time to plan</td></tr>
+  <tr><td><strong>Fixed this week</strong></td><td>Solved: someone was put on the seat. These stay listed, in green, for a week.</td></tr>
+</table>
+
+<h3>Working a task</h3>
+<figure><img src="img/14-replacement-candidates.png" alt="Replacement task with ranked candidates"><figcaption>A selected task: the days to cover, then the ranked people.</figcaption></figure>
+<ol class="steps">
+  <li>Pick a task in the list (grouped by how soon it starts).</li>
+  <li>On the right, adjust <strong>From / Until</strong> if only part of the gap must be covered.</li>
+  <li>Read <strong>Best people for this seat</strong>: each person has a fit bar and the reasons ("no rest owed", "from HRM (travel)", "covers 21 days").</li>
+  <li>Press <strong>Put on this seat</strong> next to the person you choose. CrewBoard checks every crew rule first.</li>
+  <li>Open <strong>Why others cannot take it</strong> to see who was ruled out and which rule stopped them.</li>
+  <li>Nobody suitable? Use <strong>Assign someone</strong> on the board to pick anyone free (with an override reason), or press <strong>Close without a replacement</strong> and give a reason.</li>
+</ol>
+
+<h3>The problem is fixed</h3>
+<figure><img src="img/14-replacement-fixed.png" alt="A fixed task"><figcaption>After the person is placed the task turns green and says who now covers the seat.</figcaption></figure>
+<p>You get a message ("Fixed: ... now covers ..."), the task moves to <strong>Fixed this week</strong>, the "Fixed" tile goes up and the board shows the seat filled. <strong>Next problem</strong> jumps to the next open task; <strong>See the board</strong> opens the board. If you covered only some of the days, the rest stays open as a new part of the task.</p>
+<p class="note">Filling a seat by any route (board, transfer, plan, replacement) closes the task it was for.</p>
+
+<h2 id="changes">Crew changes</h2>
+<p class="lead">Every handover in the coming days: who leaves a seat, who arrives, and whether someone is actually coming.</p>
+<figure><img src="img/10-crew-changes.png" alt="Crew changes"><figcaption>Green rows are settled: someone is coming. Red rows have nobody to take over yet.</figcaption></figure>
+<p>From a red row, open the replacement center to find someone in time. Click a name to see the person's schedule.</p>
+
+<!-- ============ PLANNING ============ -->
+<h2 id="plans">Plans</h2>
+<p class="lead">Let the planner propose who works where for the coming weeks, check it, then publish it to everyone.</p>
+<figure><img src="img/10-plans.png" alt="Plans"><figcaption>The list of plans with their status, period, bases, coverage and creation time.</figcaption></figure>
+<ol class="steps">
+  <li>Press <strong>New plan</strong>, choose the weeks and the bases (or all bases). The planner fills every seat it can while following every rule: hardest seats first, then scored on rest, fairness, qualifications and distance.</li>
+  <li>Open the draft (v1, v2...). Each assignment says <strong>why</strong> that person was chosen. Seats it could not fill are listed as gaps with ways to fix them.</li>
+  <li>Change anything by hand.</li>
+  <li><strong>Publish.</strong> The plan becomes live on the board and everyone concerned is notified.</li>
+</ol>
+<p class="warn">A draft changes nothing until published. Publishing re-checks every assignment against today's facts (someone may have been taken off a seat since); any assignment it has to skip opens a replacement task.</p>
+<p class="note">There is no review step by default: a plan goes straight from draft to published. If you ever need one, the setting <code>workflow.requireApproval</code> in Settings turns on draft, review, approved, published.</p>
+
+<h2 id="timeline">Timeline</h2>
+<p class="lead">Everyone's next weeks at a glance: one line per person, one colour per kind of day.</p>
+<figure><img src="img/10-timeline.png" alt="Timeline"><figcaption>One line per person. Blue is days on a unit, teal is standby, grey is days off.</figcaption></figure>
+<ul>
+  <li>Narrow the list by <strong>base</strong>, <strong>position</strong> or <strong>name</strong>; <strong>group by unit</strong> to see crews together.</li>
+  <li>Move the window with the "4 weeks earlier / 4 weeks later" buttons or jump to "Around today".</li>
+</ul>
+<h3>One person's timeline</h3>
+<figure><img src="img/15-timeline-person.png" alt="One person's timeline"><figcaption>Click a name to see only that person: 13 weeks of stretches, a calendar, how their days split up and each stretch in detail.</figcaption></figure>
+<p>Use <strong>Everyone</strong> to go back, or <strong>Full profile</strong> to open the profile panel.</p>
+
+<h2 id="extensions">Extensions</h2>
+<p class="lead">Keeping someone on a unit past the planned end. Every extra day is owed back to them as rest.</p>
+<figure><img src="img/10-extensions.png" alt="Extensions"><figcaption>Extensions with the guide open.</figcaption></figure>
+<ol class="steps">
+  <li>Press <strong>Extend</strong>, pick the person, the number of extra days and the reason. It applies at once.</li>
+  <li>Beyond the limits (days per rotation, days per quarter, longest stretch) a reason is required and the override is audited.</li>
+  <li>Extra days are added to the person's balance of rest owed, unless the setting <code>shiftNextRotationOnExtension</code> is on, in which case the next rotation starts later instead.</li>
+</ol>
+
+<h2 id="analytics">Analytics</h2>
+<p class="lead">How the company stands today and where it will be short of people in the coming weeks. One page, no tabs.</p>
+<figure><img src="img/10-analytics.png" alt="Analytics"><figcaption>The whole Analytics page.</figcaption></figure>
+<ul>
+  <li><strong>Key numbers</strong> at the top: people, units on a job, crews that follow the rules, seats waiting for someone (critical ones shown). A red edge means something needs you.</li>
+  <li><strong>Everyone today</strong> and <strong>The fleet</strong>: simple bars showing what people and units are doing, and the units of each base.</li>
+  <li><strong>Needs attention</strong>: the crews that are incomplete or break a rule. Click a unit code to open it.</li>
+  <li><strong>Coverage, next 12 weeks</strong>: one row per base, one cell per week, showing how many people are available compared with what is needed on the worst day of that week. Green is covered (100% or more), amber 70 to 99%, red under 70%. The warning above the table names the biggest shortages and when they start.</li>
+</ul>
+<p class="tip">Red weeks far ahead are your cue to publish a plan or recall someone early, before they turn into replacement tasks.</p>
+
+<h2 id="settings">Settings</h2>
+<p class="lead">The rules and numbers behind every calculation. Nothing is hard-coded.</p>
+<figure><img src="img/10-settings.png" alt="Settings"><figcaption>Crew rules at the top, then the planning engine weights and more.</figcaption></figure>
+<table>
+  <tr><th>Setting</th><th>What it does</th></tr>
+  <tr><td><code>minExperiencedPerCrew</code></td><td>Experienced people required in every crew</td></tr>
+  <tr><td><code>chiefRequired</code></td><td>Whether every crew needs a Chief of Unit</td></tr>
+  <tr><td><code>maxConsecutiveDays</code></td><td>Longest stretch on a unit, in days</td></tr>
+  <tr><td><code>maxExtensionDaysPerRotation</code> / <code>PerQuarter</code></td><td>Extension limits before an override reason is needed</td></tr>
+  <tr><td><code>clearanceRequiredAfterDays</code></td><td>Medical absence longer than this needs clearance before returning</td></tr>
+  <tr><td><code>longTermAbsenceDays</code></td><td>A medical absence this long counts as long-term</td></tr>
+  <tr><td><code>shiftNextRotationOnExtension</code></td><td>On: the next rotation starts later. Off: extra days are owed as rest.</td></tr>
+  <tr><td><code>weight.*</code></td><td>How much each factor counts when the planner scores a candidate</td></tr>
+  <tr><td><code>workflow.requireApproval</code></td><td>Turn on the draft, review, approved, published pipeline for plans and extensions</td></tr>
+</table>
+<p class="warn">Changes apply immediately to all future calculations and are audited. Change one number at a time and look at the board afterwards.</p>
+
+<h2 id="data">Import / export</h2>
+<p class="lead">Excel in and out. An upload is checked first; nothing is written until you confirm.</p>
+<figure><img src="img/10-data.png" alt="Import and export"><figcaption>Three kinds of sheet: Employees, Units and Bases.</figcaption></figure>
+<ol class="steps">
+  <li>Press <strong>Template</strong> to download an empty Excel sheet with the right columns, or <strong>Export current data</strong> to download what is in CrewBoard now.</li>
+  <li>Fill or edit it, then press <strong>Upload and check</strong>.</li>
+  <li>CrewBoard reports what it would create, change or refuse, row by row. Fix the sheet or press confirm.</li>
+</ol>
+<p class="note">Blank cells keep the stored value. A unit's type and home base, and archiving people, are refused on purpose because they have their own flows that release seats safely. Certificates, sites and past assignments cannot be imported yet.</p>
+
+<h2 id="audit">Audit</h2>
+<p class="lead">Every change, who made it and why. Read only.</p>
+<figure><img src="img/10-audit.png" alt="Audit log"><figcaption>The audit log, newest first.</figcaption></figure>
+<ul>
+  <li>Filter by record type, action, person (login), record id and dates.</li>
+  <li>Open a row (the small arrow) to see exactly what changed and the reason given, for example an override reason on a rule.</li>
+</ul>
+
+<h2 id="notifications">Notifications</h2>
+<figure><img src="img/19-notifications.png" alt="Notifications"><figcaption>The notification centre behind the bell.</figcaption></figure>
+<ul>
+  <li>Notices that need your answer (for example a proposed replacement) are marked, and the bell turns red while any are waiting.</li>
+  <li>The list is a read-only history of what CrewBoard told you.</li>
+</ul>
+
+<h2 id="rules">How the rules work</h2>
+
+<h3>Seats and crews</h3>
+<p>A unit has seats by type: one Chief of Unit and three Field Operators. There is no driver seat; a field operator is the driver. Required seats must be filled; optional ones need not be. A seat is held by one person for a span of dates.</p>
+
+<h3>Seniority</h3>
+<p>Each person is New Recruit, Junior or Experienced according to the field days they have accumulated, including history from before CrewBoard. Crews need a minimum number of Experienced people (setting <code>minExperiencedPerCrew</code>) and the star seat on a unit is reserved for one.</p>
+
+<h3>Rotation and status</h3>
+<p>Every person has a rotation pattern and an anchor date (the rotation sheet). From these CrewBoard works out, for each day, one status: <em>on a unit, standby</em> or <em>days off</em>. Status is never typed in; it is always computed.</p>
+
+<h3>Hard and soft rules</h3>
+<ul>
+  <li><strong>Hard rules</strong> (qualification, double booking, longest stretch, a crew without a Chief or an experienced member...) stop an assignment unless you give an <strong>override reason</strong>.</li>
+  <li><strong>Soft rules</strong> (rest, fairness, distance, back-to-back stretches) show as warnings and as lower scores when the planner ranks people.</li>
+  <li>The same rule check is used by manual assignment, the planner, plan publishing, replacements and swaps, so screens never disagree about what is allowed.</li>
+</ul>
+
+<h3>Rest owed and extensions</h3>
+<p>An extension adds days to a stretch. Each extra day is owed back to the person as rest, and it counts when the planner ranks candidates ("rest owed").</p>
+
+<h3>Plans are drafts until published</h3>
+<p>Draft assignments never count as live. Only publishing changes the board.</p>
+
+<h3>Certificates</h3>
+<p>A certificate is held or not. Certificates do not expire in CrewBoard (a decision made for this deployment), so there are no expiry warnings for them. Unit <em>papers</em> (registration, insurance, inspection) do have expiry dates.</p>
+
+<h2 id="colours">Colours and labels</h2>
+<table>
+  <tr><th>Colour</th><th>Meaning</th></tr>
+  <tr><td><span class="dot" style="background:#dc2626"></span>Red, solid</td><td>Act now: short crews, critical or overdue gaps, base below minimum, overdue service, expired papers.</td></tr>
+  <tr><td><span class="dot" style="background:#15803d"></span>Green</td><td>Open Hole units; OK / covered.</td></tr>
+  <tr><td><span class="dot" style="background:#b45309"></span>Amber</td><td>Cased Hole units; caution.</td></tr>
+  <tr><td><span class="dot" style="background:#2563eb"></span>Blue</td><td>On a unit / on a job; links and primary buttons.</td></tr>
+  <tr><td><span class="dot" style="background:#0f766e"></span>Teal</td><td>Standby</td></tr>
+  <tr><td><span class="dot" style="background:#64748b"></span>Slate grey</td><td>Days off; units at base without a job; out of service</td></tr>
+  <tr><td><span class="dot" style="background:#c2410c"></span>Orange</td><td>The workshop</td></tr>
+</table>
+<p>Colour is never the only signal: every state also has a text label or icon.</p>
+
+<h2 id="setup">Running and setting up</h2>
+<h3>Starting CrewBoard (Windows)</h3>
+<p>Double-click <code>start-crewboard.cmd</code> at the root of the project. It starts Docker, the database, the API and the web app and opens the browser. <code>stop-crewboard.cmd</code> stops them.</p>
+<h3>Starting it by hand</h3>
+<pre style="background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:10px;overflow:auto;font-size:13.5px">npm install
+npm run db:up                      # PostgreSQL on port 5440
+cd apps/api
+cp .env.example .env
+npx prisma migrate deploy
+npm run seed                       # catalogs, bases, units, about 150 people, accounts
+npm run start:dev                  # API on http://localhost:3000
+# in a second terminal, from the project root:
+npm run dev:web                    # web app on http://localhost:5173
+npm run demo                       # (API running) fills the board with a demo story</pre>
+<h3>Demo accounts</h3>
+<p>Password <code>demo1234</code>. The manager is <code>admin</code>. Other seeded accounts exist only for the automated tests and cannot use the web app.</p>
+<h3>Before real use</h3>
+<ul>
+  <li>Set a real <code>JWT_SECRET</code>, the <code>APP_URL</code> (used in password reset emails) and the SMTP settings in <code>apps/api/.env</code>.</li>
+  <li>Change the manager password (key button in the top bar) and turn the extra demo accounts off (<code>SEED_STAFF=off</code>).</li>
+  <li>Set up database backups.</li>
+  <li>Import your real people, units and bases with Import / export.</li>
+</ul>
+<p class="note">The platform currently runs on mock data until real data is connected. Re-seeding wipes and recreates it.</p>
+
+<h2 id="faq">Questions and fixes</h2>
+<table>
+  <tr><th>Problem</th><th>What to do</th></tr>
+  <tr><td>Someone is sick or away and cannot work.</td><td>Click them on the board (or in the unit or their profile), then Unassign, or Replace to put someone else in straight away. Add the reason if you like; it goes in the audit log.</td></tr>
+  <tr><td>I cannot assign someone to a seat.</td><td>Read the reason shown: a hard rule stops it (qualification, already booked, longest stretch...). Choose someone else, or give an override reason if you accept the risk.</td></tr>
+  <tr><td>A person is missing from "Best matches".</td><td>Open <em>Why others were ruled out</em>. They may be on days off, already on another seat, unqualified, or would break a rule.</td></tr>
+  <tr><td>A unit shows "In the workshop" and I did not do that.</td><td>A preventive service came due and opened a workshop visit. Press Repaired on the unit when it is back.</td></tr>
+  <tr><td>A unit cannot be deleted.</td><td>It has history (crew, jobs or workshop visits). Use Out of service.</td></tr>
+  <tr><td>I forgot my password.</td><td>Use "Forgot password" on the sign-in page (needs email to be set up).</td></tr>
+  <tr><td>The board looks out of date.</td><td>It refreshes by itself; if the connection dropped, reload the page.</td></tr>
+  <tr><td>I want to know who changed something.</td><td>Open Audit and filter by record type or person.</td></tr>
+</table>
+
+<h3>Glossary</h3>
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td>Unit</td><td>A truck / rig that works on jobs with a crew</td></tr>
+  <tr><td>Open Hole (OH) / Cased Hole (CH)</td><td>The two kinds of unit and work</td></tr>
+  <tr><td>Seat</td><td>One position in a crew, held by one person for a span of days</td></tr>
+  <tr><td>Base</td><td>A home location (for example HRM, HMD, INA, TMN) with units and staff</td></tr>
+  <tr><td>Job</td><td>A piece of work at a site with dates; units are deployed on it</td></tr>
+  <tr><td>Crew change</td><td>The day one person leaves a seat and another arrives</td></tr>
+  <tr><td>Standby</td><td>Available at base, not assigned to a unit</td></tr>
+  <tr><td>Override</td><td>Allowing an action that breaks a hard rule, with a reason that is recorded</td></tr>
+  <tr><td>Fixed</td><td>A replacement task that was solved by putting someone on the seat</td></tr>
+  <tr><td>Rest owed</td><td>Days a person is owed after extensions</td></tr>
+</table>
+<p style="margin-top:40px;color:var(--muted)">The screenshots were taken from the running platform on the demo data. They can be regenerated with <code>npx playwright test -c playwright.manual.config.ts</code> in <code>apps/web</code> (see docs/manual/README.md).</p>
+</main>
+</div>
+</body>
+</html>
