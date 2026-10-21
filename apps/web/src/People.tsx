@@ -9,10 +9,15 @@ import { errMsg, useApi, useLive } from './hooks'
 import { ManageRanks, PersonForm, rankOf, rankOrder, seatKind, useRanks } from './personform'
 import type { PersonRow } from './personform'
 import { PersonLink } from './profiles'
+import type { Pattern } from './quick'
 import { useQuick } from './quickctx'
 import { SENIORITY_LABEL, STATUS_META, useToast } from './ui'
 
 const LEVELS = ['SENIOR', 'EXPERIENCED', 'JUNIOR', 'NEW_RECRUIT']
+const DAY = 86_400_000
+const plus = (iso: string, n: number) => new Date(Date.parse(iso) + n * DAY).toISOString().slice(0, 10)
+const today = () => new Date().toISOString().slice(0, 10)
+type Row = PersonRow & { rotationPatternId?: string | null }
 
 /** Everyone in the company: add people, change their rank or details, pair back-to-back partners, archive leavers. */
 export default function People() {
@@ -24,13 +29,14 @@ export default function People() {
   const [base, setBase] = useState('')
   const [level, setLevel] = useState('')
   const [archived, setArchived] = useState(false)
-  const list = useApi<{ total: number; items: PersonRow[] }>(`/employees?limit=200${archived ? '&active=false' : ''}`)
+  const list = useApi<{ total: number; items: Row[] }>(`/employees?limit=200${archived ? '&active=false' : ''}`)
   useLive(list.reload)
   const [editing, setEditing] = useState<string | null>(null) // employee id, or 'new'
   const [leaving, setLeaving] = useState<PersonRow | null>(null)
   const [ranking, setRanking] = useState(false)
   const [busy, setBusy] = useState(false)
   const bases = useApi<{ id: string; code: string; name: string }[]>('/bases')
+  const patterns = useApi<Pattern[]>('/catalogs/rotation-patterns')
   const quick = useQuick()
 
   const all = useMemo(() => list.data?.items ?? [], [list.data])
@@ -50,6 +56,42 @@ export default function People() {
     try {
       const r = await api<{ updated: number }>('/employees/bulk', { method: 'POST', body: { ids: pick.ids, action, value } })
       toast(`${r.updated} ${t('peopleUpdated', 'people updated')}`); await list.reload()
+    } catch (e) { toast(errMsg(e), 'error') }
+    setBusy(false)
+  }
+
+  // Same one-click handover as on Work and days off; someone with no rotation yet gets 35/28 (as typing a date there does).
+  const fallback = () => patterns.data?.find(x => x.name === '35/28')
+  const patternOf = (p: Row) => patterns.data?.find(x => x.id === p.rotationPatternId)
+  const anchorToday = async (p: Row, off: boolean) => {
+    const pat = patternOf(p) ?? fallback()
+    if (off && pat?.type !== 'cycle') { toast(t('needPattern', 'Give them a rotation first'), 'error'); return }
+    setBusy(true)
+    try {
+      await api(`/employees/${p.id}`, { method: 'PUT', body: { rotationAnchorDate: off ? plus(today(), -(pat!.daysOn ?? 28)) : today(), ...(p.rotationPatternId || !pat ? {} : { rotationPatternId: pat.id }) } })
+      toast(`${p.firstName} ${p.lastName}: ${off ? t('offTodayDone', 'days off start today') : t('startsTodayDone', 'back to work today')}`); await list.reload()
+    } catch (e) { toast(errMsg(e), 'error') }
+    setBusy(false)
+  }
+  // "Off today" needs each person's own pattern, so it is worked out per pattern rather than sent as one date.
+  const bulkToday = async (off: boolean) => {
+    setBusy(true)
+    try {
+      const groups = new Map<string, { patternId?: string; ids: string[] }>()
+      for (const id of pick.ids) {
+        const p = byId.get(id); const own = p && patternOf(p); const pat = own ?? fallback()
+        if (!p || (off && pat?.type !== 'cycle')) continue
+        const date = off ? plus(today(), -(pat!.daysOn ?? 28)) : today()
+        const patternId = own || !pat ? undefined : pat.id
+        const key = `${date}|${patternId ?? ''}`
+        groups.set(key, { patternId, ids: [...(groups.get(key)?.ids ?? []), id] })
+      }
+      for (const [key, g] of groups) {
+        if (g.patternId) await api('/employees/bulk', { method: 'POST', body: { ids: g.ids, action: 'rotation', value: g.patternId } })
+        await api('/employees/bulk', { method: 'POST', body: { ids: g.ids, action: 'rotationAnchor', value: key.split('|')[0] } })
+      }
+      const n = [...groups.values()].reduce((a, g) => a + g.ids.length, 0)
+      toast(n ? `${n} ${t('peopleUpdated', 'people updated')}` : t('needPattern', 'Give them a rotation first'), n ? 'ok' : 'error'); await list.reload()
     } catch (e) { toast(errMsg(e), 'error') }
     setBusy(false)
   }
@@ -102,7 +144,10 @@ export default function People() {
           { key: 'rank', label: t('setRank', 'Rank'), options: ranks.map(r => ({ value: r.label, label: r.label })) },
           { key: 'seniority', label: t('setLevel', 'Level'), options: [...LEVELS.map(l => ({ value: l, label: SENIORITY_LABEL[l] })), { value: '', label: t('levelFromRank', 'from the rank again') }] },
           { key: 'homeBase', label: t('setBase', 'Base'), options: (bases.data ?? []).map(b => ({ value: b.id, label: b.name })) },
-        ]} />
+        ]}>
+        <button type="button" disabled={busy} onClick={() => void bulkToday(false)} title={t('startsTodayHint', 'They go back to work today: counting starts now')}>{t('startsToday', 'Starts today')}</button>
+        <button type="button" disabled={busy} onClick={() => void bulkToday(true)} title={t('offTodayHint', 'Today is their first day off: the stretch before it has just ended')}>{t('offToday', 'Off today')}</button>
+      </BulkBar>
 
       <div className="table-scroll">
         <table className="table compact">
@@ -119,7 +164,15 @@ export default function People() {
                   <td>{rankOf(ranks, p.tags)?.label ?? <span className="muted">{p.position.name}</span>}</td>
                   <td>{SENIORITY_LABEL[p.seniority] ?? p.seniority}</td>
                   {manyBases && <td>{p.homeBase.code}</td>}
-                  <td><span className="st-dot" style={{ ['--c' as string]: st.color }}>{st.label}</span></td>
+                  <td>
+                    <span className="rot-anchor">
+                      <span className="st-dot" style={{ ['--c' as string]: st.color }}>{st.label}</span>
+                      {p.active && <>
+                        <button type="button" disabled={busy} onClick={() => void anchorToday(p, false)} title={t('startsTodayHint', 'They go back to work today: counting starts now')}>{t('startsToday', 'Starts today')}</button>
+                        {(patternOf(p) ?? fallback())?.type === 'cycle' && <button type="button" disabled={busy} onClick={() => void anchorToday(p, true)} title={t('offTodayHint2', 'They finish today: days off start now')}>{t('offToday', 'Off today')}</button>}
+                      </>}
+                    </span>
+                  </td>
                   <td>{partner ? <PersonLink id={partner.id}>{partner.firstName} {partner.lastName}</PersonLink> : p.backToBackId ? <span className="muted">{t('archivedPartner', 'archived')}</span> : <span className="muted">—</span>}</td>
                   <td>{p.phone ?? <span className="muted">—</span>}</td>
                   <td className="row-actions">

@@ -223,3 +223,6 @@ The mark is temporary by design: setting a first day of work clears it (single `
 Work & days off: **Starts today** (anchor = today) the day someone goes back to work, or **Off today**
 (anchor = today − daysOn) the day they finish. Setting any date by hand still works and always has.
 Bulk action `startState` sets or clears the mark for a whole selection.
+
+The same two buttons are on **People** too: next to each person's "Today" status, and in the bulk bar for everyone
+selected. Someone with no rotation yet gets 35/28 when pressed there (as typing a date on Work & days off does).
