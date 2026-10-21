@@ -300,7 +300,9 @@ model Job {
   site         Site      @relation(fields: [siteId], references: [id])
   serviceType  String    // Open Hole | Cased Hole
   plannedStart DateTime
+  /// An open job has no agreed end: plannedEnd sits far ahead and the manager ends it from the unit or the job.
   plannedEnd   DateTime
+  openEnded    Boolean   @default(false)
   actualStart  DateTime?
   actualEnd    DateTime?
   status       JobStatus @default(PLANNED)

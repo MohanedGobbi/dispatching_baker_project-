@@ -443,7 +443,7 @@ function UnitCard({ unit, editable, hits, onOpen, onUnit, onAssign, onAct }: { u
         <Ring value={unit.crew.filled} max={unit.crew.required} color="#fff" size={44} />
         <span className="uh-text">
           <strong>{unit.code}<span className="type-pill">{unitKind(unit)}</span></strong>
-          <small>{unit.job ? `${unit.job.well}${unit.job.rig ? ` · ${unit.job.rig}` : ''} · ${unit.job.site}` : unit.type}</small>
+          <small>{unit.job ? [unit.job.site, unit.job.well === unit.job.site ? null : unit.job.well, unit.job.rig].filter(Boolean).join(' · ') : unit.type}</small>
         </span>
       </header>
       <div className={`ucard-state sev-${sev}`}>

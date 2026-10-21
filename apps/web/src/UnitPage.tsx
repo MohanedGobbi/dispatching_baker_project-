@@ -19,7 +19,7 @@ interface UnitD {
   id: string; code: string; status: string; plate: string | null; model: string | null; year: number | null; notes: string | null; homeBaseId: string; unitTypeId: string
   unitType: { name: string; colorKey: string }; homeBase: { code: string; name: string }
   seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string } | null }[]
-  deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string } }[]
+  deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string; openEnded?: boolean } }[]
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
   crewHistory: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
 }
@@ -78,7 +78,7 @@ export default function UnitPage({ id }: { id: string }) {
         <div>
           <h1><Truck size={22} aria-hidden /> {x.code} <span className={`tag tag-${x.unitType.colorKey === 'amber' ? 'CH' : 'OH'}`}>{x.unitType.name}</span></h1>
           <p className="muted">{x.homeBase.code} · {x.homeBase.name}{[x.plate, x.model, x.year].some(Boolean) ? ` · ${[x.plate, x.model, x.year].filter(Boolean).join(' · ')}` : ''}</p>
-          <div className="badges"><Pill severity={st.sev}>{st.label}</Pill>{current && <span className="badge">{current.job.wellName}{current.job.rigName ? ` · ${current.job.rigName}` : ''} · {t('until', 'until')} {fmt(current.end)}</span>}</div>
+          <div className="badges"><Pill severity={st.sev}>{st.label}</Pill>{current && <span className="badge">{current.job.wellName}{current.job.rigName ? ` · ${current.job.rigName}` : ''} · {current.job.openEnded ? t('openUntilEnded', 'until you end it') : `${t('until', 'until')} ${fmt(current.end)}`}</span>}</div>
           {x.notes && <p className="note">{x.notes}</p>}
         </div>
         <div className="actions">
@@ -198,7 +198,8 @@ export default function UnitPage({ id }: { id: string }) {
             {x.deployments.map(d => (
               <li key={d.id}>
                 <Truck size={16} aria-hidden />
-                <div><strong>{d.job.wellName}{d.job.rigName ? ` · ${d.job.rigName}` : ''}</strong><small className="muted">{d.job.ref}{d.job.client ? ` · ${d.job.client}` : ''} · {fmt(d.start)} → {fmt(d.end)}</small></div>
+                <div><strong>{d.job.wellName}{d.job.rigName ? ` · ${d.job.rigName}` : ''}</strong><small className="muted">{d.job.ref}{d.job.client ? ` · ${d.job.client}` : ''} · {fmt(d.start)} → {d.job.openEnded ? t('openEnd', 'open') : fmt(d.end)}</small></div>
+                {d === current && <button type="button" className="ghost" onClick={() => void act(() => api(`/jobs/${d.job.id}/end`, { method: 'POST', body: {} }), t('jobEnded', 'Job ended, unit back at base'))}>{t('endJob', 'End job today')}</button>}
               </li>
             ))}
           </ul>

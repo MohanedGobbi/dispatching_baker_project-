@@ -389,7 +389,7 @@ function UnitProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3><Briefcase size={14} aria-hidden /> {t('nowDoing', 'Current job')}</h3>
             {current ? <div className="facts2">
-              <Fact label={t('wellName', 'Well')}>{current.job.wellName}</Fact><Fact label={t('rig', 'Rig')}>{current.job.rigName}</Fact>
+              <Fact label={t('site', 'Site')}>{current.job.wellName}</Fact><Fact label={t('rig', 'Rig')}>{current.job.rigName}</Fact>
               <Fact label={t('client', 'Client')}>{current.job.client}</Fact><Fact label={t('dates', 'Dates')}>{fmtDate(current.start, i18n.language)} → {fmtDate(current.end, i18n.language)}</Fact>
             </div> : <p className="muted" style={{ margin: 0 }}>{t('noJobNow', 'No job today.')}</p>}
           </section>

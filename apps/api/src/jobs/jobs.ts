@@ -9,8 +9,10 @@ import { startOfDay } from '../domain/status';
 
 const JOB_SPEC: Spec = {
   wellName: 'string', rigName: 'string', client: 'string', siteId: 'string', serviceType: 'string',
-  plannedStart: 'date', plannedEnd: 'date',
+  plannedStart: 'date', plannedEnd: 'date', openEnded: 'boolean',
 };
+/** An open job needs a plannedEnd for every date range to keep working, so it is parked this far ahead. */
+const OPEN_YEARS = 5;
 const OPEN_WO = ['OPEN', 'IN_PROGRESS', 'WAITING_PARTS'];
 const DAY = 86_400_000;
 
@@ -58,8 +60,16 @@ class JobsController {
 
   @Post() @Require('jobs', 'edit')
   async create(@Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
-    const data = pickFields(JOB_SPEC, body, ['wellName', 'siteId', 'serviceType', 'plannedStart', 'plannedEnd']);
+    const data = pickFields(JOB_SPEC, body, ['siteId', 'serviceType', 'plannedStart']);
     await this.assertServiceType(data.serviceType);
+    // The job is named after its site unless a well name is given (older jobs carry their own).
+    if (!data.wellName) {
+      const site = await this.prisma.site.findUnique({ where: { id: data.siteId as string }, select: { name: true } });
+      if (!site) throw new BadRequestException('Site does not exist');
+      data.wellName = site.name;
+    }
+    if (data.openEnded) data.plannedEnd = new Date(new Date(data.plannedStart as Date).setUTCFullYear((data.plannedStart as Date).getUTCFullYear() + OPEN_YEARS));
+    if (!data.plannedEnd) throw new BadRequestException('Missing: plannedEnd (or openEnded)');
     if ((data.plannedEnd as Date) < (data.plannedStart as Date)) throw new BadRequestException('plannedEnd must not be before plannedStart');
     const year = new Date().getUTCFullYear();
     // Auto number JOB-YYYY-NNNN. The unique index decides races, so retry on a collision.
@@ -86,6 +96,7 @@ class JobsController {
     if (['COMPLETED', 'CANCELLED'].includes(before.status)) throw new BadRequestException(`A ${before.status.toLowerCase()} job cannot be edited`);
     const data = pickFields(JOB_SPEC, body);
     if (data.serviceType !== undefined) await this.assertServiceType(data.serviceType);
+    if (data.openEnded === true) data.plannedEnd = new Date(new Date(before.plannedStart).setUTCFullYear(before.plannedStart.getUTCFullYear() + OPEN_YEARS));
     const start = (data.plannedStart as Date) ?? before.plannedStart, end = (data.plannedEnd as Date) ?? before.plannedEnd;
     if (end < start) throw new BadRequestException('plannedEnd must not be before plannedStart');
     const after = await this.prisma.job.update({ where: { id }, data: data as never });

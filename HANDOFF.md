@@ -197,3 +197,16 @@ The Board's "Base staff" view, the "Base posts below minimum" tile and Analytics
   - **Units:** type, home base, status. New `POST /units/bulk` reuses the single-unit handlers per row and reports the ones it could not change instead of failing the batch; `/units/:id/transfer` to the base a unit is already on is now a no-op rather than a 400.
   - **Work & days off:** rotation, first day on (date, "Today", "None") and "Off today", which is worked out per person because it depends on their own days-on.
 - **35/28 (5 weeks on, 4 weeks off)** is the company's rotation: `seed-real.ts` creates it, makes it both positions' default and puts everyone on it. It was also added to the live database and applied to all 74 people. The other patterns stay for anyone on a different cycle. Note `rules.maxConsecutiveDays` is 35, so a full stretch sits exactly on the limit.
+
+## Jobs: site only, inline sites, open-ended (2026-10-21)
+
+- **New job asks for the site, not a well and rig.** `Job.wellName` stays in the schema (older jobs and several
+  screens use it) and is filled with the site's name when none is given, so a job is named after its site. The board
+  card drops the repeat when they match.
+- **A site can be created from the job dialog**: pick "+ New site…" and give it a name; it is added to the chosen
+  base (`POST /sites`, then the job). Client, travel time and access notes are filled in later on Locations.
+- **Open-ended jobs** (`Job.openEnded`, migration `20261021140000_open_ended_jobs`): tick "No end date" and the job
+  runs until it is ended by hand. `plannedEnd` is still stored, parked 5 years ahead, so every date range, deployment
+  and status calculation keeps working; the screens read `openEnded` and say "until you end it" instead of that date.
+  "End job today" is now on the unit page as well as the unit panel. Note that ending a job today leaves the unit
+  deployed for the rest of that day (unchanged behaviour); it is back at base the next day.

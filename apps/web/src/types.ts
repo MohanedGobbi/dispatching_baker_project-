@@ -16,7 +16,7 @@ export interface SeatCard {
 export interface Badge { code: string; severity: Severity; text: string }
 export interface UnitCardData {
   id: string; code: string; baseId: string; type: string; colorKey: 'green' | 'amber' | string
-  status: string; job: { ref: string; well: string; rig: string | null; site: string } | null
+  status: string; job: { ref: string; well: string; rig: string | null; site: string; openEnded?: boolean } | null
   seats: SeatCard[]; badges: Badge[]; state: Severity; crew: { filled: number; required: number }
   crewChange: { inDays: number; date: string } | null; match: boolean
 }

@@ -52,7 +52,7 @@ class UnitsController {
       orderBy: { code: 'asc' },
       include: {
         unitType: true, homeBase: { select: { code: true, name: true } }, workOrders: true, maintenancePlans: { where: { active: true } },
-        deployments: { include: { job: { select: { ref: true, wellName: true, rigName: true } } } },
+        deployments: { include: { job: { select: { ref: true, wellName: true, rigName: true, openEnded: true } } } },
         seats: { where: { holderType: 'UNIT' }, select: { id: true, requiredFlag: true, assignments: {
           where: { status: { in: ['CONFIRMED', 'ACTIVE'] }, start: { lte: date }, plannedEnd: { gte: date } }, select: { id: true } } } },
       },
@@ -68,7 +68,7 @@ class UnitsController {
       return {
         id: u.id, code: u.code, type: u.unitType.name, typeId: u.unitTypeId, colorKey: u.unitType.colorKey, home: u.homeBase, homeBaseId: u.homeBaseId,
         plate: u.plate, model: u.model, year: u.year, notes: u.notes,
-        status, job: current?.job ?? null, jobUntil: current?.end ?? null, backBy: openWo?.expectedReturn ?? null,
+        status, job: current?.job ?? null, jobUntil: current?.job.openEnded ? null : current?.end ?? null, backBy: openWo?.expectedReturn ?? null,
         nextService: service ? { name: service.name, due: service.due.toISOString().slice(0, 10), state: service.state } : null,
         crew: { filled: filledRequired, required: required.length },
         // A deployed unit with missing required seats is a compliance problem (plan 14.1 badges).

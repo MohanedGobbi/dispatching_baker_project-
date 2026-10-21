@@ -212,7 +212,7 @@ class BoardController {
       const hit = needle ? u.code.toLowerCase().includes(needle) || dep?.job.wellName.toLowerCase().includes(needle) || dep?.job.rigName?.toLowerCase().includes(needle) : false;
       return {
         id: u.id, code: u.code, baseId: u.homeBaseId, type: u.unitType.name, colorKey: u.unitType.colorKey, status,
-        job: dep ? { ref: dep.job.ref, well: dep.job.wellName, rig: dep.job.rigName, site: dep.job.site.name } : null,
+        job: dep ? { ref: dep.job.ref, well: dep.job.wellName, rig: dep.job.rigName, site: dep.job.site.name, openEnded: dep.job.openEnded } : null,
         seats: seatCards, badges, state: worst(badges.map(b => b.severity)), crew: { filled, required: requiredSeats.length }, crewChange, match: hit,
       };
     });

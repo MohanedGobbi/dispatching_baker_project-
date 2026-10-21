@@ -125,7 +125,7 @@ function UnitList() {
                   <td>{u.home.code}</td>
                   <td><Pill severity={m.sev}>{t(`us_${u.status}`, m.label)}</Pill></td>
                   <td>
-                    {u.job ? <>{u.job.wellName}{u.job.rigName ? ` · ${u.job.rigName}` : ''}{u.jobUntil && <small className="muted"> {t('until', 'until')} {fmtDate(u.jobUntil, i18n.language)}</small>}</>
+                    {u.job ? <>{u.job.wellName}{u.job.rigName ? ` · ${u.job.rigName}` : ''}{u.jobUntil ? <small className="muted"> {t('until', 'until')} {fmtDate(u.jobUntil, i18n.language)}</small> : u.job.openEnded ? <small className="muted"> {t('openUntilEnded', 'until you end it')}</small> : null}</>
                       : u.backBy ? <span>{t('backBy', 'back by')} {fmtDate(u.backBy, i18n.language)}</span>
                       : <span className="muted">—</span>}
                   </td>

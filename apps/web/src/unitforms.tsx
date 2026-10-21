@@ -56,7 +56,9 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
   const types = useApi<Named[]>('/catalogs/unit-types')
   const bases = useApi<Base[]>('/bases')
   const units = useApi<{ items: UnitOption[] }>('/units?limit=200')
-  const [f, setF] = useState({ wellName: '', rigName: '', client: '', baseId: '', siteId: '', serviceType: '', start: today(), end: plus(today(), 44), unitId: unitId ?? '' })
+  const [f, setF] = useState({ client: '', baseId: '', siteId: '', serviceType: '', start: today(), end: plus(today(), 44), unitId: unitId ?? '' })
+  const [openEnded, setOpenEnded] = useState(false)
+  const [newSite, setNewSite] = useState('') // a site typed here is created with the job; only its name is needed
   const sites = useApi<{ id: string; name: string }[]>(f.baseId ? `/sites?baseId=${f.baseId}` : null)
   const [busy, setBusy] = useState(false)
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value })
@@ -68,13 +70,18 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
     const b = bases.data.find(x => x.code === unit.home.code)
     setF(x => ({ ...x, baseId: x.baseId || b?.id || '', serviceType: x.serviceType || unit.type }))
   }, [unit, bases.data])
-  useEffect(() => { if (sites.data?.length && !sites.data.some(s => s.id === f.siteId)) setF(x => ({ ...x, siteId: sites.data![0].id })) }, [sites.data, f.siteId])
+  useEffect(() => { if (sites.data?.length && f.siteId !== 'new' && !sites.data.some(s => s.id === f.siteId)) setF(x => ({ ...x, siteId: sites.data![0].id })) }, [sites.data, f.siteId])
   const fit = useMemo(() => (units.data?.items ?? []).filter(u => (u.id === unitId || u.status === 'AVAILABLE') && (!f.serviceType || u.type === f.serviceType)), [units.data, f.serviceType, unitId])
 
   const save = async () => {
     setBusy(true)
     try {
-      const job = await api<{ id: string; ref: string }>('/jobs', { method: 'POST', body: { wellName: f.wellName.trim(), rigName: f.rigName || undefined, client: f.client || undefined, siteId: f.siteId, serviceType: f.serviceType, plannedStart: f.start, plannedEnd: f.end } })
+      let siteId = f.siteId
+      if (siteId === 'new') {
+        const s = await api<{ id: string }>('/sites', { method: 'POST', body: { name: newSite.trim(), baseId: f.baseId } })
+        siteId = s.id
+      }
+      const job = await api<{ id: string; ref: string }>('/jobs', { method: 'POST', body: { client: f.client || undefined, siteId, serviceType: f.serviceType, plannedStart: f.start, ...(openEnded ? { openEnded: true } : { plannedEnd: f.end }) } })
       if (f.unitId) {
         const d = await api<{ warnings: string[] }>(`/jobs/${job.id}/deploy`, { method: 'POST', body: { unitId: f.unitId } })
         toast(`${job.ref} · ${unit?.code ?? ''} ${t('deployed', 'deployed')}${d.warnings.length ? ` · ${d.warnings.join('; ')}` : ''}`)
@@ -86,24 +93,28 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
     <Modal title={t('newJob', 'New job')} onClose={onClose}>
       <div className="form2">
         <div className="row2">
-          <label>{t('wellName', 'Well')} *<input value={f.wellName} onChange={set('wellName')} placeholder="HMD-12" autoFocus /></label>
-          <label>{t('rig', 'Rig')}<input value={f.rigName} onChange={set('rigName')} /></label>
+          <label>{t('base', 'Base')} *<select value={f.baseId} onChange={e => setF({ ...f, baseId: e.target.value, siteId: '' })} autoFocus><option value="">–</option>{bases.data?.map(b => <option key={b.id} value={b.id}>{b.code} · {b.name}</option>)}</select></label>
+          <label>{t('site', 'Site')} *
+            <select value={f.siteId} onChange={set('siteId')} disabled={!f.baseId}>
+              <option value="">–</option>
+              {sites.data?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value="new">{t('siteNew', '+ New site…')}</option>
+            </select>
+          </label>
         </div>
+        {f.siteId === 'new' && <label>{t('siteName', 'Name of the new site')} *<input value={newSite} onChange={e => setNewSite(e.target.value)} placeholder="MDZ-12" autoFocus /><small className="muted">{t('siteNewHint', 'It is added to this base. Client, travel time and access notes can be filled in later on the Locations page.')}</small></label>}
         <label>{t('client', 'Client')}<input value={f.client} onChange={set('client')} /></label>
-        <div className="row2">
-          <label>{t('base', 'Base')} *<select value={f.baseId} onChange={e => setF({ ...f, baseId: e.target.value, siteId: '' })}><option value="">–</option>{bases.data?.map(b => <option key={b.id} value={b.id}>{b.code} · {b.name}</option>)}</select></label>
-          <label>{t('site', 'Site')} *<select value={f.siteId} onChange={set('siteId')} disabled={!f.baseId}><option value="">–</option>{sites.data?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-        </div>
         <label>{t('serviceType', 'Service')} *<select value={f.serviceType} onChange={set('serviceType')}><option value="">–</option>{types.data?.map(x => <option key={x.id} value={x.name}>{x.name}</option>)}</select></label>
         <div className="row2">
           <label>{t('start', 'Start')} *<input type="date" value={f.start} onChange={set('start')} /></label>
-          <label>{t('end', 'End')} *<input type="date" value={f.end} min={f.start} onChange={set('end')} /></label>
+          <label>{t('end', 'End')} {!openEnded && '*'}<input type="date" value={openEnded ? '' : f.end} min={f.start} disabled={openEnded} onChange={set('end')} /></label>
         </div>
+        <label className="check"><input type="checkbox" checked={openEnded} onChange={e => setOpenEnded(e.target.checked)} /> {t('openEnded', 'No end date: keep it running until I end it')}</label>
         <label>{t('sendUnit', 'Unit to send')}<select value={f.unitId} onChange={set('unitId')}><option value="">{t('noUnitYet', 'Decide later')}</option>{fit.map(u => <option key={u.id} value={u.id}>{u.code} · {u.type} · {u.home.code}</option>)}</select></label>
         <p className="muted" style={{ margin: 0 }}>{t('jobHint', 'Once a unit is on a job, its empty crew seats appear in the replacement center and the planner fills them.')}</p>
         <footer>
           <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
-          <button type="button" className="primary" disabled={busy || !f.wellName.trim() || !f.siteId || !f.serviceType || f.end < f.start} onClick={save}>{f.unitId ? t('createDeploy', 'Create and send unit') : t('createJob', 'Create job')}</button>
+          <button type="button" className="primary" disabled={busy || !f.siteId || (f.siteId === 'new' && !newSite.trim()) || !f.serviceType || (!openEnded && f.end < f.start)} onClick={save}>{f.unitId ? t('createDeploy', 'Create and send unit') : t('createJob', 'Create job')}</button>
         </footer>
       </div>
     </Modal>
@@ -113,7 +124,7 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
 export interface UnitRow {
   id: string; code: string; type: string; typeId: string; colorKey: string; home: { code: string; name: string }; homeBaseId: string
   plate: string | null; model: string | null; year: number | null; notes: string | null
-  status: string; job: { ref: string; wellName: string; rigName: string | null } | null; jobUntil: string | null; backBy: string | null
+  status: string; job: { ref: string; wellName: string; rigName: string | null; openEnded?: boolean } | null; jobUntil: string | null; backBy: string | null
   crew: { filled: number; required: number }; problem: boolean
   nextService?: { name: string; due: string; state: 'overdue' | 'due_soon' | 'ok' } | null
 }
