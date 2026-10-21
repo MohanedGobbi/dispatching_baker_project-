@@ -12,7 +12,7 @@ import { fmtDate } from './labels'
 import type { PersonalCalendar } from './types'
 import { Ring } from './guide'
 import { initials, SENIORITY_LABEL, STATUS_META, useToast } from './ui'
-import { NewJobDialog } from './unitforms'
+import { EditJobDialog, NewJobDialog } from './unitforms'
 import { SeatActionsButton, SeatActionsDialog } from './seatactions'
 import { quickProps, useQuick } from './quickctx'
 import type { SeatHolderRef } from './seatactions'
@@ -310,6 +310,7 @@ interface UnitD {
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
   crewHistory: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
   utilization: { deployedDays: number; downtimeDays: number; rate: number }
+  crewMin?: number
 }
 const UNIT_STATUS: Record<string, [string, string]> = {
   DEPLOYED: ['On a job', 'var(--pal-blue-600)'], AVAILABLE: ['At base, available', 'var(--pal-green-600)'], UNDER_MAINTENANCE: ['In the workshop', 'var(--pal-amber-700)'],
@@ -327,6 +328,7 @@ function UnitProfile({ id }: { id: string }) {
   const [wo, setWo] = useState({ open: false, back: addDays(isoD(new Date()), 3), what: '' })
   const [notes, setNotes] = useState<string | null>(null)
   const [acting, setActing] = useState<SeatHolderRef | null>(null)
+  const [editingJob, setEditingJob] = useState<string | null>(null)
   const editor = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
   const x = u.data
   if (u.error) return <div className="pp-body"><div className="banner error">{u.error}</div></div>
@@ -339,6 +341,7 @@ function UnitProfile({ id }: { id: string }) {
   const past = x.deployments.filter(d => d.end.slice(0, 10) < today)
   const openWos = x.workOrders.filter(w => OPEN_WO.includes(w.status))
   const filled = x.seats.filter(s => s.required && s.holder).length, req = x.seats.filter(s => s.required).length
+  const short = !!current && filled < Math.min(req, x.crewMin ?? req) // a few empty seats are fine (Settings)
 
   const act = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); toast(ok); await u.reload() } catch (e) { toast(errMsg(e), 'error') } }
   const sendToWorkshop = () => act(async () => {
@@ -396,7 +399,7 @@ function UnitProfile({ id }: { id: string }) {
           <section className="pp-card">
             <h3><User size={14} aria-hidden /> {t('crewNow', 'Crew today')}</h3>
             <ul className="hist">{x.seats.map(s => (
-              <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required ? 'var(--bad)' : 'var(--pal-slate-400)' }}>
+              <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required && short ? 'var(--bad)' : 'var(--pal-slate-400)' }}>
                 <span><b>{s.position} #{s.index}</b>{!s.required && <small> · {t('optional', 'optional')}</small>}<br /><small>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : t('emptySeat', 'Nobody')}</small></span>
                 {editor && s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
               </li>
@@ -421,6 +424,7 @@ function UnitProfile({ id }: { id: string }) {
               <ul className="hist">{(list as UnitD['deployments']).map(d => (
                 <li key={d.id} style={{ ['--c' as string]: d === current ? 'var(--pal-blue-600)' : d.end.slice(0, 10) < today ? 'var(--pal-slate-400)' : 'var(--pal-violet-600)' }}>
                   <span><b>{d.job.wellName}</b>{d.job.rigName ? ` · ${d.job.rigName}` : ''} <small className="muted">{d.job.ref}</small><br /><small>{fmtDate(d.start, i18n.language)} → {fmtDate(d.end, i18n.language)}{d.job.client ? ` · ${d.job.client}` : ''}</small></span>
+                  {editor && !['COMPLETED', 'CANCELLED'].includes(d.job.status) && <button type="button" className="ghost" onClick={() => setEditingJob(d.job.id)}>{t('editJob', 'Edit job')}</button>}
                   {editor && d === current && <button type="button" className="ghost" onClick={() => act(() => api(`/jobs/${d.job.id}/end`, { method: 'POST', body: {} }), t('jobEnded', 'Job ended, unit back at base'))}>{t('endJob', 'End job today')}</button>}
                 </li>
               ))}{!(list as UnitD['deployments']).length && <li className="muted">–</li>}</ul>
@@ -468,6 +472,7 @@ function UnitProfile({ id }: { id: string }) {
         )}
       </div>
       {jobOpen && <NewJobDialog unitId={id} onClose={() => setJobOpen(false)} onDone={() => void u.reload()} />}
+      {editingJob && <EditJobDialog jobId={editingJob} onClose={() => setEditingJob(null)} onDone={() => void u.reload()} />}
     </>
   )
 }

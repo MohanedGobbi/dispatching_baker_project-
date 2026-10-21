@@ -11,6 +11,7 @@ const GROUPS: Record<string, string> = {
 }
 const HINTS: Record<string, string> = {
   'rules.minExperiencedPerCrew': 'Experienced people required on every crew',
+  'rules.minCrewOnUnit': 'A unit on a job with this many people is not short of crew (its other seats can stay empty)',
   'rules.maxConsecutiveDays': 'Longest stretch on a unit, in days',
   'rules.maxExtensionDaysPerRotation': 'Extension days allowed per rotation',
   'rules.maxExtensionDaysPerQuarter': 'Extension days allowed per quarter',

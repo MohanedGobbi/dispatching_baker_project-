@@ -10,6 +10,8 @@ import { DEFAULT_RANKS } from '../employees/ranks';
 export const SETTING_DEFAULTS = {
   'rules.minExperiencedPerCrew': 1,
   'rules.chiefRequired': true,
+  // A deployed unit with at least this many crew seats filled is not short of crew (the other seats can stay empty).
+  'rules.minCrewOnUnit': 3,
   // On: a broken hard rule needs an override reason to save. Off: rules only warn (a double booking still needs one).
   'rules.overrideReasonRequired': true,
   'rules.maxConsecutiveDays': 35,

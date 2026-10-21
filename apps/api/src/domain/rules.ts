@@ -134,6 +134,9 @@ export function summarizeCrew(seats: CrewSeat[]): CrewSummary {
  * Crew-level rules (15.2 #2, #3). "Missing people" is a gap, not a violation, so experience is judged once the
  * operator seats are all filled; the chief rule fires when operators are in place but nobody leads.
  */
+/** Enough crew on a unit: every required seat, or `minCrew` of them when the unit has more seats than that. */
+export const crewEnough = (filled: number, required: number, minCrew: number) => filled >= Math.min(required, minCrew);
+
 export function crewViolations(seats: CrewSeat[], date: Date, minExperienced: number, chiefRequired: boolean): Violation[] {
   const c = summarizeCrew(seats);
   const v: Violation[] = [];

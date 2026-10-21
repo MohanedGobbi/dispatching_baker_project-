@@ -8,7 +8,7 @@ import { computeUnitStatus } from '../domain/derived';
 import { overlapDays } from '../domain/absence';
 import { mergeSpans, spanDays } from '../domain/spans';
 import { Seniority, startOfDay } from '../domain/status';
-import { seniorityAtLeast } from '../domain/rules';
+import { crewEnough, seniorityAtLeast } from '../domain/rules';
 
 const DAY = 86_400_000;
 const WORKING = new Set(['ON_UNIT', 'EXTENDED', 'ON_BASE_POST', 'STANDBY']);
@@ -129,6 +129,7 @@ export class AnalyticsService {
     const settings = await this.settings.all();
     const minExp = settings['rules.minExperiencedPerCrew'] as number;
     const chiefRequired = settings['rules.chiefRequired'] as boolean;
+    const minCrew = settings['rules.minCrewOnUnit'] as number;
     const units = await this.prisma.unit.findMany({
       where: { ...(baseId ? { homeBaseId: baseId } : {}), status: { not: 'OUT_OF_SERVICE' } },
       include: {
@@ -148,7 +149,7 @@ export class AnalyticsService {
       const experienced = u.seats.filter(s => s.assignments.length > 0 && seniorityAtLeast(sen.get(s.assignments[0].employeeId)?.seniority ?? 'JUNIOR', 'EXPERIENCED')).length;
       const ops = required.filter(s => s.position.name === 'Field Operator');
       const issues: string[] = [];
-      if (filled < required.length) issues.push(`${required.length - filled} seat(s) empty`);
+      if (!crewEnough(filled, required.length, minCrew)) issues.push(`${required.length - filled} seat(s) empty`);
       if (chiefRequired && !hasChief) issues.push('no chief of unit');
       if (ops.every(s => s.assignments.length > 0) && experienced < minExp) issues.push('no experienced operator');
       return { id: u.id, code: u.code, base: u.homeBase.code, type: u.unitType.name, required: required.length, filled, compliant: issues.length === 0, issues };

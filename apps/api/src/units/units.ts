@@ -8,6 +8,7 @@ import { SettingsModule, SettingsService } from '../settings/settings';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
 import { computeUnitStatus, countFieldDays, UnitStatusValue } from '../domain/derived';
 import { startOfDay } from '../domain/status';
+import { crewEnough } from '../domain/rules';
 import { nextDue, serviceState } from '../domain/preventive';
 
 const UNIT_SPEC: Spec = { code: 'string', unitTypeId: 'string', homeBaseId: 'string', plate: 'string', model: 'string', year: 'number', notes: 'string' };
@@ -44,6 +45,7 @@ class UnitsController {
   async list(@Query() q: { typeId?: string; baseId?: string; status?: string; q?: string; date?: string; limit?: string; offset?: string }) {
     const date = parseDate(q.date);
     const text = q.q?.trim();
+    const minCrew = (await this.settings.all())['rules.minCrewOnUnit'] as number;
     const units = await this.prisma.unit.findMany({
       where: {
         ...(q.typeId ? { unitTypeId: q.typeId } : {}), ...(q.baseId ? { homeBaseId: q.baseId } : {}),
@@ -71,8 +73,8 @@ class UnitsController {
         status, job: current?.job ?? null, jobUntil: current?.job.openEnded ? null : current?.end ?? null, backBy: openWo?.expectedReturn ?? null,
         nextService: service ? { name: service.name, due: service.due.toISOString().slice(0, 10), state: service.state } : null,
         crew: { filled: filledRequired, required: required.length },
-        // A deployed unit with missing required seats is a compliance problem (plan 14.1 badges).
-        problem: status === 'DEPLOYED' && filledRequired < required.length,
+        // A deployed unit short of crew is a compliance problem (plan 14.1 badges); `minCrew` filled seats is enough.
+        problem: status === 'DEPLOYED' && !crewEnough(filledRequired, required.length, minCrew),
       };
     }).filter(u => !q.status || u.status === q.status);
     const { take, skip } = page(q);
@@ -122,6 +124,7 @@ class UnitsController {
         holder: s.assignments[0] ? { ...s.assignments[0].employee, assignmentId: s.assignments[0].id, until: s.assignments[0].plannedEnd } : null,
       })),
       crewHistory,
+      crewMin: (await this.settings.all())['rules.minCrewOnUnit'] as number,
       utilization: { windowDays: 365, deployedDays, downtimeDays, rate: Math.round((deployedDays / 365) * 1000) / 10 },
     };
   }

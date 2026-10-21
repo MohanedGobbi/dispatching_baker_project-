@@ -12,7 +12,7 @@ import { CalendarCoreModule, CalendarService, DayCell, iso, addDays } from '../c
 import { viewerFor } from '../calendar/calendar';
 import { parseDate } from '../common/validate';
 import { computeUnitStatus } from '../domain/derived';
-import { seniorityAtLeast } from '../domain/rules';
+import { crewEnough, seniorityAtLeast } from '../domain/rules';
 import { Seniority, startOfDay } from '../domain/status';
 
 const DAY = 86_400_000;
@@ -85,6 +85,7 @@ class BoardController {
     const settings = await this.settings.all();
     const minExperienced = settings['rules.minExperiencedPerCrew'] as number;
     const chiefRequired = settings['rules.chiefRequired'] as boolean;
+    const minCrew = settings['rules.minCrewOnUnit'] as number;
 
     const bases = await this.prisma.base.findMany({ where: { active: true, ...(q.baseId ? { id: q.baseId } : {}) }, orderBy: { name: 'asc' } });
     const baseIds = bases.map(b => b.id);
@@ -188,7 +189,7 @@ class BoardController {
       const hasChief = seatCards.some(s => s.position === 'Chief of Unit' && s.holder);
 
       const badges: { code: string; severity: Severity; text: string }[] = [];
-      badges.push({ code: 'crew', severity: !deployed || filled >= requiredSeats.length ? 'ok' : 'warn', text: `${filled}/${requiredSeats.length}` });
+      badges.push({ code: 'crew', severity: !deployed || crewEnough(filled, requiredSeats.length, minCrew) ? 'ok' : 'warn', text: `${filled}/${requiredSeats.length}` });
       if (deployed && opsFilled.length > 0 && experienced < minExperienced) {
         badges.push({ code: 'no_experienced', severity: opsFilled.length === ops.length ? 'bad' : 'warn', text: 'No experienced' });
       }

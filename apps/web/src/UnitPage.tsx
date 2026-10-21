@@ -11,7 +11,7 @@ import { Legend } from './guide'
 import { PersonLink } from './profiles'
 import { SeatActionsButton, SeatActionsDialog } from './seatactions'
 import type { SeatHolderRef } from './seatactions'
-import { DeleteUnit, EditUnit, MoveUnit, NewJobDialog } from './unitforms'
+import { DeleteUnit, EditJobDialog, EditUnit, MoveUnit, NewJobDialog } from './unitforms'
 import { STATUS } from './unitstatus'
 import type { UnitRow } from './unitforms'
 import { Pill, useToast } from './ui'
@@ -23,6 +23,7 @@ interface UnitD {
   seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string } | null }[]
   deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string; openEnded?: boolean } }[]
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
+  crewMin?: number
   crewHistory: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
 }
 interface History { months: { month: string; days: number; jobDays: number; workshopDays: number; idleDays: number }[]; utilisation: number; workshopShare: number }
@@ -55,6 +56,7 @@ export default function UnitPage({ id }: { id: string }) {
   useLive(u.reload)
   useLive(changes.reload)
   const [moving, setMoving] = useState<{ date: string; only?: string } | null>(null)
+  const [editingJob, setEditingJob] = useState<string | null>(null)
   const [dialog, setDialog] = useState<null | 'edit' | 'move' | 'delete' | 'workshop' | 'job' | 'doc' | { plan: Plan | null } | { book: Plan } | { done: Plan }>(null)
   const [acting, setActing] = useState<SeatHolderRef | null>(null)
   const x = u.data
@@ -66,6 +68,7 @@ export default function UnitPage({ id }: { id: string }) {
   const st = STATUS[x.status] ?? { label: x.status, sev: 'info' as Severity, color: 'var(--pal-slate-500)' }
   const current = x.deployments.find(d => d.start.slice(0, 10) <= today && d.end.slice(0, 10) >= today)
   const filled = x.seats.filter(s => s.required && s.holder).length, required = x.seats.filter(s => s.required).length
+  const short = !!current && filled < Math.min(required, x.crewMin ?? required) // a few empty seats are fine (Settings)
   const nextPlan = [...(plans.data ?? [])].filter(p => p.active).sort((a, b) => a.nextDue.localeCompare(b.nextDue))[0]
   const docIssues = (docs.data ?? []).filter(d => d.validity === 'expired' || d.validity === 'expiring').length
   const row: UnitRow = {
@@ -82,6 +85,7 @@ export default function UnitPage({ id }: { id: string }) {
   return (
     <main className="page wide unit-page">
       <a className="back" href="#/units"><ArrowLeft size={15} aria-hidden /> {t('allUnits', 'All units')}</a>
+      {editingJob && <EditJobDialog jobId={editingJob} onClose={() => setEditingJob(null)} onDone={reloadAll} />}
       {moving && <CrewChangeDialog rows={unitChanges.filter(c => c.date === moving.date)} only={moving.only} onClose={() => setMoving(null)} onDone={reloadAll} />}
       {acting && <SeatActionsDialog target={acting} onClose={() => setActing(null)} onDone={text => { toast(text); reloadAll() }} />}
       <header className="page-head">
@@ -106,7 +110,7 @@ export default function UnitPage({ id }: { id: string }) {
       <section className="kpis2" aria-label={t('unitNumbers', 'Unit in numbers')}>
         <div className="kpi2" style={{ ['--c' as string]: COLORS.job }}><Gauge size={22} className="k-icon" aria-hidden /><strong>{hist.data ? `${hist.data.utilisation}%` : '…'}</strong><span>{t('utilisation12', 'On a job, last 12 months')}</span></div>
         <div className="kpi2" style={{ ['--c' as string]: COLORS.shop }}><Wrench size={22} className="k-icon" aria-hidden /><strong>{hist.data ? `${hist.data.workshopShare}%` : '…'}</strong><span>{t('workshop12', 'In the workshop')}</span></div>
-        <div className={`kpi2${required && filled < required && current ? ' alert' : ''}`} style={{ ['--c' as string]: required && filled < required && current ? 'var(--pal-red-700)' : 'var(--pal-teal-700)' }}><Truck size={22} className="k-icon" aria-hidden /><strong>{filled}/{required}</strong><span>{t('crewToday', 'Crew seats filled today')}</span></div>
+        <div className={`kpi2${short ? ' alert' : ''}`} style={{ ['--c' as string]: short ? 'var(--pal-red-700)' : 'var(--pal-teal-700)' }}><Truck size={22} className="k-icon" aria-hidden /><strong>{filled}/{required}</strong><span>{t('crewToday', 'Crew seats filled today')}</span></div>
         <div className={`kpi2${nextPlan?.state === 'overdue' ? ' alert' : ''}`} style={{ ['--c' as string]: nextPlan ? (nextPlan.state === 'overdue' ? 'var(--pal-red-700)' : nextPlan.state === 'due_soon' ? 'var(--pal-amber-700)' : 'var(--pal-green-700)') : 'var(--pal-slate-600)' }}>
           <CalendarCheck size={22} className="k-icon" aria-hidden /><strong>{nextPlan ? new Date(nextPlan.nextDue).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC' }) : '—'}</strong><span>{nextPlan ? `${t('nextService', 'Next service')}: ${nextPlan.name}` : t('noService', 'No service plan')}</span>
         </div>
@@ -134,7 +138,7 @@ export default function UnitPage({ id }: { id: string }) {
               {x.seats.map(s => (
                 <tr key={s.id}>
                   <td>{s.position} #{s.index}{!s.required && <small className="muted"> · {t('optional', 'optional')}</small>}</td>
-                  <td>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : <span className={current && s.required ? 'error' : 'muted'}>{t('empty', 'Empty')}</span>}</td>
+                  <td>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : <span className={short && s.required ? 'error' : 'muted'}>{t('empty', 'Empty')}</span>}</td>
                   <td className="muted">{changeOf(s.id) && <button type="button" className="small-btn" onClick={() => setMoving({ date: changeOf(s.id)!.date, only: s.id })} title={t('ccChangeDate', 'Change the crew change date')}><CalendarClock size={13} aria-hidden /> {fmt(changeOf(s.id)!.date)}</button>}</td>
                   <td className="num">{s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}</td>
                 </tr>
@@ -217,6 +221,7 @@ export default function UnitPage({ id }: { id: string }) {
               <li key={d.id}>
                 <Truck size={16} aria-hidden />
                 <div><strong>{d.job.wellName}{d.job.rigName ? ` · ${d.job.rigName}` : ''}</strong><small className="muted">{d.job.ref}{d.job.client ? ` · ${d.job.client}` : ''} · {fmt(d.start)} → {d.job.openEnded ? t('openEnd', 'open') : fmt(d.end)}</small></div>
+                {!['COMPLETED', 'CANCELLED'].includes(d.job.status) && <button type="button" className="ghost" onClick={() => setEditingJob(d.job.id)}><Pencil size={14} aria-hidden /> {t('editJob', 'Edit job')}</button>}
                 {d === current && <button type="button" className="ghost" onClick={() => void act(() => api(`/jobs/${d.job.id}/end`, { method: 'POST', body: {} }), t('jobEnded', 'Job ended, unit back at base'))}>{t('endJob', 'End job today')}</button>}
               </li>
             ))}

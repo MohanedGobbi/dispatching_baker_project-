@@ -121,6 +121,60 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
   )
 }
 
+interface JobD {
+  id: string; ref: string; wellName: string; client: string | null; serviceType: string; siteId: string; status: string
+  plannedStart: string; plannedEnd: string; openEnded: boolean; site: { baseId: string; name: string }
+}
+
+/** Change a job: client, site, service and dates. Units sent for the whole job move with its dates. */
+export function EditJobDialog({ jobId, onClose, onDone }: { jobId: string; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const job = useApi<JobD>(`/jobs/${jobId}`)
+  const types = useApi<Named[]>('/catalogs/unit-types')
+  const bases = useApi<Base[]>('/bases')
+  const [f, setF] = useState<{ client: string; baseId: string; siteId: string; serviceType: string; start: string; end: string; openEnded: boolean } | null>(null)
+  const sites = useApi<{ id: string; name: string }[]>(f?.baseId ? `/sites?baseId=${f.baseId}` : null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    const j = job.data
+    if (j && !f) setF({ client: j.client ?? '', baseId: j.site.baseId, siteId: j.siteId, serviceType: j.serviceType, start: j.plannedStart.slice(0, 10), end: j.openEnded ? plus(today(), 44) : j.plannedEnd.slice(0, 10), openEnded: j.openEnded })
+  }, [job.data, f])
+  useEffect(() => { if (f && sites.data?.length && !sites.data.some(s => s.id === f.siteId)) setF({ ...f, siteId: sites.data[0].id }) }, [sites.data, f])
+  const save = async () => {
+    if (!f) return
+    setBusy(true)
+    try {
+      const r = await api<{ ref: string; unitsMoved: number }>(`/jobs/${jobId}`, { method: 'PUT', body: { client: f.client.trim() || null, siteId: f.siteId, serviceType: f.serviceType, plannedStart: f.start, openEnded: f.openEnded, ...(f.openEnded ? {} : { plannedEnd: f.end }) } })
+      toast(`${r.ref} ${t('saved', 'saved')}${r.unitsMoved ? ` · ${r.unitsMoved} ${t('unitsMovedLc', 'unit(s) moved to the new dates')}` : ''}`); onDone(); onClose()
+    } catch (e) { toast(errMsg(e), 'error'); setBusy(false) }
+  }
+  const set = (k: 'client' | 'siteId' | 'serviceType' | 'start' | 'end') => (e: { target: { value: string } }) => f && setF({ ...f, [k]: e.target.value })
+  return (
+    <Modal title={`${t('editJob', 'Edit job')}${job.data ? ` · ${job.data.ref}` : ''}`} onClose={onClose}>
+      {job.error && <div className="banner error" role="alert">{job.error}</div>}
+      {f && <div className="form2">
+        <div className="row2">
+          <label>{t('base', 'Base')}<select value={f.baseId} onChange={e => setF({ ...f, baseId: e.target.value })}>{bases.data?.map(b => <option key={b.id} value={b.id}>{b.code} · {b.name}</option>)}</select></label>
+          <label>{t('site', 'Site')} *<select value={f.siteId} onChange={set('siteId')}>{sites.data?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        </div>
+        <label>{t('client', 'Client')}<input value={f.client} onChange={set('client')} autoFocus /></label>
+        <label>{t('serviceType', 'Service')} *<select value={f.serviceType} onChange={set('serviceType')}>{types.data?.map(x => <option key={x.id} value={x.name}>{x.name}</option>)}</select></label>
+        <div className="row2">
+          <label>{t('start', 'Start')} *<input type="date" value={f.start} onChange={set('start')} /></label>
+          <label>{t('end', 'End')} {!f.openEnded && '*'}<input type="date" value={f.openEnded ? '' : f.end} min={f.start} disabled={f.openEnded} onChange={set('end')} /></label>
+        </div>
+        <label className="check"><input type="checkbox" checked={f.openEnded} onChange={e => setF({ ...f, openEnded: e.target.checked })} /> {t('openEnded', 'No end date: keep it running until I end it')}</label>
+        <p className="muted" style={{ margin: 0 }}>{t('editJobHint', 'Units sent for the whole job move with the new dates; the crews on them are checked on the board and in the replacement center.')}</p>
+        <footer>
+          <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
+          <button type="button" className="primary" disabled={busy || !f.siteId || !f.serviceType || (!f.openEnded && f.end < f.start)} onClick={() => void save()}>{t('save', 'Save')}</button>
+        </footer>
+      </div>}
+    </Modal>
+  )
+}
+
 export interface UnitRow {
   id: string; code: string; type: string; typeId: string; colorKey: string; home: { code: string; name: string }; homeBaseId: string
   plate: string | null; model: string | null; year: number | null; notes: string | null

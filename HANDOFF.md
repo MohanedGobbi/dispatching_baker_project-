@@ -236,3 +236,14 @@ replacement task for `from` moves to `to`. Crew-change rows now carry `unitId`/`
 In the app: the calendar button on each row of **Crew changes**, and on the unit page under "Crew today" (one line
 per day the crew changes, plus the date on each seat). The dialog moves one seat or the whole unit's crew changing
 that day. Draft-plan arrivals ("suggested") are not moved. Live checks: `scripts/smoke-crewchange.ts`.
+
+## Edit job, and 3 people is a full enough crew (2026-10-21)
+
+- **Edit job** (unit page Jobs list and the unit panel's Jobs tab, for jobs not finished or cancelled): client, base/site,
+  service and dates, or open-ended. `PUT /jobs/:id` now moves the unit deployments with the job: a deployment that
+  started/ended with the job takes the new start/end, one inside the job keeps its dates but is clipped to them. A clash
+  with the unit's other jobs is refused (409). A job still named after its site takes the new site's name.
+- **`rules.minCrewOnUnit`** (Settings → Crew rules, default 3): a deployed unit with at least this many required seats
+  filled is not short of crew. `crewEnough()` in `domain/rules.ts` drives the board crew badge, the Units list
+  "problem" flag, Analytics crew compliance, and the red KPI / empty-seat colour on the unit page and panel.
+  Replacement tasks for the empty 4th seat are still created and listed, so it can be filled when someone is free.

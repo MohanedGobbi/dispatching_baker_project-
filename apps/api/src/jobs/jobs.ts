@@ -97,11 +97,37 @@ class JobsController {
     const data = pickFields(JOB_SPEC, body);
     if (data.serviceType !== undefined) await this.assertServiceType(data.serviceType);
     if (data.openEnded === true) data.plannedEnd = new Date(new Date(before.plannedStart).setUTCFullYear(before.plannedStart.getUTCFullYear() + OPEN_YEARS));
+    // A job named after its site (the default) takes the new site's name when it moves site.
+    if (data.siteId && data.siteId !== before.siteId) {
+      const [site, old] = await Promise.all([this.prisma.site.findUnique({ where: { id: data.siteId as string } }), this.prisma.site.findUnique({ where: { id: before.siteId } })]);
+      if (!site) throw new BadRequestException('Site does not exist');
+      if (data.wellName === undefined && old?.name === before.wellName) data.wellName = site.name;
+    }
+    if (data.openEnded === true && data.plannedStart) data.plannedEnd = new Date(new Date(data.plannedStart as Date).setUTCFullYear((data.plannedStart as Date).getUTCFullYear() + OPEN_YEARS));
     const start = (data.plannedStart as Date) ?? before.plannedStart, end = (data.plannedEnd as Date) ?? before.plannedEnd;
     if (end < start) throw new BadRequestException('plannedEnd must not be before plannedStart');
-    const after = await this.prisma.job.update({ where: { id }, data: data as never });
-    await audit(this.prisma, req.user?.sub, 'Job', id, 'update', before, after);
-    return after;
+
+    // Units sent for the whole job follow its new dates; a unit sent for part of it keeps its own dates inside them.
+    const same = (a: Date, b: Date) => startOfDay(a).getTime() === startOfDay(b).getTime();
+    const deps = await this.prisma.unitDeployment.findMany({ where: { jobId: id }, include: { unit: { select: { code: true } } } });
+    const moved: { id: string; start: Date; end: Date }[] = [];
+    for (const d of deps) {
+      const s = same(d.start, before.plannedStart) || d.start < start ? start : d.start;
+      const e = same(d.end, before.plannedEnd) || d.end > end ? end : d.end;
+      if (e < s) throw new BadRequestException(`${d.unit.code} is on this job only outside the new dates; take it off the job first`);
+      if (same(s, d.start) && same(e, d.end)) continue;
+      const clash = await this.prisma.unitDeployment.findFirst({
+        where: { unitId: d.unitId, id: { not: d.id }, start: { lte: e }, end: { gte: s } }, include: { job: { select: { ref: true } } },
+      });
+      if (clash) throw new ConflictException(`${d.unit.code} is already on ${clash.job.ref} during the new dates`);
+      moved.push({ id: d.id, start: s, end: e });
+    }
+    const after = await this.prisma.$transaction(async tx => {
+      for (const m of moved) await tx.unitDeployment.update({ where: { id: m.id }, data: { start: m.start, end: m.end } });
+      return tx.job.update({ where: { id }, data: data as never });
+    });
+    await audit(this.prisma, req.user?.sub, 'Job', id, 'update', before, { ...after, unitsMoved: moved.length });
+    return { ...after, unitsMoved: moved.length };
   }
 
   /**
