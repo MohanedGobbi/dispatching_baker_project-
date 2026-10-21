@@ -21,6 +21,8 @@ export default function People() {
   const { ranks, reload: reloadRanks } = useRanks()
   const [text, setText] = useState('')
   const [rank, setRank] = useState('')
+  const [base, setBase] = useState('')
+  const [level, setLevel] = useState('')
   const [archived, setArchived] = useState(false)
   const list = useApi<{ total: number; items: PersonRow[] }>(`/employees?limit=200${archived ? '&active=false' : ''}`)
   useLive(list.reload)
@@ -33,9 +35,12 @@ export default function People() {
 
   const all = useMemo(() => list.data?.items ?? [], [list.data])
   const byId = useMemo(() => new Map(all.map(p => [p.id, p])), [all])
+  const manyBases = (bases.data?.length ?? 0) > 1
   const q = text.trim().toLowerCase()
   const rows = all
     .filter(p => !rank || (rank === '-' ? !rankOf(ranks, p.tags) : p.tags.includes(rank)))
+    .filter(p => !base || p.homeBase.code === base)
+    .filter(p => !level || p.seniority === level)
     .filter(p => !q || `${p.firstName} ${p.lastName} ${p.lastName} ${p.firstName} ${p.employeeNo} ${p.phone ?? ''}`.toLowerCase().includes(q))
     .sort((a, b) => rankOrder(ranks, a.tags) - rankOrder(ranks, b.tags) || a.lastName.localeCompare(b.lastName))
   const pick = useSelection(rows.map(p => p.id))
@@ -78,7 +83,16 @@ export default function People() {
         <select value={rank} onChange={e => setRank(e.target.value)} aria-label={t('rank', 'Rank')}>
           <option value="">{t('anyRank', 'Any rank')}</option>{ranks.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}<option value="-">{t('noRank', 'No rank set')}</option>
         </select>
+        <select value={level} onChange={e => setLevel(e.target.value)} aria-label={t('level', 'Level')}>
+          <option value="">{t('anyLevel', 'Any level')}</option>{LEVELS.map(l => <option key={l} value={l}>{SENIORITY_LABEL[l]}</option>)}
+        </select>
+        {(bases.data?.length ?? 0) > 1 && (
+          <select value={base} onChange={e => setBase(e.target.value)} aria-label={t('base', 'Base')}>
+            <option value="">{t('allBases', 'All bases')}</option>{bases.data?.map(b => <option key={b.id} value={b.code}>{b.name}</option>)}
+          </select>
+        )}
         <label className="check"><input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} /> {t('showArchived', 'Archived people')}</label>
+        {(rank || base || level || q) && <button type="button" onClick={() => { setRank(''); setBase(''); setLevel(''); setText('') }}>{t('clearFilters', 'Clear filters')}</button>}
         <span className="spacer" /><span className="muted">{rows.length} / {all.length}</span>
       </div>
       {list.error && <div className="banner error" role="alert">{list.error}</div>}
@@ -92,7 +106,7 @@ export default function People() {
 
       <div className="table-scroll">
         <table className="table compact">
-          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAll', 'Select everyone shown')} /></th><th>{t('name', 'Name')}</th><th>{t('empNo', 'No.')}</th><th>{t('rank', 'Rank')}</th><th>{t('level', 'Level')}</th><th>{t('today', 'Today')}</th><th>{t('partner', 'Back-to-back partner')}</th><th>{t('phone', 'Phone')}</th><th /></tr></thead>
+          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAll', 'Select everyone shown')} /></th><th>{t('name', 'Name')}</th><th>{t('empNo', 'No.')}</th><th>{t('rank', 'Rank')}</th><th>{t('level', 'Level')}</th>{manyBases && <th>{t('base', 'Base')}</th>}<th>{t('today', 'Today')}</th><th>{t('partner', 'Back-to-back partner')}</th><th>{t('phone', 'Phone')}</th><th /></tr></thead>
           <tbody>
             {rows.map(p => {
               const st = STATUS_META[p.status] ?? STATUS_META.STANDBY
@@ -104,6 +118,7 @@ export default function People() {
                   <td>{p.employeeNo}</td>
                   <td>{rankOf(ranks, p.tags)?.label ?? <span className="muted">{p.position.name}</span>}</td>
                   <td>{SENIORITY_LABEL[p.seniority] ?? p.seniority}</td>
+                  {manyBases && <td>{p.homeBase.code}</td>}
                   <td><span className="st-dot" style={{ ['--c' as string]: st.color }}>{st.label}</span></td>
                   <td>{partner ? <PersonLink id={partner.id}>{partner.firstName} {partner.lastName}</PersonLink> : p.backToBackId ? <span className="muted">{t('archivedPartner', 'archived')}</span> : <span className="muted">—</span>}</td>
                   <td>{p.phone ?? <span className="muted">—</span>}</td>
@@ -115,7 +130,7 @@ export default function People() {
                 </tr>
               )
             })}
-            {list.data && rows.length === 0 && <tr><td colSpan={9} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
+            {list.data && rows.length === 0 && <tr><td colSpan={manyBases ? 10 : 9} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
           </tbody>
         </table>
       </div>
