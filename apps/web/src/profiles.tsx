@@ -151,7 +151,7 @@ interface Emp {
   certifications: { id: string; type: { name: string }; issuedAt: string }[]
   restrictions: { id: string; kind: string; start: string; end: string | null }[]
   leaves: { id: string; start: string; end: string; status: string; type: { name: string; category: string } }[]
-  assignments: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; type: string; seat: { id: string; holderType: string; index: number; requirements: SeatHolderRef['seat']['requirements'] | null; unit: { code: string; colorKey?: string } | null; base: { code: string } | null; position: { name: string } } }[]
+  assignments: { id: string; start: string; plannedEnd: string; openEnded?: boolean; actualEnd: string | null; status: string; type: string; seat: { id: string; holderType: string; index: number; requirements: SeatHolderRef['seat']['requirements'] | null; unit: { code: string; colorKey?: string } | null; base: { code: string } | null; position: { name: string } } }[]
   seniority: string; fieldDays: number; fieldDaysYear: number; yearsOfService: number; status: string; extensionDays: number; daysOffBalance: number
 }
 
@@ -173,7 +173,7 @@ function PersonProfile({ id }: { id: string }) {
   const todayIso = isoD(new Date())
   const seatsNow = p.assignments.filter(a => ['ACTIVE', 'CONFIRMED'].includes(a.status) && a.plannedEnd.slice(0, 10) >= todayIso).sort((a, b) => a.start.localeCompare(b.start))
   const holderRef = (a: Emp['assignments'][number]): SeatHolderRef => ({
-    assignmentId: a.id, person: { id: p.id, name: `${p.firstName} ${p.lastName}` }, until: a.plannedEnd,
+    assignmentId: a.id, person: { id: p.id, name: `${p.firstName} ${p.lastName}` }, until: a.plannedEnd, openEnded: a.openEnded,
     seat: { seatId: a.seat.id, position: a.seat.position.name, index: a.seat.index, requirements: a.seat.requirements ?? {} },
     unit: { code: a.seat.unit?.code ?? `${a.seat.base?.code ?? ''} base`, colorKey: a.seat.unit?.colorKey },
   })
@@ -212,7 +212,7 @@ function PersonProfile({ id }: { id: string }) {
             <h3><Truck size={14} aria-hidden /> {t('seatsNow', 'Seats now and coming up')}</h3>
             <ul className="hist">{seatsNow.map(a => (
               <li key={a.id} style={{ ['--c' as string]: a.status === 'ACTIVE' ? 'var(--st-unit)' : 'var(--pal-violet-600)' }}>
-                <span><b>{a.seat.unit ? <UnitLink code={a.seat.unit.code} /> : `${a.seat.base?.code} base`}</b> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {fmtDate(a.plannedEnd, i18n.language)}</small></span>
+                <span><b>{a.seat.unit ? <UnitLink code={a.seat.unit.code} /> : `${a.seat.base?.code} base`}</b> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {a.openEnded ? t('noChangeYet', 'no crew change date yet') : fmtDate(a.plannedEnd, i18n.language)}</small></span>
                 {editor && <SeatActionsButton name={`${p.firstName} ${p.lastName}`} onClick={() => setActing(holderRef(a))} />}
               </li>
             ))}</ul>
@@ -277,7 +277,7 @@ function PersonProfile({ id }: { id: string }) {
                 const col = a.status === 'ACTIVE' ? 'var(--st-unit)' : a.status === 'CONFIRMED' ? 'var(--pal-violet-600)' : a.status === 'DRAFT' ? 'var(--pal-slate-400)' : a.status === 'CANCELLED' ? 'var(--pal-red-600)' : 'var(--pal-slate-500)'
                 return (
                   <li key={a.id} style={{ ['--c' as string]: col }}>
-                    <span><b>{a.seat.unit ? <UnitLink code={a.seat.unit.code} /> : where}</b> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {fmtDate(a.actualEnd ?? a.plannedEnd, i18n.language)}{a.type === 'REPLACEMENT' ? ' · replacement' : ''}</small></span>
+                    <span><b>{a.seat.unit ? <UnitLink code={a.seat.unit.code} /> : where}</b> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {a.openEnded ? t('noChangeYet', 'no crew change date yet') : fmtDate(a.actualEnd ?? a.plannedEnd, i18n.language)}{a.type === 'REPLACEMENT' ? ' · replacement' : ''}</small></span>
                     <span className="tag2" style={{ ['--c' as string]: col }}>{a.status.toLowerCase()}</span>
                   </li>
                 )
@@ -305,10 +305,10 @@ function PersonProfile({ id }: { id: string }) {
 interface UnitD {
   id: string; code: string; status: string; plate: string | null; model: string | null; year: number | null; notes: string | null
   unitType: { name: string; colorKey: string }; homeBase: { code: string; name: string }
-  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string } | null }[]
+  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string; openEnded?: boolean } | null }[]
   deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string } }[]
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
-  crewHistory: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
+  crewHistory: { id: string; start: string; plannedEnd: string; openEnded?: boolean; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
   utilization: { deployedDays: number; downtimeDays: number; rate: number }
   crewMin?: number
 }
@@ -401,7 +401,7 @@ function UnitProfile({ id }: { id: string }) {
             <ul className="hist">{x.seats.map(s => (
               <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required && short ? 'var(--bad)' : 'var(--pal-slate-400)' }}>
                 <span><b>{s.position} #{s.index}</b>{!s.required && <small> · {t('optional', 'optional')}</small>}<br /><small>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : t('emptySeat', 'Nobody')}</small></span>
-                {editor && s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
+                {editor && s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, openEnded: h.openEnded, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
               </li>
             ))}</ul>
           </section>
@@ -464,7 +464,7 @@ function UnitProfile({ id }: { id: string }) {
             <h3><History size={14} aria-hidden /> {t('whoWorked', 'Who worked on this unit')}</h3>
             <ul className="hist">{x.crewHistory.map(a => (
               <li key={a.id} style={{ ['--c' as string]: a.status === 'ACTIVE' ? 'var(--st-unit)' : a.status === 'CONFIRMED' ? 'var(--pal-violet-600)' : 'var(--pal-slate-400)' }}>
-                <span><PersonLink id={a.employee.id}>{a.employee.firstName} {a.employee.lastName}</PersonLink> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {fmtDate(a.actualEnd ?? a.plannedEnd, i18n.language)}</small></span>
+                <span><PersonLink id={a.employee.id}>{a.employee.firstName} {a.employee.lastName}</PersonLink> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {a.openEnded ? t('noChangeYet', 'no crew change date yet') : fmtDate(a.actualEnd ?? a.plannedEnd, i18n.language)}</small></span>
                 <span className="tag2">{a.status.toLowerCase()}</span>
               </li>
             ))}</ul>

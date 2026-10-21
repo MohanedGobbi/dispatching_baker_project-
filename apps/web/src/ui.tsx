@@ -40,7 +40,7 @@ export const SENIORITY_LABEL: Record<string, string> = {
 
 export const initials = (name: string) => name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
-interface DragData { person: Person; seatId?: string; assignmentId?: string; until?: string }
+interface DragData { person: Person; seatId?: string; assignmentId?: string; until?: string; openEnded?: boolean }
 
 /** Person chip (plan 27.4): initials, name, seniority dot, qualification tags. Looks the same on board, lists and drawer. */
 export function PersonChip({ person, drag, highlight, onOpen, onAct, compact, draft }: {

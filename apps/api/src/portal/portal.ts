@@ -88,7 +88,7 @@ class PortalController {
         replacedBy: after ? { name: this.personLabel(after.employee), from: iso(after.start) } : null,
         replacing: before ? { name: this.personLabel(before.employee), until: iso(before.plannedEnd) } : null,
       };
-      nextCrewChange = { date: iso(addDays(shown.plannedEnd, 1)), seat: label };
+      nextCrewChange = shown.openEnded ? null : { date: iso(addDays(shown.plannedEnd, 1)), seat: label };
     }
 
     const [unread, pendingAck] = await Promise.all([

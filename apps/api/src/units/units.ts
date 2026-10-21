@@ -121,7 +121,7 @@ class UnitsController {
       status: computeUnitStatus({ manualStatus: u.status, workOrders: u.workOrders, deployments: u.deployments }, date),
       seats: u.seats.map(s => ({
         id: s.id, position: s.position.name, index: s.index, required: s.requiredFlag, requirements: s.requirements,
-        holder: s.assignments[0] ? { ...s.assignments[0].employee, assignmentId: s.assignments[0].id, until: s.assignments[0].plannedEnd } : null,
+        holder: s.assignments[0] ? { ...s.assignments[0].employee, assignmentId: s.assignments[0].id, until: s.assignments[0].plannedEnd, openEnded: s.assignments[0].openEnded } : null,
       })),
       crewHistory,
       crewMin: (await this.settings.all())['rules.minCrewOnUnit'] as number,

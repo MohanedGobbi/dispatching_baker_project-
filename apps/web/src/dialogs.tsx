@@ -42,12 +42,14 @@ export function ViolationList({ violations }: { violations: Violation[] }) {
 /** A person is dropped on a seat: show what would happen first, then save. */
 export function AssignDialog({ person, seat, unit, date, transferFrom, initialEnd, onClose, onDone }: {
   person: Person; seat: SeatCard; unit: UnitCardData; date: string
-  transferFrom?: { assignmentId: string; label: string }; initialEnd?: string
+  /** Last day on the seat; null or left out: no crew change date yet. */
+  transferFrom?: { assignmentId: string; label: string }; initialEnd?: string | null
   onClose: () => void
   onDone: (text: string, undo?: () => Promise<void>) => void
 }) {
   const { t } = useTranslation()
   const [end, setEnd] = useState(initialEnd ?? addDaysIso(date, 27))
+  const [open, setOpen] = useState(!initialEnd) // the crew change date can be decided later
   const [preview, setPreview] = useState<Preview | null>(null)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -55,31 +57,32 @@ export function AssignDialog({ person, seat, unit, date, transferFrom, initialEn
   const [shortened, setShortened] = useState<string | null>(null)
 
   useEffect(() => {
-    if (end < date) return
+    if (!open && end < date) return
     let live = true
     setPreview(null)
-    api<Preview>('/assignments/preview', { method: 'POST', body: { employeeId: person.id, seatId: seat.seatId, start: date, end, ignoreAssignmentId: transferFrom?.assignmentId } })
+    api<Preview>('/assignments/preview', { method: 'POST', body: { employeeId: person.id, seatId: seat.seatId, start: date, ...(open ? { openEnded: true } : { end }), ignoreAssignmentId: transferFrom?.assignmentId } })
       .then(p => {
         if (!live) return
         // The seat is empty today but someone returns to it later: shorten the stretch instead of failing.
-        if (p.seatTaken && p.freeUntil && p.freeUntil >= date && p.freeUntil < end) { setShortened(p.freeUntil); setEnd(p.freeUntil); return }
+        if (p.seatTaken && p.freeUntil && p.freeUntil >= date && (open || p.freeUntil < end)) { setShortened(p.freeUntil); setEnd(p.freeUntil); setOpen(false); return }
         setPreview(p)
       })
       .catch(e => { if (live) setError(e instanceof ApiError ? e.message : String(e)) })
     return () => { live = false }
-  }, [person.id, seat.seatId, date, end, transferFrom?.assignmentId])
+  }, [person.id, seat.seatId, date, end, open, transferFrom?.assignmentId])
 
   const strict = useStrictRules()
   const broken = !!preview && preview.hard > 0
   const needsReason = broken && (strict || preview.violations.some(v => v.rule === 'double_booking'))
   const crew = preview?.crews[0]
+  const span = open ? { openEnded: true } : { end }
   const confirm = async () => {
     setBusy(true); setError('')
     try {
       // A move is one atomic request: if the new placement is refused nothing is released.
       const r = transferFrom
-        ? await api<{ assignment: { id: string } }>(`/assignments/${transferFrom.assignmentId}/transfer`, { method: 'POST', body: { seatId: seat.seatId, start: date, end, overrideReason: broken ? reason.trim() || undefined : undefined } })
-        : await api<{ assignment: { id: string } }>('/assignments', { method: 'POST', body: { employeeId: person.id, seatId: seat.seatId, start: date, end, overrideReason: broken ? reason.trim() || undefined : undefined } })
+        ? await api<{ assignment: { id: string } }>(`/assignments/${transferFrom.assignmentId}/transfer`, { method: 'POST', body: { seatId: seat.seatId, start: date, ...span, overrideReason: broken ? reason.trim() || undefined : undefined } })
+        : await api<{ assignment: { id: string } }>('/assignments', { method: 'POST', body: { employeeId: person.id, seatId: seat.seatId, start: date, ...span, overrideReason: broken ? reason.trim() || undefined : undefined } })
       onDone(`${person.name} → ${unit.code} · ${seat.position} #${seat.index}`, transferFrom ? undefined : async () => {
         await api(`/assignments/${r.assignment.id}/unassign`, { method: 'POST', body: { from: date, reason: 'Undone' } })
       })
@@ -99,8 +102,10 @@ export function AssignDialog({ person, seat, unit, date, transferFrom, initialEn
       </div>
       <div className="dates">
         <label>{t('from', 'From')}<input type="date" value={date} disabled /></label>
-        <label>{t('until', 'Until')}<input type="date" value={end} min={date} onChange={e => setEnd(e.target.value)} /></label>
+        <label>{t('crewChange', 'Crew change')}<input type="date" value={open ? '' : addDaysIso(end, 1)} min={addDaysIso(date, 1)} disabled={open} onChange={e => e.target.value && setEnd(addDaysIso(e.target.value, -1))} /></label>
+        <label className="check"><input type="checkbox" checked={open} onChange={e => setOpen(e.target.checked)} /> {t('notDecided', 'Not decided yet')}</label>
       </div>
+      {open && <p className="muted" style={{ margin: 0 }}>{t('openStayHint', 'They stay on the seat until you set the crew change date (seat menu, or the unit page).')}</p>}
       {shortened && <p className="note">{t('shortened', 'The seat is free until')} {shortened}: {t('shortenedWhy', 'someone else takes it after that, so the end date was shortened.')}</p>}
       {!preview && !error && <p className="muted">{t('checking', 'Checking the rules…')}</p>}
       {preview?.seatTaken && <p className="error">{preview.seatTaken}</p>}

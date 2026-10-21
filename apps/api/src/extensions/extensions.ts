@@ -124,6 +124,7 @@ class ExtensionsController {
     if (!['CONFIRMED', 'ACTIVE'].includes(a.status)) throw new BadRequestException('Only a confirmed or active assignment can be extended');
     const today = startOfDay(new Date());
     if (a.plannedEnd < today) throw new BadRequestException('The assignment has already ended');
+    if (a.openEnded) throw new BadRequestException('This stay has no crew change date yet, so there is nothing to extend: set the date instead');
 
     const roles = req.user?.roles ?? [];
     const broad = roles.some(r => can([r.role], 'extensions', 'full') || r.role === 'DISPATCHER' || r.role === 'CHIEF_OF_UNIT');

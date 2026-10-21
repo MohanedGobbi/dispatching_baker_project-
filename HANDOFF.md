@@ -247,3 +247,18 @@ that day. Draft-plan arrivals ("suggested") are not moved. Live checks: `scripts
   filled is not short of crew. `crewEnough()` in `domain/rules.ts` drives the board crew badge, the Units list
   "problem" flag, Analytics crew compliance, and the red KPI / empty-seat colour on the unit page and panel.
   Replacement tasks for the empty 4th seat are still created and listed, so it can be filled when someone is free.
+
+## Stays with no crew change date yet (2026-10-21)
+
+Crew changes came every 7 days because the "Assign someone" picker defaulted to a 7-day stretch. Now the picker and
+the assign dialog ask for the **crew change date** instead, and "not decided yet" is the default.
+
+`Assignment.openEnded` (migration `20261021180000_open_stays`) marks such a stay; like an open job, its `plannedEnd`
+is parked 5 years ahead (`parkEnd()` in `assignments.ts`) so every date range keeps working and the seat stays held.
+Create/preview/transfer take `openEnded: true` instead of `end`. For an open stay the person rules that depend on its
+length (rotation days off, longest stretch, leave further ahead) wait until a date is set; a double booking still
+counts. `PUT /assignments/:id/move` with `end` sets the crew change (end = change − 1), with `openEnded: true` takes it
+away. Replace and split pass the open end on to the new holder. Unassigning or splitting an open stay opens a
+replacement gap of one 28-day stretch, not 5 years. Open stays cannot be extended and give no "next crew change" in
+the portal. In the app: the seat menu (⋯ / person icon on a seat) has a **Crew change** date with "Set date" and
+"Not decided yet". Live checks: `scripts/smoke-openstay.ts`.

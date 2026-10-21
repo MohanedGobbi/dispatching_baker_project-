@@ -22,9 +22,9 @@ import { go } from './hooks'
 import { useRanks } from './personform'
 
 type StateFilter = 'all' | 'attention' | 'bad' | 'ok' | 'idle'
-interface DragPayload { person: Person; seatId?: string; assignmentId?: string; until?: string }
+interface DragPayload { person: Person; seatId?: string; assignmentId?: string; until?: string; openEnded?: boolean }
 type Pending =
-  | { kind: 'assign'; person: Person; seat: SeatCard; unit: UnitCardData; transferFrom?: { assignmentId: string; label: string }; end?: string }
+  | { kind: 'assign'; person: Person; seat: SeatCard; unit: UnitCardData; transferFrom?: { assignmentId: string; label: string }; end?: string | null }
   | { kind: 'swap'; first: { assignmentId: string; name: string; label: string }; second: { assignmentId: string; name: string; label: string }; violations: Violation[] }
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
@@ -129,7 +129,7 @@ export default function Board() {
         await api(`/assignments/${from.assignmentId}/unassign`, { method: 'POST', body: { from: date, reason: 'Released on the board' } })
         const seat = from.seatId
         toast(`${from.person.name} released`, 'ok', seat && from.until ? async () => {
-          await api('/assignments', { method: 'POST', body: { employeeId: from.person.id, seatId: seat, start: date, end: from.until } })
+          await api('/assignments', { method: 'POST', body: { employeeId: from.person.id, seatId: seat, start: date, ...(from.openEnded ? { openEnded: true } : { end: from.until }) } })
         } : undefined)
       } catch (err) { toast(err instanceof ApiError ? err.message : String(err), 'error') }
       return
@@ -351,7 +351,7 @@ export default function Board() {
                 return (
                   <section key={b.id} aria-label={b.name}>
                     {shownBases.length > 1 && <h2 className="wb-base" style={{ ['--c' as string]: colorOf(b.code) }}>{b.name}</h2>}
-                    <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={boardHits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until })} />)}</div>
+                    <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={boardHits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until, openEnded: seat.holder.openEnded })} />)}</div>
                   </section>
                 )
               })}
@@ -381,7 +381,7 @@ export default function Board() {
                   <em>{all.filter(u => !isIdle(u)).reduce((n, u) => n + u.crew.filled, 0)}/{all.filter(u => !isIdle(u)).reduce((n, u) => n + u.crew.required, 0)} {t('seatsFilled', 'seats filled')}</em>
                 </span>
               </div>
-              {units.length ? <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={hits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until })} />)}</div>
+              {units.length ? <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={hits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until, openEnded: seat.holder.openEnded })} />)}</div>
                 : <p className="empty-note">{t('noUnits', 'No units based here.')}</p>}
             </section>
           )
@@ -471,7 +471,7 @@ function Seat({ seat, unit, editable, hits, onOpen, onAssign, onAct }: { seat: S
       </span>
       {seat.holder
         ? <PersonChip person={seat.holder} highlight={hits.has(seat.holder.id)} onOpen={onOpen} draft={seat.holder.draft} onAct={editable && !seat.holder.draft ? () => onAct(seat) : undefined}
-            drag={editable && !seat.holder.draft ? { id: `seat-person:${seat.seatId}`, data: { person: seat.holder, seatId: seat.seatId, assignmentId: seat.holder.assignmentId, until: seat.holder.until } } : undefined} />
+            drag={editable && !seat.holder.draft ? { id: `seat-person:${seat.seatId}`, data: { person: seat.holder, seatId: seat.seatId, assignmentId: seat.holder.assignmentId, until: seat.holder.until, openEnded: seat.holder.openEnded } } : undefined} />
         : editable
           ? <button type="button" className={`assign-btn${seat.required && !['AVAILABLE', 'UNDER_MAINTENANCE', 'OUT_OF_SERVICE'].includes(unit.status) ? ' req' : ''}`} onClick={() => onAssign(seat)}><UserPlus size={15} aria-hidden /> {t('assignSomeone', 'Assign someone')}</button>
           : <span className="empty-plain">{t('vacant', 'Empty')}</span>}

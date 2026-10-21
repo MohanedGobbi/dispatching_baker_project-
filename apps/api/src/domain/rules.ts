@@ -48,8 +48,12 @@ const fmt = (d: Date) => d.toISOString().slice(0, 10);
 const eachDay = (r: Range) => { const out: Date[] = []; for (let t = startOfDay(r.start).getTime(); t <= r.end.getTime(); t += DAY) out.push(new Date(t)); return out; };
 const overlaps = (a: Range, b: Range) => a.start <= b.end && b.start <= a.end;
 
-/** Rules about one person on one seat for a date range. Crew-level rules are in crewViolations. */
-export function personViolations(c: CandidateFacts, seat: SeatFacts, range: Range, s: RuleSettings): Violation[] {
+/**
+ * Rules about one person on one seat for a date range. Crew-level rules are in crewViolations.
+ * `open`: the stay has no crew change date yet, so the rules that depend on how long it lasts (days off in the
+ * rotation, longest stretch, leave further ahead) are left until a date is set; a double booking still counts.
+ */
+export function personViolations(c: CandidateFacts, seat: SeatFacts, range: Range, s: RuleSettings, open = false): Violation[] {
   const v: Violation[] = [];
   const hard = (rule: RuleId, message: string, date?: Date) => v.push({ rule, severity: 'hard', message, date: date && fmt(date) });
   const soft = (rule: RuleId, message: string) => v.push({ rule, severity: 'soft', message });
@@ -77,15 +81,16 @@ export function personViolations(c: CandidateFacts, seat: SeatFacts, range: Rang
   }
 
   // 6. availability: leave, medical leave, awaiting clearance
+  const now = open ? { start: range.start, end: range.start } : range;
   for (const u of c.unavailable) {
-    if (!overlaps(u, range)) continue;
+    if (!overlaps(u, now)) continue;
     const label = u.reason === 'medical' ? 'Unavailable (medical)' : u.reason === 'clearance' ? 'Awaiting fit-for-duty clearance' : 'On leave';
     // Medical detail stays private: the message says "Unavailable" without the reason when it is medical.
     hard('availability', `${u.reason === 'medical' ? 'Unavailable' : label} ${fmt(u.start < range.start ? range.start : u.start)} to ${fmt(u.end > range.end ? range.end : u.end)}`);
   }
 
   // 6b. rotation: cycle patterns must be "on" for the whole assignment (weekly schedules have natural weekends)
-  if (c.rotation?.type === 'cycle' && c.rotationAnchor) {
+  if (!open && c.rotation?.type === 'cycle' && c.rotationAnchor) {
     const off = eachDay(range).filter(d => !isRotationOn(c.rotation!, c.rotationAnchor!, d));
     if (off.length) hard('rotation_off', `${off.length} day(s) fall in the employee's days off (first: ${fmt(off[0])})`, off[0]);
   }
@@ -103,7 +108,7 @@ export function personViolations(c: CandidateFacts, seat: SeatFacts, range: Rang
 
   // 9. max consecutive working days
   const length = Math.round((startOfDay(range.end).getTime() - startOfDay(range.start).getTime()) / DAY) + 1;
-  if (length > s.maxConsecutiveDays) hard('max_consecutive', `${length} days exceeds the ${s.maxConsecutiveDays}-day maximum`);
+  if (!open && length > s.maxConsecutiveDays) hard('max_consecutive', `${length} days exceeds the ${s.maxConsecutiveDays}-day maximum`);
 
   // soft rules
   if (seat.baseId && c.homeBaseId !== seat.baseId) soft('same_base', 'Home base differs from the seat base (travel needed)');

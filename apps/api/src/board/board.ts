@@ -160,10 +160,10 @@ class BoardController {
         const p = holderRow ? byId.get(holderRow.employeeId) : undefined;
         const req_ = (s.requirements ?? {}) as { qualification?: string; minSeniority?: Seniority };
         const issues: { code: string; severity: Severity; text: string }[] = [];
-        let holder = null as null | (ReturnType<typeof person> & { assignmentId: string; until: string; draft: boolean });
+        let holder = null as null | (ReturnType<typeof person> & { assignmentId: string; until: string; openEnded: boolean; draft: boolean });
         if (holderRow) {
           const info = person(holderRow.employeeId);
-          holder = info ? { ...info, assignmentId: holderRow.id, until: iso(holderRow.plannedEnd), draft: !!draft } : null;
+          holder = info ? { ...info, assignmentId: holderRow.id, until: iso(holderRow.plannedEnd), openEnded: holderRow.openEnded, draft: !!draft } : null;
           if (p) {
             if (req_.qualification && !p.qualifications.some(x => x.qualification.name === req_.qualification)) {
               issues.push({ code: 'qualification', severity: 'bad', text: `Missing ${SHORT_QUAL[req_.qualification] ?? req_.qualification} qualification` });

@@ -387,6 +387,8 @@ model Assignment {
   plannedEnd  DateTime
   originalEnd DateTime?        // planned end before any approved extension
   actualEnd   DateTime?
+  /// No crew change date yet: plannedEnd sits far ahead until the manager sets the day they leave.
+  openEnded   Boolean          @default(false)
   type        AssignmentType   @default(NORMAL)
   status      AssignmentStatus @default(CONFIRMED)
   replacesId  String?

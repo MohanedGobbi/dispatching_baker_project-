@@ -20,11 +20,11 @@ import type { Severity } from './types'
 interface UnitD {
   id: string; code: string; status: string; plate: string | null; model: string | null; year: number | null; notes: string | null; homeBaseId: string; unitTypeId: string
   unitType: { name: string; colorKey: string }; homeBase: { code: string; name: string }
-  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string } | null }[]
+  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string; openEnded?: boolean } | null }[]
   deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string; openEnded?: boolean } }[]
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
   crewMin?: number
-  crewHistory: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
+  crewHistory: { id: string; start: string; plannedEnd: string; openEnded?: boolean; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
 }
 interface History { months: { month: string; days: number; jobDays: number; workshopDays: number; idleDays: number }[]; utilisation: number; workshopShare: number }
 interface Plan {
@@ -139,8 +139,8 @@ export default function UnitPage({ id }: { id: string }) {
                 <tr key={s.id}>
                   <td>{s.position} #{s.index}{!s.required && <small className="muted"> · {t('optional', 'optional')}</small>}</td>
                   <td>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : <span className={short && s.required ? 'error' : 'muted'}>{t('empty', 'Empty')}</span>}</td>
-                  <td className="muted">{changeOf(s.id) && <button type="button" className="small-btn" onClick={() => setMoving({ date: changeOf(s.id)!.date, only: s.id })} title={t('ccChangeDate', 'Change the crew change date')}><CalendarClock size={13} aria-hidden /> {fmt(changeOf(s.id)!.date)}</button>}</td>
-                  <td className="num">{s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}</td>
+                  <td className="muted">{s.holder?.openEnded && !changeOf(s.id) && <small>{t('noChangeYet', 'no crew change date yet')}</small>}{changeOf(s.id) && <button type="button" className="small-btn" onClick={() => setMoving({ date: changeOf(s.id)!.date, only: s.id })} title={t('ccChangeDate', 'Change the crew change date')}><CalendarClock size={13} aria-hidden /> {fmt(changeOf(s.id)!.date)}</button>}</td>
+                  <td className="num">{s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, openEnded: h.openEnded, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}</td>
                 </tr>
               ))}
             </tbody>
@@ -236,7 +236,7 @@ export default function UnitPage({ id }: { id: string }) {
             <thead><tr><th>{t('person', 'Person')}</th><th>{t('seat', 'Seat')}</th><th>{t('dates', 'Dates')}</th></tr></thead>
             <tbody>
               {x.crewHistory.map(a => (
-                <tr key={a.id}><td><PersonLink id={a.employee.id}>{a.employee.firstName} {a.employee.lastName}</PersonLink></td><td>{a.seat.position.name} #{a.seat.index}</td><td>{fmt(a.start)} → {fmt(a.actualEnd ?? a.plannedEnd)}</td></tr>
+                <tr key={a.id}><td><PersonLink id={a.employee.id}>{a.employee.firstName} {a.employee.lastName}</PersonLink></td><td>{a.seat.position.name} #{a.seat.index}</td><td>{fmt(a.start)} → {a.openEnded ? t('noChangeYet', 'no crew change date yet') : fmt(a.actualEnd ?? a.plannedEnd)}</td></tr>
               ))}
               {x.crewHistory.length === 0 && <tr><td colSpan={3} className="muted">{t('noCrewYet', 'Nobody has worked on this unit yet.')}</td></tr>}
             </tbody>

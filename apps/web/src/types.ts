@@ -6,7 +6,7 @@ export interface Person {
   seniority: Seniority; tags: string[]; restrictions: string[]; label?: string
   rank?: string | null // the person's rank tag, e.g. Specialist, OP2
 }
-export interface Holder extends Person { assignmentId: string; until: string; draft: boolean }
+export interface Holder extends Person { assignmentId: string; until: string; openEnded?: boolean; draft: boolean }
 export interface Issue { code: string; severity: Severity; text: string }
 export interface SeatCard {
   seatId: string; position: string; index: number; required: boolean

@@ -20,18 +20,22 @@ const SEN_COLOR: Record<string, string> = { NEW_RECRUIT: 'var(--pal-amber-700)',
  * Click "Assign" on an empty seat: the planner's best picks for it, or anyone free today, searchable.
  * Choosing someone opens the usual rule check before anything is saved.
  */
-export function AssignPicker({ seat, unit, date, free, onPick, onClose, fixedEnd, title, exclude }: {
+export function AssignPicker({ seat, unit, date, free, onPick, onClose, fixedEnd, fixedOpen, title, exclude }: {
   seat: PickSeat; unit: PickUnit; date: string; free: FreePerson[]
-  onPick: (p: Person, end: string) => void; onClose: () => void
-  /** Replacing someone: the span is the rest of their stretch, not a choice. */
-  fixedEnd?: string; title?: string; exclude?: string
+  /** `end` is the last day on the seat, or null when the crew change date is not decided yet. */
+  onPick: (p: Person, end: string | null) => void; onClose: () => void
+  /** Replacing someone: the span is the rest of their stretch, not a choice (`fixedOpen`: it has no end yet). */
+  fixedEnd?: string; fixedOpen?: boolean; title?: string; exclude?: string
 }) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<'best' | 'all'>('best')
   const [q, setQ] = useState('')
-  const [days, setDays] = useState(7)
-  const end = fixedEnd ?? addDaysIso(date, days - 1)
-  const sug = useApi<Suggest>(`/planning/seats/${seat.seatId}/suggestions?start=${date}&end=${end}&top=8`)
+  // When the next crew change will be; left open until the manager decides.
+  const [change, setChange] = useState(addDaysIso(date, 28))
+  const [open, setOpen] = useState(true)
+  const end = fixedEnd ?? (open ? null : addDaysIso(change, -1))
+  // Without an end, rank people on whether they can start today.
+  const sug = useApi<Suggest>(`/planning/seats/${seat.seatId}/suggestions?start=${date}&end=${fixedOpen || !end ? date : end}&top=8`)
   const reasons = useMemo(() => {
     const m = new Map<string, number>()
     for (const r of sug.data?.ruledOut ?? []) for (const b of r.because) m.set(b, (m.get(b) ?? 0) + 1)
@@ -63,10 +67,11 @@ export function AssignPicker({ seat, unit, date, free, onPick, onClose, fixedEnd
           {seat.requirements.minSeniority && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-green-600)' }}>{SENIORITY_LABEL[seat.requirements.minSeniority]}+</span>}
           <span className="muted">{t('from', 'from')} {date}</span>
           {fixedEnd
-            ? <span className="muted">{t('until', 'until')} {fixedEnd}</span>
-            : <span className="seg-days" role="group" aria-label={t('howLong', 'For how long')}>
-              <span className="muted">{t('forHowLong', 'for')}</span>
-              {[3, 7, 14, 28].map(d => <button key={d} type="button" className={days === d ? 'on' : ''} onClick={() => setDays(d)}>{d} {t('daysShort', 'days')}</button>)}
+            ? <span className="muted">{fixedOpen ? t('noChangeYet', 'no crew change date yet') : `${t('until', 'until')} ${fixedEnd}`}</span>
+            : <span className="seg-days" role="group" aria-label={t('crewChange', 'Crew change')}>
+              <span className="muted">{t('crewChangeOn', 'crew change')}</span>
+              <input type="date" value={open ? '' : change} min={addDaysIso(date, 1)} disabled={open} onChange={e => e.target.value && setChange(e.target.value)} aria-label={t('crewChangeDate', 'Crew change date')} />
+              <label className="check"><input type="checkbox" checked={open} onChange={e => setOpen(e.target.checked)} /> {t('notDecided', 'not decided yet')}</label>
             </span>}
         </div>
         <div className="picker-tabs" role="tablist">
@@ -79,7 +84,7 @@ export function AssignPicker({ seat, unit, date, free, onPick, onClose, fixedEnd
             <p className="muted" style={{ marginTop: 0 }}>{t('pickBestHint', 'Ranked by the planner: qualified, rested, fair, and close to this base. Everyone shown follows the rules.')}</p>
             {sug.loading && <p className="muted">{t('checking', 'Checking the rules…')}</p>}
             {sug.error && <p className="error">{sug.error}</p>}
-            {sug.data && best.length === 0 && <p className="empty-note">{!fixedEnd && days > 3 ? t('noCandidatesShorter', 'Nobody can cover all of these days without breaking a rule. Try a shorter stretch above, or pick from "Everyone free today" with a reason.') : fixedEnd ? t('noCandidatesReplace', 'Nobody can take the rest of this stretch without breaking a rule. Pick from "Everyone free that day" and give a reason.') : t('noCandidates', 'Nobody can take this seat without breaking a rule. Pick from "Everyone free today" and give a reason.')}</p>}
+            {sug.data && best.length === 0 && <p className="empty-note">{!fixedEnd && !open ? t('noCandidatesShorter', 'Nobody can cover all of these days without breaking a rule. Try an earlier crew change above, or pick from "Everyone free today" with a reason.') : fixedEnd ? t('noCandidatesReplace', 'Nobody can take the rest of this stretch without breaking a rule. Pick from "Everyone free that day" and give a reason.') : t('noCandidates', 'Nobody can take this seat without breaking a rule. Pick from "Everyone free today" and give a reason.')}</p>}
             <ul className="pick-list">
               {best.map((c, i) => {
                 const p = byId.get(c.employeeId)

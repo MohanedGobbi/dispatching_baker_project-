@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, Repeat, UserMinus, UserCog } from 'lucide-react'
+import { ArrowRight, CalendarClock, Repeat, UserMinus, UserCog } from 'lucide-react'
 import { api, ApiError } from './api'
 import { AssignPicker } from './assign'
 import type { FreePerson, PickSeat, PickUnit } from './assign'
-import { Modal, ViolationList } from './dialogs'
+import { addDaysIso, Modal, RuleDialog, ViolationList } from './dialogs'
 import { useStrictRules } from './hooks'
-import type { BoardData, Person, Preview } from './types'
+import type { BoardData, Person, Preview, Violation } from './types'
 
 /** Someone holding a seat, as any screen that shows them knows it. */
 export interface SeatHolderRef {
@@ -16,6 +16,8 @@ export interface SeatHolderRef {
   unit: PickUnit
   /** Last day of their stretch on this seat (YYYY-MM-DD or ISO). */
   until: string
+  /** No crew change date yet: `until` is only a placeholder far ahead. */
+  openEnded?: boolean
 }
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10)
@@ -49,6 +51,23 @@ export function SeatActionsDialog({ target, onClose, onDone }: { target: SeatHol
   const [error, setError] = useState('')
   const seatLabel = `${target.unit.code} · ${target.seat.position} #${target.seat.index}`
   const badDate = !from || from > until
+  const open = !!target.openEnded
+  const untilText = open ? t('noChangeYet', 'no crew change date yet') : `${t('until', 'until')} ${until}`
+  // The crew change: the day after their last day on the seat, or not decided yet.
+  const [change, setChange] = useState(open ? addDaysIso(today, 28) : addDaysIso(until, 1))
+  const [rule, setRule] = useState<Violation[] | null>(null)
+  const setEnd = async (body: { end: string } | { openEnded: true }, overrideReason?: string) => {
+    await api(`/assignments/${target.assignmentId}/move`, { method: 'PUT', body: { ...body, overrideReason } })
+    onDone(`${target.person.name}: ${'end' in body ? `${t('crewChange', 'crew change')} ${addDaysIso(body.end, 1)}` : t('noChangeYet', 'no crew change date yet')}`)
+  }
+  const saveChange = async (body: { end: string } | { openEnded: true }) => {
+    setBusy(true); setError('')
+    try { await setEnd(body); onClose() } catch (e) {
+      if (e instanceof ApiError && e.status === 422) setRule((e.body as { violations?: Violation[] }).violations ?? [])
+      else setError(errText(e))
+      setBusy(false)
+    }
+  }
 
   // People free on the chosen day, for the picker's "everyone" list.
   useEffect(() => {
@@ -73,7 +92,7 @@ export function SeatActionsDialog({ target, onClose, onDone }: { target: SeatHol
   if (step === 'pick') {
     if (!free) return <Modal title={t('replaceTitle', 'Who replaces')} onClose={onClose}><p className="muted">{t('loading', 'Loading…')}</p></Modal>
     return (
-      <AssignPicker seat={target.seat} unit={target.unit} date={from} fixedEnd={until} free={free} exclude={target.person.id}
+      <AssignPicker seat={target.seat} unit={target.unit} date={from} fixedEnd={until} fixedOpen={open} free={free} exclude={target.person.id}
         title={`${t('whoReplaces', 'Who replaces')} ${target.person.name}?`}
         onClose={() => setStep('choose')} onPick={p => { setNext(p); setStep('confirm') }} />
     )
@@ -82,10 +101,20 @@ export function SeatActionsDialog({ target, onClose, onDone }: { target: SeatHol
     return <ReplaceConfirm target={target} next={next} from={from} until={until} reason={reason} setReason={setReason}
       onBack={() => setStep('pick')} onClose={onClose} onDone={onDone} />
   }
+  if (rule) {
+    return <RuleDialog title={t('ccMoveAnyway', 'Move the crew change anyway?')} violations={rule} summary={<><strong>{target.person.name}</strong> · {seatLabel} · {t('crewChange', 'crew change')} {change}</>}
+      onClose={onClose} onConfirm={reason2 => setEnd({ end: addDaysIso(change, -1) }, reason2)} />
+  }
 
   return (
     <Modal title={`${t('replaceOrUnassign', 'Replace or unassign')}: ${target.person.name}`} onClose={onClose}>
-      <div className="move-line"><strong>{target.person.name}</strong><ArrowRight size={16} aria-hidden /><span>{seatLabel}</span><span className="muted">{t('until', 'until')} {until}</span></div>
+      <div className="move-line"><strong>{target.person.name}</strong><ArrowRight size={16} aria-hidden /><span>{seatLabel}</span><span className="muted">{untilText}</span></div>
+      <div className="cc-set">
+        <CalendarClock size={15} aria-hidden />
+        <label>{t('crewChange', 'Crew change')}<input type="date" value={change} min={today} onChange={e => e.target.value && setChange(e.target.value)} /></label>
+        <button type="button" className="primary" disabled={busy || (!open && change === addDaysIso(until, 1))} onClick={() => void saveChange({ end: addDaysIso(change, -1) })}>{t('setDate', 'Set date')}</button>
+        {!open && <button type="button" disabled={busy} onClick={() => void saveChange({ openEnded: true })}>{t('notDecided', 'Not decided yet')}</button>}
+      </div>
       <div className="dates">
         <label>{t('fromDay', 'From')}<input type="date" value={from} max={until} onChange={e => setFrom(e.target.value)} /></label>
       </div>
@@ -93,7 +122,7 @@ export function SeatActionsDialog({ target, onClose, onDone }: { target: SeatHol
         <input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('reasonPh', 'e.g. sent home sick, needed on another unit')} />
       </label>
       <p className="muted" style={{ margin: '4px 0 0' }}>
-        {t('unassignNote', 'Unassign takes them off the seat from that day; if the seat is required, a replacement task opens for the empty days. Replace hands the seat to someone else from that day until')} {until}.
+        {t('unassignNote2', 'Unassign takes them off the seat from that day; if the seat is required, a replacement task opens for the empty days. Replace hands the seat to someone else from that day')} {untilText}.
       </p>
       {badDate && <p className="error">{t('dateAfterEnd', 'Pick a day on or before')} {until}.</p>}
       {error && <p className="error" role="alert">{error}</p>}
@@ -118,7 +147,7 @@ function ReplaceConfirm({ target, next, from, until, reason, setReason, onBack, 
 
   useEffect(() => {
     let live = true
-    api<Preview>('/assignments/preview', { method: 'POST', body: { employeeId: next.id, seatId: target.seat.seatId, start: from, end: until, replacesId: target.assignmentId } })
+    api<Preview>('/assignments/preview', { method: 'POST', body: { employeeId: next.id, seatId: target.seat.seatId, start: from, ...(target.openEnded ? { openEnded: true } : { end: until }), replacesId: target.assignmentId } })
       .then(p => { if (live) setPreview(p) })
       .catch(e => { if (live) setError(errText(e)) })
     return () => { live = false }
@@ -143,7 +172,7 @@ function ReplaceConfirm({ target, next, from, until, reason, setReason, onBack, 
         <span className="muted">{target.person.name}</span><ArrowRight size={16} aria-hidden /><strong>{next.name}</strong>
         <span>{target.unit.code} · {target.seat.position} #{target.seat.index}</span>
       </div>
-      <p className="muted" style={{ margin: 0 }}>{from} → {until}</p>
+      <p className="muted" style={{ margin: 0 }}>{from} → {target.openEnded ? t('noChangeYet', 'no crew change date yet') : until}</p>
       {!preview && !error && <p className="muted">{t('checking', 'Checking the rules…')}</p>}
       {preview && <>
         <h3>{t('impact', 'What would happen')}</h3>
