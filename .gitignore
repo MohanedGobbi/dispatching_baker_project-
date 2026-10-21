@@ -8,3 +8,9 @@ apps/api/storage/
 CrewBoard.lnk
 apps/web/test-results/
 apps/web/playwright-report/
+
+# real crew names from the manager's sheets (loaded with npm run seed:real); kept off GitHub
+apps/api/prisma/real/
+
+# local preview launcher and generated manual (rebuild with the manual scripts)
+.claude/

@@ -4,11 +4,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Require } from '../auth/decorators';
 import { audit } from '../common/validate';
+import { DEFAULT_RANKS } from '../employees/ranks';
 
 // Every number in the plan is a default that Settings can change (plan header + section 22).
 export const SETTING_DEFAULTS = {
   'rules.minExperiencedPerCrew': 1,
   'rules.chiefRequired': true,
+  // On: a broken hard rule needs an override reason to save. Off: rules only warn (a double booking still needs one).
+  'rules.overrideReasonRequired': true,
   'rules.maxConsecutiveDays': 35,
   'rules.maxExtensionDaysPerRotation': 7,
   'rules.maxExtensionDaysPerQuarter': 14,
@@ -46,6 +49,8 @@ export const SETTING_DEFAULTS = {
   'org.showLeaveReasonToDispatcher': false,
   // Off: the manager publishes a draft plan directly and extensions apply at once. On: draft -> review -> approve.
   'workflow.requireApproval': false,
+  // The company's ranks, highest first; edited on the People screen (not listed in Settings).
+  'people.ranks': DEFAULT_RANKS,
   'security.passwordMinLength': 8,
   'security.resetLinkMinutes': 60,
 } as const;

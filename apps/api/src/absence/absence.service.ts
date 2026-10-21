@@ -81,7 +81,7 @@ export class AbsenceService {
     for (const t of tasks) {
       const rest = subtractSpans({ start: t.fromDate, end: t.toDate }, [span]);
       if (rest.length === 0) {
-        await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', candidateId: employeeId, assignmentId } });
+        await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', candidateId: employeeId, assignmentId, closedAt: new Date() } });
       } else {
         await tx.replacementTask.update({ where: { id: t.id }, data: { fromDate: rest[0].start, toDate: rest[0].end, deadline: rest[0].start } });
         for (const extra of rest.slice(1)) {
@@ -96,7 +96,7 @@ export class AbsenceService {
   async closeTasks(tx: Prisma.TransactionClient, sourceId: string, afterDate?: Date) {
     const tasks = await tx.replacementTask.findMany({ where: { sourceId, status: { in: ['OPEN', 'CANDIDATE_PROPOSED'] } } });
     for (const t of tasks) {
-      if (!afterDate || t.fromDate > afterDate) await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED' } });
+      if (!afterDate || t.fromDate > afterDate) await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', closedAt: new Date() } });
       else if (t.toDate > afterDate) await tx.replacementTask.update({ where: { id: t.id }, data: { toDate: afterDate } });
     }
     return tasks.length;

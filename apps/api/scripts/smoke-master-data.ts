@@ -34,8 +34,7 @@ async function main() {
   check('bases list', bases.status === 200 && bases.json.length === 4, bases);
   const hmd = bases.json.find((b: any) => b.code === 'HMD');
   const detail = await call('GET', `/bases/${hmd.id}`, disp);
-  const mech = detail.json.staffing?.find((s: any) => s.position === 'Mechanic');
-  check('base detail has staffing meter (0 filled < min 2)', detail.status === 200 && mech?.min === 2 && mech?.filled === 0 && mech?.state === 'below_min', mech);
+  check('base detail loads and carries no base-staff staffing (base staff was removed)', detail.status === 200 && (detail.json.staffing ?? []).length === 0, detail.json.staffing);
   check('dispatcher cannot create base', (await call('POST', '/bases', disp, { code: 'X', name: 'X' })).status === 403);
   const nb = await call('POST', '/bases', ops, { code: 'TST', name: 'Test Base', lat: 30, lng: 5 });
   check('ops creates base', nb.status === 201, nb);
@@ -96,7 +95,7 @@ async function main() {
   check('create unit', unit.status === 201, unit);
   const uSeats = await prisma.seat.findMany({ where: { unitId: unit.json.id }, include: { position: true }, orderBy: [{ positionId: 'asc' }, { index: 'asc' }] });
   const ops3 = uSeats.filter(s => s.position.name === 'Field Operator');
-  check('unit gets 5 seats (1 chief, 3 operators, 1 optional driver)', uSeats.length === 5 && uSeats.filter(s => !s.requiredFlag).length === 1, uSeats.length);
+  check('unit gets 4 seats (1 chief, 3 operators)', uSeats.length === 4 && uSeats.filter(s => !s.requiredFlag).length === 0, uSeats.length);
   check('first operator seat requires Experienced', (ops3.find(s => s.index === 1)!.requirements as any).minSeniority === 'EXPERIENCED');
   check('duplicate unit code rejected', (await call('POST', '/units', ops, { code: 'HL-SMOKE', unitTypeId: ohType.id, homeBaseId: hmd.id })).status === 400);
   check('status: cannot set DEPLOYED manually', (await call('PUT', `/units/${unit.json.id}/status`, ops, { status: 'DEPLOYED' })).status === 400);

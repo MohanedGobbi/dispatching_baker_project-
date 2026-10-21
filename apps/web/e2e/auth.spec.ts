@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn, signInManager, unique } from './helpers'
+import { signIn } from './helpers'
 
 test('sign-in shows the CrewBoard logo and only the manager account', async ({ page }) => {
   await page.goto('/')
@@ -10,26 +10,12 @@ test('sign-in shows the CrewBoard logo and only the manager account', async ({ p
   await expect(page.getByRole('button', { name: 'FR' })).toHaveCount(0)
 })
 
-test('a new manager signs in with a temporary password and must choose their own', async ({ page }) => {
-  await signInManager(page)
-  await page.goto('/#/users')
-  await page.getByRole('button', { name: 'New user' }).click()
-  const dialog = page.getByRole('dialog')
-  const login = unique('e2e')
-  await dialog.getByLabel('Login').fill(login)
-  await dialog.getByLabel('Manager', { exact: true }).check()
-  await dialog.getByRole('button', { name: 'Save' }).click()
-  const temp = await page.locator('.temp-pw code').innerText()
-  await page.getByRole('button', { name: 'Done' }).click()
-  await page.getByRole('button', { name: 'Sign out' }).first().click()
-
-  await signIn(page, login, temp)
-  await expect(page.getByRole('heading', { name: 'Choose your password' })).toBeVisible()
-  await page.getByLabel('Current password').fill(temp)
-  await page.getByLabel('New password', { exact: true }).fill('e2e-password-1')
-  await page.getByLabel('New password again').fill('e2e-password-1')
-  await page.getByRole('button', { name: 'Change password' }).click()
-  await expect(page.getByRole('link', { name: /Users/ })).toBeVisible()
+test('any account other than the manager is told the platform is for the manager only', async ({ page }) => {
+  await signIn(page, 'e1001')
+  await expect(page.getByText('This platform is for the manager only')).toBeVisible()
+  await expect(page.locator('.side-nav')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByLabel('Login')).toBeVisible()
 })
 
 test('forgot password answers the same whether or not the login exists', async ({ page }) => {

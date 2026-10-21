@@ -187,7 +187,7 @@ class SwapsController {
       { employeeId: b.employeeId, seatId: a.seatId, start: a.start, end: a.plannedEnd },
       { employeeId: a.employeeId, seatId: b.seatId, start: b.start, end: b.plannedEnd },
     ], [a.id, b.id]);
-    this.assignments.requireOverride(ev, body.overrideReason);
+    await this.assignments.requireOverride(ev, body.overrideReason);
     await this.prisma.$transaction([
       this.prisma.assignment.update({ where: { id: a.id }, data: { employeeId: b.employeeId } }),
       this.prisma.assignment.update({ where: { id: b.id }, data: { employeeId: a.employeeId } }),

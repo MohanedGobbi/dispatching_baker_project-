@@ -119,7 +119,7 @@ class UnitsController {
       status: computeUnitStatus({ manualStatus: u.status, workOrders: u.workOrders, deployments: u.deployments }, date),
       seats: u.seats.map(s => ({
         id: s.id, position: s.position.name, index: s.index, required: s.requiredFlag, requirements: s.requirements,
-        holder: s.assignments[0]?.employee ?? null,
+        holder: s.assignments[0] ? { ...s.assignments[0].employee, assignmentId: s.assignments[0].id, until: s.assignments[0].plannedEnd } : null,
       })),
       crewHistory,
       utilization: { windowDays: 365, deployedDays, downtimeDays, rate: Math.round((deployedDays / 365) * 1000) / 10 },
@@ -151,11 +151,31 @@ class UnitsController {
   @Put(':id') @Require('units', 'edit')
   async update(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
     const data = pickFields(UNIT_SPEC, body);
-    delete data.unitTypeId; // changing type would invalidate the generated crew seats
     delete data.homeBaseId; // use /transfer so the move is recorded
     const before = await this.prisma.unit.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Unit not found');
-    const after = await this.prisma.unit.update({ where: { id }, data: data as never });
+    const newType = data.unitTypeId && data.unitTypeId !== before.unitTypeId ? data.unitTypeId as string : null;
+    delete data.unitTypeId;
+    const after = await this.prisma.$transaction(async tx => {
+      // A type change keeps the crew seats (and who holds them) when both types have the same seats; only the
+      // qualification each seat asks for follows the new type.
+      if (newType) {
+        const types = await tx.unitType.findMany({ where: { id: { in: [before.unitTypeId, newType] } }, include: { crewSeats: { include: { requiredQual: true } } } });
+        const from = types.find(x => x.id === before.unitTypeId), to = types.find(x => x.id === newType);
+        if (!to) throw new BadRequestException('Unknown unit type');
+        const shape = (x: typeof to) => x.crewSeats.map(s => `${s.positionId}:${s.count}`).sort().join(',');
+        if (from && shape(from) !== shape(to)) throw new BadRequestException(`${to.name} has different crew seats, so the type cannot be changed`);
+        const qualOf = new Map(to.crewSeats.map(s => [s.positionId, s.requiredQual?.name]));
+        for (const seat of await tx.seat.findMany({ where: { unitId: id } })) {
+          const req = { ...((seat.requirements ?? {}) as Record<string, unknown>) };
+          const q = qualOf.get(seat.positionId);
+          if (q) req.qualification = q; else delete req.qualification;
+          await tx.seat.update({ where: { id: seat.id }, data: { requirements: req as never } });
+        }
+        data.unitTypeId = newType;
+      }
+      return tx.unit.update({ where: { id }, data: data as never });
+    });
     await audit(this.prisma, req.user?.sub, 'Unit', id, 'update', before, after);
     return after;
   }

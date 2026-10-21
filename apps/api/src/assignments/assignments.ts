@@ -187,9 +187,15 @@ export class AssignmentsService {
     }
   }
 
-  /** Hard violations block unless the caller gives a reason. The reason and what it overrode are logged. */
-  requireOverride(ev: Evaluation, reason?: string) {
-    if (ev.hard > 0 && !reason?.trim()) {
+  /**
+   * Hard violations block unless the caller gives a reason. The reason and what it overrode are logged.
+   * With `rules.overrideReasonRequired` off they are warnings only: everything saves except a double booking
+   * (one person on two seats at once), which still needs a reason.
+   */
+  async requireOverride(ev: Evaluation, reason?: string) {
+    const strict = (await this.settings.all())['rules.overrideReasonRequired'] !== false;
+    const blocking = strict ? ev.hard : ev.violations.filter(v => v.severity === 'hard' && v.rule === 'double_booking').length;
+    if (blocking > 0 && !reason?.trim()) {
       throw new HttpException({
         statusCode: 422, error: 'Rule violation', message: 'Hard rules are broken; pass overrideReason to proceed',
         violations: ev.violations, crews: ev.crews,
@@ -343,7 +349,7 @@ class AssignmentsController {
     const ignore = body.replacesId ? [body.replacesId] : [];
     await this.svc.assertSeatFree(body.seatId, r.start, r.end, ignore);
     const ev = await this.svc.evaluate([{ employeeId: body.employeeId, seatId: body.seatId, ...r, replacesId: body.replacesId }], ignore);
-    this.svc.requireOverride(ev, body.overrideReason);
+    await this.svc.requireOverride(ev, body.overrideReason);
 
     const a = await this.prisma.assignment.create({
       data: {
@@ -375,7 +381,7 @@ class AssignmentsController {
     }
     await this.svc.assertSeatFree(seatId, r.start, r.end, [id]);
     const ev = await this.svc.evaluate([{ employeeId: a.employeeId, seatId, ...r }], [id]);
-    this.svc.requireOverride(ev, body.overrideReason);
+    await this.svc.requireOverride(ev, body.overrideReason);
     const after = await this.prisma.assignment.update({ where: { id }, data: { seatId, start: r.start, plannedEnd: r.end } });
     await audit(this.prisma, req.user?.sub, 'Assignment', id, 'move', a, after, body.overrideReason);
     return { assignment: after, violations: ev.violations, crews: ev.crews };
@@ -399,6 +405,52 @@ class AssignmentsController {
   }
 
   /**
+   * Put someone else in a person's seat from a date, in one step: the holder leaves the seat the day before and the
+   * new person holds it until the holder's planned end, or nothing changes. No replacement task is opened, since
+   * the seat never stands empty. `reason` (optional) is kept in the audit log.
+   */
+  @Post('assignments/:id/replace') @Require('assignments', 'edit')
+  async replace(
+    @Param('id') id: string,
+    @Body() body: { employeeId?: string; from?: string; reason?: string; overrideReason?: string },
+    @Req() req: AuthedRequest,
+  ) {
+    const a = await this.load(id);
+    if (!body?.employeeId) throw new BadRequestException('employeeId is required');
+    if (body.employeeId === a.employeeId) throw new BadRequestException('That person already holds this seat');
+    await this.assertScope(req, [a.seatId]);
+    if (!['CONFIRMED', 'ACTIVE'].includes(a.status)) throw new BadRequestException(`A ${a.status.toLowerCase()} assignment cannot be replaced`);
+    const today = startOfDay(new Date());
+    const asked = startOfDay(body.from ? parseDate(body.from) : today);
+    // Replacing before the stretch starts hands over the whole stretch.
+    const start = asked < startOfDay(a.start) ? startOfDay(a.start) : asked;
+    const end = startOfDay(a.plannedEnd);
+    if (start > end) throw new BadRequestException('The person is no longer on this seat on that date');
+    await this.svc.assertSeatFree(a.seatId, start, end, [id]);
+    const ev = await this.svc.evaluate([{ employeeId: body.employeeId, seatId: a.seatId, start, end, replacesId: id }], [id]);
+    await this.svc.requireOverride(ev, body.overrideReason);
+
+    const out = await this.prisma.$transaction(async tx => {
+      const old = start <= startOfDay(a.start)
+        ? await tx.assignment.update({ where: { id }, data: { status: 'CANCELLED' } })
+        : await tx.assignment.update({ where: { id }, data: { plannedEnd: new Date(start.getTime() - DAY) } });
+      const created = await tx.assignment.create({
+        data: {
+          employeeId: body.employeeId!, seatId: a.seatId, start, plannedEnd: end, type: 'REPLACEMENT', replacesId: id,
+          status: start <= today ? 'ACTIVE' : 'CONFIRMED', overrideReason: ev.hard > 0 ? body.overrideReason?.trim() : undefined,
+        },
+      }).catch(e => { throw mapDbError(e, 'Assignment'); });
+      await this.absence.coverTasks(tx, a.seatId, { start, end }, created.employeeId, created.id);
+      return { old, created };
+    });
+    const why = [body.reason?.trim(), ev.hard > 0 && body.overrideReason?.trim() ? `override: ${body.overrideReason.trim()}` : ''].filter(Boolean).join(' · ') || undefined;
+    await audit(this.prisma, req.user?.sub, 'Assignment', id, 'replace', a, { by: body.employeeId, from: iso(start), assignment: out.created.id, previous: out.old }, why);
+    await this.tell(a.employeeId, a.seatId, start, end, 'released', req.user?.sub);
+    await this.tell(body.employeeId, a.seatId, start, end, 'assigned', req.user?.sub);
+    return { assignment: out.created, released: out.old, violations: ev.violations, crews: ev.crews };
+  }
+
+  /**
    * Move a person to a different seat in one step: the old assignment ends and the new one starts together, or
    * nothing changes. (Two separate calls could leave the person released from the old seat but not placed.)
    */
@@ -418,7 +470,7 @@ class AssignmentsController {
     await this.svc.assertSeatFree(body.seatId, r.start, r.end, []);
     // The old assignment no longer blocks the person from the move date on, so it is ignored for the double-booking check.
     const ev = await this.svc.evaluate([{ employeeId: a.employeeId, seatId: body.seatId, ...r }], [id]);
-    this.svc.requireOverride(ev, body.overrideReason);
+    await this.svc.requireOverride(ev, body.overrideReason);
 
     const today = startOfDay(new Date());
     const out = await this.prisma.$transaction(async tx => {
@@ -446,7 +498,7 @@ class AssignmentsController {
       { employeeId: b.employeeId, seatId: a.seatId, start: a.start, end: a.plannedEnd, replacesId: a.id },
       { employeeId: a.employeeId, seatId: b.seatId, start: b.start, end: b.plannedEnd, replacesId: b.id },
     ], [a.id, b.id]);
-    this.svc.requireOverride(ev, body.overrideReason);
+    await this.svc.requireOverride(ev, body.overrideReason);
     await this.prisma.$transaction([
       this.prisma.assignment.update({ where: { id: a.id }, data: { employeeId: b.employeeId } }),
       this.prisma.assignment.update({ where: { id: b.id }, data: { employeeId: a.employeeId } }),
@@ -477,7 +529,7 @@ class AssignmentsController {
     if (body.employeeId) {
       await this.svc.assertSeatFree(a.seatId, at, tailEnd, [id]);
       ev = await this.svc.evaluate([{ employeeId: body.employeeId, seatId: a.seatId, start: at, end: tailEnd, replacesId: id }], [id]);
-      this.svc.requireOverride(ev, body.overrideReason);
+      await this.svc.requireOverride(ev, body.overrideReason);
     }
     const result = await this.prisma.$transaction(async tx => {
       const head = await tx.assignment.update({ where: { id }, data: { plannedEnd: new Date(at.getTime() - DAY) } });

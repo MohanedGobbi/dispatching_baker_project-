@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bell, BellRing, Check } from 'lucide-react'
 import { api } from './api'
-import { useAuth } from './auth'
 import { errMsg, useApi, useLive } from './hooks'
 import { Pill, useToast } from './ui'
 
@@ -146,13 +145,10 @@ export function BroadcastPanel() {
 /** Staff screen (plan screen 20): the list, then preferences, then broadcast for managers. */
 export default function NotificationsPage() {
   const { t } = useTranslation()
-  const { can } = useAuth()
   return (
     <main className="page">
       <header className="page-head"><div><h1>{t('alertsTitle', 'Notifications')}</h1><p className="muted">{t('alertsIntro', 'Changes that concern you and things waiting for you.')}</p></div></header>
       <NoticeList />
-      {can('SUPER_ADMIN', 'OPS_MANAGER') && <BroadcastPanel />}
-      <PreferencesPanel />
     </main>
   )
 }

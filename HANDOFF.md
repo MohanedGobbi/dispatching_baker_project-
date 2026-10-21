@@ -21,7 +21,7 @@ Logins, password `demo1234`: `dispatcher`, `ops`, `hr`, `basemanager` (scoped to
 
 Windows shortcut: `start-crewboard.cmd` / `stop-crewboard.cmd` at the repo root (scripts in `scripts/`) start Docker, the database, the API and the web app and open the browser. They are Windows-only; in the cloud use the commands above.
 
-Checks: `cd apps/api && npm run typecheck && npm test` (89 unit tests), `npm run smoke` (12 live suites, needs the API running; they mutate data, so reseed afterwards; they pass as one chain on a fresh seed), `cd apps/web && node scripts/test-sw.mjs` (service worker with a mock cache), `cd apps/web && npm run e2e` (12 Playwright tests in a browser, including a WCAG 2.1 AA audit of every screen in light and dark; needs the API and web app running on the demo data). Performance: `docs/performance.md` (how to run it at 5x is in there).
+Checks: `cd apps/api && npm run typecheck && npm test` (89 unit tests), `npm run smoke` (12 live suites, needs the API running; they mutate data, so reseed afterwards; they pass as one chain on a fresh seed), `cd apps/web && node scripts/test-sw.mjs` (service worker with a mock cache), `cd apps/web && npm run e2e` (15 Playwright tests in a browser, including a WCAG 2.1 AA audit of every screen in light and dark; needs the API and web app running on the demo data). Performance: `docs/performance.md` (how to run it at 5x is in there).
 
 ## Where things are
 
@@ -74,6 +74,7 @@ apps/web/public/            manifest, icons, sw.js (service worker)
 - **No review step by default.** Setting `workflow.requireApproval` (default `false`): plans publish straight from DRAFT and, for a manager, "Extend" requests and approves in one go (limits still need an override reason). Turn it on to get draft → review → approved → published and request → approve back.
 - **English only** (user decision, 2026-10-20). The web app has no language switch and no FR/AR strings; components keep their English text as the `t()` default. The API's notification templates still have FR/AR and the `lang` preference, unused.
 - **Units are deleted only when they have no history** (no crew assignment, job or work order); otherwise `DELETE /units/:id` answers 409 and the page offers "Out of service".
+- **Replace / unassign from any seat** (2026-10-20): `seatactions.tsx` (dialog + button) is used on board seats (the chip itself is clickable too), the unit panel, the unit page and the person panel. Unassign is the existing `POST /assignments/:id/unassign` (opens a replacement task for a required seat). Replace is `POST /assignments/:id/replace`: holder ends the day before, the new person gets the rest of the stretch as a REPLACEMENT in one transaction, no task is opened; the optional `reason` goes to the audit log. Covered by `smoke-assignments.ts` and `apps/web/e2e/seats.spec.ts`.
 
 ## Known gaps and shortcuts
 
@@ -104,7 +105,7 @@ apps/web/public/            manifest, icons, sw.js (service worker)
 - Auth decorators live in `auth/decorators.ts` so modules that `auth.module.ts` imports (settings) do not form an import cycle.
 
 - Some files have Windows line endings (CRLF), some do not. Scripted search-and-replace over source must normalise line endings first or it silently misses; the editor tools handle both.
-- The web app is `look.css` on top of four older stylesheets (`App.css`, `pages.css`, `analytics.css`, `portal.css`). The older ones are wrapped in `@layer legacy`, so any rule in `look.css` (unlayered) wins regardless of specificity; never use `!important` there (an `!important` inside the legacy layer would beat look.css). Colours in components come from `--pal-*` / status tokens in `tokens.css`, never raw hex.
+- The web styles are `tokens.css` + `look.css`. The older component styles sit at the top of `look.css` inside `@layer legacy`, so every unlayered rule after it wins regardless of specificity; never use `!important` there. Colours in components come from `--pal-*` / status tokens in `tokens.css`, never raw hex. `DESIGN.md` records the design system (one loud colour: red "act now"; no gradients; stripes 3px).
 - `prisma format` realigns the whole schema; write schema edits by hand and generate migrations with `prisma migrate diff --from-schema-datasource ... --script` (`migrate dev` refuses to run non-interactively when a column is dropped).
 
 ## UI rework and design audit (2026-10-19, local session)
@@ -134,6 +135,15 @@ There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/im
 - To check the web app without a browser login, the API smoke suites cover behaviour; for the UI, run `npm run build` in `apps/web` and `node scripts/test-sw.mjs`. Rendered checks need the app running and a signed-in browser (token in `localStorage['crewboard.token']`, from `POST /api/auth/login`).
 - After any change: `npm run typecheck && npm test` and `npm run smoke` in `apps/api` (reseed afterwards), `npx tsc --noEmit -p tsconfig.app.json && npm run build` in `apps/web`.
 
+## Solo-manager simplification (2026-10-21)
+
+Decided with the manager after a review: make it as simple as possible so it gets used. **Hidden from the app, code kept** (API, tables and tests stay so it can come back):
+- **Single user.** Users screen, employee portal, "My portal" link, notification broadcast and preferences are gone from the web app. Any account that is not SUPER_ADMIN gets "This platform is for the manager only" (`App.tsx`). Role logic and seeded accounts stay for the smoke suites.
+- **Tasks, Leave and Work orders screens removed** (files `Tasks.tsx`, `Leave.tsx`, `WorkOrders.tsx`, `Portal.tsx`, `Users.tsx`, `WhatIf.tsx` are unreferenced). A person who cannot work is unassigned or replaced from their seat (`seatactions.tsx`). The workshop stays as a unit status: send to the workshop from the unit, **Repaired** (unit panel and unit page) finishes the visit. Preventive maintenance and papers stay on the unit page. Board lanes with nobody in them are hidden.
+- **Analytics is one page** (`Analytics.tsx`): key numbers, people and fleet bars, crews needing attention, 12-week coverage by base. No map, what-if, fairness, leave, units or base-staffing tabs, no recommendations.
+- **No driver seat.** Unit types have a chief and three operators. Migration `20261021090000_solo_manager` deleted driver seats (and their assignments/tasks) and turned Field Drivers into Field Operators; the seed no longer makes them. The `Field Driver` position still exists in the catalog because some smoke suites build their own templates with it.
+- **Replacement center shows the fix.** `ReplacementTask.closedAt` (same migration). `GET /replacements?recent=true` also returns tasks closed by placing someone in the last 7 days (default listing is still open tasks only). The screen shows a green "Fixed" card (who covers the seat, Next problem, See the board), a "Fixed this week" tile and lane. "Propose" and "Mark overdue" were removed from the screen; the button is "Put on this seat".
+
 ## Product direction and plan (2026-10-20)
 
 **Who uses it.** Two kinds of user: the **manager**, who monitors and runs everything, and the **employee**, who sees their own schedule and tasks in the phone portal. Everything in the plan is done by the manager, without the review pipeline; employees' own requests (leave, swaps) still come to the manager for a decision.
@@ -154,5 +164,28 @@ There is no `PRODUCT.md` / `DESIGN.md` yet. Running `/impeccable init` then `/im
 **Next, in order**
 1. *Before real use:* `JWT_SECRET`, `APP_URL`, SMTP; a login rate limit; demo accounts off (`SEED_STAFF=off` helps); backups.
 2. *Real data:* import the remaining sheets (certificates, base staffing rules, sites, maintenance plans), PDF exports.
-3. *Polish (P3):* calmer colour volume and thinner card stripes; fold the legacy stylesheets into one.
+3. *Polish (P3), done 2026-10-20:* calmer colour (tinted KPI tiles, only red solid, flat headers, no gradients), 3px stripes, one stylesheet; `PRODUCT.md` and `DESIGN.md` added. The `legacy` layer is still there; dissolving it needs a specificity audit.
 4. If the fleet grows well past 5x: cache per-person calendars for the day (see `docs/performance.md`).
+
+## Base staff removed (2026-10-21)
+
+The Board's "Base staff" view, the "Base posts below minimum" tile and Analytics line are gone from the web app. Data: migration `20261021120000_no_base_staff` deleted base-post seats (with their assignments, tasks and extensions) and the staffing minimums, and archived (`active = false`) everyone in a `BASE_STAFF` position. The seed no longer creates staffing rules, base seats or base-staff employees (management staff such as the Base Manager entries stay; they hold no seats). The API for staffing rules, base rosters and base posts still exists, so it can come back; `smoke-assignments.ts` makes its own base post for the base-manager scope checks.
+
+## Real data (2026-10-21)
+
+- `npm run seed:real` (in `apps/api`) wipes the database and loads the manager's real crews from `apps/api/prisma/real/crew.json` (gitignored, built from "Operator list.xlsx" and "Truck Owners.xlsx"): one base ("Base", rename it in Locations), no sites, 15 trucks (all Open Hole until changed), 74 people. Manager sign-ins and settings survive the reset. `npm run seed` still builds the demo data the tests use.
+- **Ranks** (Chef crew >= Specialist > OP2 > OP3) are the person's tag; `employees/ranks.ts` (API) and `People.tsx` (web) map them to position (Chef crew = Chief of Unit, others Field Operator) and level (Senior, Senior, Experienced, Junior) through `seniorityOverride`.
+- Each truck's two chiefs are back-to-back partners and are named in the truck's notes; nobody is assigned yet.
+- **Rules warn, never block** when setting `rules.overrideReasonRequired` is off (the real seed turns it off; default on so the smoke suites keep their 422 checks). Only a double booking still needs a reason. Web dialogs make the reason an optional note.
+- New screens: **People** (add, edit, rank, partner, Open/Cased Hole skills, archive) and **Locations** (bases and sites). The unit type can now be changed from Edit unit (crew stays on their seats). The board map and `fleetmap.tsx` are gone.
+
+## No sign-in, editable ranks, whiteboard (2026-10-21)
+
+- **No sign-in page.** `POST /auth/auto` gives the first manager account a token when the request comes from this computer (loopback only); the web app calls it on start and whenever a token expires, and hides sign-out and change password. `AUTO_LOGIN=off` brings the sign-in page back.
+- **Ranks are a list the manager edits** (setting `people.ranks`, People → Ranks): rename, add, remove, reorder, and choose chief/operator seats and level. `PUT /ranks` renames the tag on everyone who has it and re-applies position and level. `personform.tsx` holds `PersonForm` (also opened from the person panel's Edit button) and `ManageRanks`.
+- **Whiteboard (Board → TV):** full screen, remembered across reloads; every unit in compact cards, Free / Days off / Away columns beside them (drag onto seats as on the board), clock, date, search, filter chips (base, type, crew state, rank). Names open the profile above it; Escape closes a dialog or profile before leaving the whiteboard.
+
+## Quick actions and work/days-off setup (2026-10-21)
+
+- **Quick actions** (`quick.tsx`, context in `quickctx.ts`): right-click any person chip or name link, or the "⋯" that appears on hover over a chip (and on People rows), for: open profile, edit details, work and days off (rotation), medical leave, leave or extra days off, extend days of work (only when on a seat: request + approve in one go, with "extend anyway" over limits and "delay their start" when someone takes over the seat). Leave is created through `POST /leaves`, so seats are freed and replacement tasks opened as before.
+- **Work & days off** (Planning → `Rotations.tsx`): everyone's rotation pattern and "first day on" (`rotationAnchorDate`), partners listed together, an 8-week strip, "Today" / "Off today" shortcuts and ⇄ to give the partner the opposite stretches. Nobody has a first day yet after `seed:real`; until set, nobody counts as on days off.

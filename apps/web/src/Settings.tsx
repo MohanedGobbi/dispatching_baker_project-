@@ -16,6 +16,7 @@ const HINTS: Record<string, string> = {
   'rules.maxExtensionDaysPerQuarter': 'Extension days allowed per quarter',
   'rules.clearanceRequiredAfterDays': 'Medical absence longer than this needs clearance before returning',
   'rules.longTermAbsenceDays': 'A medical absence this long counts as long-term',
+  'rules.overrideReasonRequired': 'On: breaking a crew rule needs a written reason. Off: rules only warn and you can save anyway (a double booking still needs a reason)',
   'rules.shiftNextRotationOnExtension': 'On: the next rotation starts later. Off: extra days are owed as rest',
   'org.workingDays': 'Sunday first; 1 = working day. Base posts follow this',
   'recommendations.hireLeadDays': 'Days it takes to recruit and onboard someone',

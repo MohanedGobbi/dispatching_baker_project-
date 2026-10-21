@@ -39,7 +39,7 @@ export function AddUnitDialog({ onClose, onDone }: { onClose: () => void; onDone
           <label>{t('year', 'Year')}<input type="number" value={f.year} onChange={set('year')} /></label>
         </div>
         <label>{t('notes', 'Notes')}<textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
-        <p className="muted" style={{ margin: 0 }}>{t('seatsAuto', 'Its crew seats (chief, operators, driver) are created from the type automatically.')}</p>
+        <p className="muted" style={{ margin: 0 }}>{t('seatsAuto', 'Its crew seats (a chief and three operators) are created from the type automatically.')}</p>
         <footer>
           <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
           <button type="button" className="primary" disabled={busy || !f.code.trim() || !f.unitTypeId || !f.homeBaseId} onClick={save}>{t('addUnit', 'Add a unit')}</button>
@@ -122,22 +122,24 @@ export interface UnitRow {
 export function EditUnit({ unit, onClose, onDone }: { unit: UnitRow; onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation()
   const toast = useToast()
-  const [f, setF] = useState({ plate: unit.plate ?? '', model: unit.model ?? '', year: unit.year ? String(unit.year) : '', notes: unit.notes ?? '' })
+  const types = useApi<Named[]>('/catalogs/unit-types')
+  const [f, setF] = useState({ unitTypeId: unit.typeId, plate: unit.plate ?? '', model: unit.model ?? '', year: unit.year ? String(unit.year) : '', notes: unit.notes ?? '' })
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value })
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
     try {
-      await api(`/units/${unit.id}`, { method: 'PUT', body: { plate: f.plate.trim() || null, model: f.model.trim() || null, year: f.year ? +f.year : null, notes: f.notes.trim() || null } })
+      await api(`/units/${unit.id}`, { method: 'PUT', body: { ...(f.unitTypeId ? { unitTypeId: f.unitTypeId } : {}), plate: f.plate.trim() || null, model: f.model.trim() || null, year: f.year ? +f.year : null, notes: f.notes.trim() || null } })
       toast(t('saved', 'Saved')); onDone()
     } catch (e) { toast(errMsg(e), 'error'); setBusy(false) }
   }
   return (
     <Modal title={`${t('editUnit', 'Edit unit')} · ${unit.code}`} onClose={onClose}>
       <div className="form2">
-        <p className="muted" style={{ margin: 0 }}>{unit.type} · {unit.home.code}. {t('typeFixed', 'The type is fixed because it decides the crew seats; use "Move" to change the home base.')}</p>
+        <label>{t('unitType', 'Type')}<select value={f.unitTypeId} onChange={set('unitTypeId')}>{types.data?.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <p className="muted" style={{ margin: 0 }}>{t('typeKeepsCrew', 'Changing the type keeps the crew on their seats.')} {t('moveHint', 'Based at')} {unit.home.code}; {t('moveHint2', 'use "Move" to change the home base.')}</p>
         <div className="row3">
-          <label>{t('plate', 'Plate')}<input value={f.plate} onChange={set('plate')} autoFocus /></label>
+          <label>{t('plate', 'Plate')}<input value={f.plate} onChange={set('plate')} /></label>
           <label>{t('model', 'Model')}<input value={f.model} onChange={set('model')} /></label>
           <label>{t('year', 'Year')}<input type="number" value={f.year} onChange={set('year')} /></label>
         </div>

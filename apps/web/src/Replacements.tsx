@@ -15,6 +15,7 @@ import { PersonLink, SeatLabel } from './profiles'
 interface Task {
   id: string; status: string; urgency: string; trigger: string; from: string; to: string; days: number; daysUntilStart: number | null
   seatId: string; seat: string; candidate: { id: string; name: string } | null; escalatedAt: string | null
+  assignmentId: string | null; closedAt: string | null
 }
 interface Candidates {
   task: Task; seat: string; from: string; to: string; validCandidates: number
@@ -33,6 +34,8 @@ const URG: Record<string, { color: string; label: string; Icon: LucideIcon }> = 
 }
 const TRIGGER_ICON: Record<string, LucideIcon> = { medical_leave: HeartPulse, leave: CalendarDays, unit_deployed: Truck, unassigned: UserMinus, employee_archived: UserX }
 const isOpen = (t: Task) => ['OPEN', 'ESCALATED', 'CANDIDATE_PROPOSED'].includes(t.status)
+/** Someone was placed on the seat: the problem is solved. The list keeps these for a week. */
+const isFixed = (t: Task) => t.status === 'CLOSED' && !!t.assignmentId
 
 /** Replacement center (plan 16): every seat that needs someone, most urgent first, with the best people one click away. */
 export default function Replacements() {
@@ -40,8 +43,7 @@ export default function Replacements() {
   const { can } = useAuth()
   const toast = useToast()
   const [urgency, setUrgency] = useState('')
-  const [showAll, setShowAll] = useState(false)
-  const tasks = useApi<Task[]>(`/replacements${showAll ? '?all=true' : ''}`)
+  const tasks = useApi<Task[]>('/replacements?recent=true')
   const [selected, setSelected] = useState<string | null>(null)
   useLive(tasks.reload)
 
@@ -55,12 +57,12 @@ export default function Replacements() {
     try { await fn(); toast(label); void tasks.reload() } catch (e) { toast(errMsg(e), 'error') }
   }
   const count = (u: string) => all.filter(r => r.urgency === u && isOpen(r)).length
-  const escalated = all.filter(r => r.status === 'ESCALATED').length
+  const fixed = all.filter(isFixed).length
   const lanes: [string, Task[]][] = [
     [t('laneNow', 'Uncovered now'), rows.filter(r => isOpen(r) && (r.daysUntilStart ?? 0) <= 0)],
     [t('laneWeek', 'Starting this week'), rows.filter(r => isOpen(r) && (r.daysUntilStart ?? 0) > 0 && (r.daysUntilStart ?? 0) <= 7)],
     [t('laneLater', 'Later'), rows.filter(r => isOpen(r) && (r.daysUntilStart ?? 0) > 7)],
-    [t('laneDone', 'Finished'), rows.filter(r => !isOpen(r))],
+    [t('laneFixed', 'Fixed this week'), rows.filter(isFixed)],
   ]
 
   return (
@@ -68,44 +70,43 @@ export default function Replacements() {
       <PageGuide id="replacements" Icon={Repeat} color="var(--pal-red-600)" title={t('replacementsTitle', 'Replacement center')}
         purpose={t('replacementsPurpose', 'Every seat that has lost its person or never had one, most urgent first, with the best people to fill it.')}
         steps={[
-          t('rcStep1', 'Tasks appear by themselves when someone goes on leave, falls sick, or a unit gets a job without a crew. "Scan" checks the next four weeks for anything missed.'),
+          t('rcStep1', 'A task appears by itself when a seat is left empty: someone is taken off it, or a unit gets a job without a full crew. "Scan" checks the next four weeks for anything missed.'),
           t('rcStep2', 'Pick a task: the right side ranks the people who can take the seat, with the reason for each and why the others cannot.'),
-          t('rcStep3', '"Confirm" puts the person on the seat and tells them and the person leaving. "Propose" only reserves them.'),
-          t('rcStep4', 'Nobody suitable? Recall someone from days off with an override reason, or close the task with a reason. Tasks starting within 2 days with nobody are marked overdue.'),
+          t('rcStep3', '"Put on this seat" places the person. The task turns green and moves to "Fixed this week", and the board shows the seat filled.'),
+          t('rcStep4', 'Nobody suitable? Use "Assign someone" on the board to pick anyone free (with an override reason), or close the task with a reason.'),
         ]}>
         <button type="button" onClick={() => void run(t('scanned', 'Scan finished'), async () => {
           const r = await api<{ created: number }>('/replacements/scan', { method: 'POST', body: {} })
           toast(`${plural(r.created, 'new task')} found`)
         })}><Radar size={15} aria-hidden /> {t('scan', 'Scan next 4 weeks')}</button>
-        <button type="button" onClick={() => void run(t('overdueMarked', 'Overdue tasks marked'), () => api('/replacements/escalate-due', { method: 'POST' }))}><Siren size={15} aria-hidden /> {t('markOverdue', 'Mark overdue tasks')}</button>
       </PageGuide>
 
       <section className="rc-kpis" aria-label="Summary">
         {(['CRITICAL', 'HIGH', 'NORMAL'] as const).map(u => {
           const m = URG[u]
           return (
-            <button key={u} type="button" className="kpi2" style={{ ['--c' as string]: count(u) ? m.color : 'var(--pal-green-600)', outline: urgency === u ? '3px solid var(--text)' : undefined }} onClick={() => setUrgency(urgency === u ? '' : u)}>
+            <button key={u} type="button" className={`kpi2${u === 'CRITICAL' && count(u) ? ' alert' : ''}`} style={{ ['--c' as string]: count(u) ? m.color : 'var(--pal-green-600)', outline: urgency === u ? '3px solid var(--text)' : undefined }} onClick={() => setUrgency(urgency === u ? '' : u)}>
               <m.Icon size={22} className="k-icon" aria-hidden /><strong>{count(u)}</strong><span>{t(`urg_${u}`, m.label)}</span>
               <small>{u === 'CRITICAL' ? t('critHint', 'seat empty today or tomorrow') : u === 'HIGH' ? t('highHint', 'within the week') : t('normHint', 'time to plan')}</small>
             </button>
           )
         })}
-        <div className="kpi2" style={{ ['--c' as string]: escalated ? 'var(--pal-violet-600)' : 'var(--pal-slate-600)' }}>
-          <Siren size={22} className="k-icon" aria-hidden /><strong>{escalated}</strong><span>{t('overdue', 'Overdue')}</span><small>{t('overdueHint', 'starts within 2 days, still nobody')}</small>
+        <div className="kpi2" style={{ ['--c' as string]: 'var(--pal-green-600)' }}>
+          <CheckCircle2 size={22} className="k-icon" aria-hidden /><strong>{fixed}</strong><span>{t('fixedWeek', 'Fixed this week')}</span><small>{t('fixedHint', 'a person was placed on the seat')}</small>
         </div>
       </section>
 
       {all.some(isOpen) && <Gantt tasks={rows.filter(isOpen)} selected={selected} onPick={setSelected} />}
 
       <div className="filters" style={{ margin: 0 }}>
-        <label className="check"><input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} /> {t('includeClosed', 'Show finished tasks too')}</label>
         {urgency && <button type="button" onClick={() => setUrgency('')}>{t('clearFilter', 'Clear filter')} ✕</button>}
       </div>
 
       {tasks.error && <div className="banner error" role="alert">{tasks.error}</div>}
-      {!tasks.loading && rows.length === 0 ? (
+      {!tasks.loading && !all.some(isOpen) && (
         <div className="card2 rc-empty"><CheckCircle2 size={44} aria-hidden /><h2>{t('allCovered', 'Every seat is covered')}</h2><p>{t('noTasks', 'Nothing needs a replacement. Press "Scan next 4 weeks" to double-check.')}</p></div>
-      ) : (
+      )}
+      {rows.length > 0 && (
         <div className="rc-body">
           <section className="rc-list" aria-label="Tasks">
             {lanes.filter(([, l]) => l.length).map(([title, list]) => (
@@ -116,7 +117,7 @@ export default function Replacements() {
             ))}
           </section>
           <aside aria-label="Task details">
-            {current ? <TaskDetail key={current.id} task={current} canEdit={can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')} onChanged={() => void tasks.reload()} />
+            {current ? <TaskDetail key={current.id} task={current} canEdit={can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')} onChanged={() => void tasks.reload()} onNext={() => { const n = all.find(x => isOpen(x) && x.id !== current.id); if (n) setSelected(n.id) }} hasNext={all.some(x => isOpen(x) && x.id !== current.id)} />
               : <div className="card2 rc-empty"><Inbox size={40} aria-hidden /><p>{t('pickTask', 'Pick a task on the left to see who can take it.')}</p></div>}
           </aside>
         </div>
@@ -132,13 +133,14 @@ function TaskCard({ task, on, onClick }: { task: Task; on: boolean; onClick: () 
   const d = task.daysUntilStart ?? 0
   const open = isOpen(task)
   return (
-    <button type="button" className={`tcard${on ? ' on' : ''}`} style={{ ['--c' as string]: open ? m.color : 'var(--pal-slate-500)' }} onClick={onClick}>
-      <span className="count">{open ? (d <= 0 ? <><b>!</b><small>now</small></> : <><b>{d}</b><small>{d === 1 ? 'day' : 'days'}</small></>) : <><CheckCircle2 size={22} /><small>done</small></>}</span>
+    <button type="button" className={`tcard${on ? ' on' : ''}`} style={{ ['--c' as string]: open ? m.color : 'var(--pal-green-700)' }} onClick={onClick}>
+      <span className="count">{open ? (d <= 0 ? <><b>!</b><small>now</small></> : <><b>{d}</b><small>{d === 1 ? 'day' : 'days'}</small></>) : <><CheckCircle2 size={22} /><small>fixed</small></>}</span>
       <span className="t-main">
         <strong>{task.seat}</strong>
         <small>{fmtDate(task.from, i18n.language)} → {fmtDate(task.to, i18n.language)} · {plural(task.days, 'day')}</small>
         <span className="t-meta">
-          <span className="tag2" style={{ ['--c' as string]: m.color }}><m.Icon size={11} aria-hidden /> {m.label}</span>
+          {open && <span className="tag2" style={{ ['--c' as string]: m.color }}><m.Icon size={11} aria-hidden /> {m.label}</span>}
+          {!open && task.candidate && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-green-700)' }}><CheckCircle2 size={11} aria-hidden /> {task.candidate.name}</span>}
           <span className="tag2" style={{ ['--c' as string]: 'var(--pal-slate-600)' }}><Icon size={11} aria-hidden /> {TRIGGER_LABEL[task.trigger] ?? task.trigger}</span>
           {task.status === 'ESCALATED' && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-violet-600)' }}><Siren size={11} aria-hidden /> overdue</span>}
           {task.status === 'CANDIDATE_PROPOSED' && task.candidate && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-blue-600)' }}>→ {task.candidate.name}</span>}
@@ -181,7 +183,7 @@ function Gantt({ tasks, selected, onPick }: { tasks: Task[]; selected: string | 
   )
 }
 
-function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean; onChanged: () => void }) {
+function TaskDetail({ task, canEdit, onChanged, onNext, hasNext }: { task: Task; canEdit: boolean; onChanged: () => void; onNext: () => void; hasNext: boolean }) {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const open = isOpen(task)
@@ -193,10 +195,11 @@ function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean
   const [closeReason, setCloseReason] = useState('')
   const [busy, setBusy] = useState(false)
   const m = URG[task.urgency] ?? URG.NORMAL
+  const fixed = isFixed(task)
 
   const confirm = useCallback(async (employeeId: string, name: string, overrideReason?: string) => {
     const r = await api<{ closed: boolean; remaining: { from: string; to: string }[] }>(`/replacements/${task.id}/confirm`, { method: 'POST', body: { employeeId, start, end, overrideReason } })
-    toast(`${name} ${t('confirmedFor', 'confirmed')} · ${r.closed ? t('taskDone', 'task done') : `${r.remaining.length} ${t('partsLeft', 'part(s) still open')}`}`)
+    toast(r.closed ? `${t('fixed', 'Fixed')}: ${name} ${t('nowOn', 'now covers')} ${task.seat}` : `${name} ${t('placed', 'placed')} · ${r.remaining.length} ${t('partsLeft', 'part(s) still open')}`)
     onChanged()
   }, [task.id, start, end, toast, onChanged, t])
   const tryConfirm = async (employeeId: string, name: string) => {
@@ -221,17 +224,30 @@ function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean
 
   return (
     <div className="rc-detail">
-      <div className="rc-detail-head" style={{ ['--c' as string]: open ? m.color : 'var(--pal-slate-600)' }}>
+      <div className="rc-detail-head" style={{ ['--c' as string]: open ? m.color : fixed ? 'var(--pal-green-700)' : 'var(--pal-slate-600)' }}>
         <h2 className="on-color"><SeatLabel label={task.seat} /></h2>
         <div className="row">
-          <span><m.Icon size={13} aria-hidden /> {m.label}</span>
+          {open ? <span><m.Icon size={13} aria-hidden /> {m.label}</span> : fixed ? <span><CheckCircle2 size={13} aria-hidden /> {t('fixed', 'Fixed')}</span> : null}
           <span><CalendarDays size={13} aria-hidden /> {fmtDate(task.from, i18n.language)} → {fmtDate(task.to, i18n.language)}</span>
           <span>{TRIGGER_LABEL[task.trigger] ?? task.trigger}</span>
           {open && <span><Clock size={13} aria-hidden /> {countdown(task.daysUntilStart)}</span>}
         </div>
       </div>
       <div className="rc-detail-body">
-        {!open && <p className="ok-line"><CheckCircle2 size={15} aria-hidden /> {t('taskFinished', 'This task is finished.')}</p>}
+        {fixed && (
+          <div className="rc-fixed" role="status">
+            <CheckCircle2 size={28} aria-hidden />
+            <div>
+              <strong>{t('fixedTitle', 'Fixed')}{task.candidate ? ': ' : ''}{task.candidate && <PersonLink id={task.candidate.id}>{task.candidate.name}</PersonLink>}{task.candidate ? ` ${t('nowOn', 'now covers')} ` : ''}{task.seat}</strong>
+              <small>{fmtDate(task.from, i18n.language)} → {fmtDate(task.to, i18n.language)}{task.closedAt ? ` · ${fmtDate(task.closedAt, i18n.language)}` : ''}</small>
+            </div>
+            <span className="acts">
+              {hasNext && <button type="button" className="primary" onClick={onNext}>{t('nextProblem', 'Next problem')} →</button>}
+              <a className="btn" href="#/board">{t('seeBoard', 'See the board')}</a>
+            </span>
+          </div>
+        )}
+        {!open && !fixed && <p className="ok-line"><CheckCircle2 size={15} aria-hidden /> {t('taskFinished', 'This task was closed without a replacement.')}</p>}
         {open && (
           <>
             <h3>{t('whichDays', 'Which days to cover')}</h3>
@@ -245,20 +261,19 @@ function TaskDetail({ task, canEdit, onChanged }: { task: Task; canEdit: boolean
             <h3>{t('bestPeople', 'Best people for this seat')}</h3>
             {cands.loading && <p className="muted">{t('checking', 'Checking the rules…')}</p>}
             {cands.error && <p className="error">{cands.error}</p>}
-            {cands.data && cands.data.candidates.length === 0 && <p className="empty-note">{t('noCandidates', 'Nobody can take this seat for these days without breaking a rule. Try fewer days, or escalate.')}</p>}
+            {cands.data && cands.data.candidates.length === 0 && <p className="empty-note">{t('noCandidates', 'Nobody can take this seat for these days without breaking a rule. Try fewer days, or assign someone from the board with a reason.')}</p>}
             <ul className="cand2">
               {cands.data?.candidates.map((c, i) => (
-                <li key={c.employeeId} className={`${i === 0 ? 'top' : ''}${task.candidate?.id === c.employeeId ? ' proposed' : ''}`}>
+                <li key={c.employeeId} className={i === 0 ? 'top' : ''}>
                   <span className="medal">{i + 1}</span>
                   <div>
-                    <strong><PersonLink id={c.employeeId}>{c.employee}</PersonLink></strong>{task.candidate?.id === c.employeeId && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-blue-600)', marginInlineStart: 6 }}>{t('proposed', 'proposed')}</span>}
+                    <strong><PersonLink id={c.employeeId}>{c.employee}</PersonLink></strong>
                     <div className="scorebar" style={{ margin: '4px 0' }} title={`${t('fit', 'fit')} ${Math.round(c.score / top * 100)}%`}><i style={{ width: `${Math.max(8, c.score / top * 100)}%` }} /></div>
                     <small className="why">{c.explanation}</small>
                   </div>
                   {canEdit && (
                     <span className="acts">
-                      <button type="button" disabled={busy || task.candidate?.id === c.employeeId} onClick={() => void act(`/replacements/${task.id}/propose`, { employeeId: c.employeeId }, `${c.employee} proposed`)}>{t('propose', 'Propose')}</button>
-                      <button type="button" className="primary" disabled={busy} onClick={() => void tryConfirm(c.employeeId, c.employee ?? '')}>{t('confirm', 'Confirm')}</button>
+                      <button type="button" className={i === 0 ? 'primary' : ''} disabled={busy} onClick={() => void tryConfirm(c.employeeId, c.employee ?? '')}>{t('putOnSeat', 'Put on this seat')}</button>
                     </span>
                   )}
                 </li>

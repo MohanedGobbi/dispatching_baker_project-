@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowRight, X } from 'lucide-react'
 import { api, ApiError } from './api'
+import { useStrictRules } from './hooks'
 import type { Person, Preview, SeatCard, UnitCardData, Violation } from './types'
 
 const DAY = 86_400_000
@@ -68,15 +69,17 @@ export function AssignDialog({ person, seat, unit, date, transferFrom, initialEn
     return () => { live = false }
   }, [person.id, seat.seatId, date, end, transferFrom?.assignmentId])
 
-  const needsReason = !!preview && preview.hard > 0
+  const strict = useStrictRules()
+  const broken = !!preview && preview.hard > 0
+  const needsReason = broken && (strict || preview.violations.some(v => v.rule === 'double_booking'))
   const crew = preview?.crews[0]
   const confirm = async () => {
     setBusy(true); setError('')
     try {
       // A move is one atomic request: if the new placement is refused nothing is released.
       const r = transferFrom
-        ? await api<{ assignment: { id: string } }>(`/assignments/${transferFrom.assignmentId}/transfer`, { method: 'POST', body: { seatId: seat.seatId, start: date, end, overrideReason: needsReason ? reason.trim() : undefined } })
-        : await api<{ assignment: { id: string } }>('/assignments', { method: 'POST', body: { employeeId: person.id, seatId: seat.seatId, start: date, end, overrideReason: needsReason ? reason.trim() : undefined } })
+        ? await api<{ assignment: { id: string } }>(`/assignments/${transferFrom.assignmentId}/transfer`, { method: 'POST', body: { seatId: seat.seatId, start: date, end, overrideReason: broken ? reason.trim() || undefined : undefined } })
+        : await api<{ assignment: { id: string } }>('/assignments', { method: 'POST', body: { employeeId: person.id, seatId: seat.seatId, start: date, end, overrideReason: broken ? reason.trim() || undefined : undefined } })
       onDone(`${person.name} → ${unit.code} · ${seat.position} #${seat.index}`, transferFrom ? undefined : async () => {
         await api(`/assignments/${r.assignment.id}/unassign`, { method: 'POST', body: { from: date, reason: 'Undone' } })
       })
@@ -105,8 +108,8 @@ export function AssignDialog({ person, seat, unit, date, transferFrom, initialEn
         <h3>{t('impact', 'What would happen')}</h3>
         {crew && <p className="crew-line">{crew.unitCode}: {crew.before.filled}/{crew.before.required} <ArrowRight size={13} aria-hidden /> <strong>{crew.after.filled}/{crew.after.required}</strong> {t('crewFilled', 'required seats filled')}</p>}
         <ViolationList violations={preview.violations} />
-        {needsReason && (
-          <label className="reason">{t('overrideReason', 'Reason to override the rules')}
+        {broken && (
+          <label className="reason">{needsReason ? t('overrideReason', 'Reason to override the rules') : t('overrideNote', 'Note (optional): why you are going ahead')}
             <input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('overridePlaceholder', 'e.g. urgent job start, senior arrives day 3')} autoFocus />
           </label>
         )}
@@ -115,7 +118,7 @@ export function AssignDialog({ person, seat, unit, date, transferFrom, initialEn
       <footer>
         <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
         <button type="button" className="primary" disabled={busy || !preview || !!preview.seatTaken || (needsReason && !reason.trim())} onClick={confirm}>
-          {needsReason ? t('assignAnyway', 'Assign anyway') : t('assignConfirm', 'Assign')}
+          {broken ? t('assignAnyway', 'Assign anyway') : t('assignConfirm', 'Assign')}
         </button>
       </footer>
     </Modal>
@@ -130,17 +133,18 @@ export function RuleDialog({ title, summary, violations, onClose, onConfirm }: {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const strict = useStrictRules() || violations.some(v => v.rule === 'double_booking')
   return (
     <Modal title={title} onClose={onClose}>
       <div className="move-line">{summary}</div>
       <ViolationList violations={violations} />
-      <label className="reason">{t('overrideReason', 'Reason to override the rules')}
+      <label className="reason">{strict ? t('overrideReason', 'Reason to override the rules') : t('overrideNote', 'Note (optional): why you are going ahead')}
         <input value={reason} onChange={e => setReason(e.target.value)} autoFocus />
       </label>
       {error && <p className="error" role="alert">{error}</p>}
       <footer>
         <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
-        <button type="button" className="primary" disabled={busy || !reason.trim()} onClick={async () => {
+        <button type="button" className="primary" disabled={busy || (strict && !reason.trim())} onClick={async () => {
           setBusy(true); setError('')
           try { await onConfirm(reason.trim()); onClose() } catch (e) { setError(e instanceof ApiError ? e.message : String(e)); setBusy(false) }
         }}>{t('proceed', 'Proceed anyway')}</button>

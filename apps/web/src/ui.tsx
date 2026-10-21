@@ -6,6 +6,7 @@ import {
   AlertTriangle, Building2, CalendarDays, Check, Clock, GraduationCap, HeartPulse, Info, Moon, ShieldAlert, Truck, X,
 } from 'lucide-react'
 import type { Badge, Person, Severity } from './types'
+import { quickProps, useQuick } from './quickctx'
 
 // Status = icon + colour + text, never colour alone (plan 27.2 #4). Colours come from the design tokens.
 export const STATUS_META: Record<string, { label: string; color: string; Icon: LucideIcon }> = {
@@ -42,33 +43,39 @@ export const initials = (name: string) => name.split(/\s+/).map(w => w[0]).slice
 interface DragData { person: Person; seatId?: string; assignmentId?: string; until?: string }
 
 /** Person chip (plan 27.4): initials, name, seniority dot, qualification tags. Looks the same on board, lists and drawer. */
-export function PersonChip({ person, drag, highlight, onOpen, compact, draft }: {
+export function PersonChip({ person, drag, highlight, onOpen, onAct, compact, draft }: {
   person: Person
   drag?: { id: string; data: DragData }
   highlight?: boolean
   onOpen?: (id: string) => void
+  /** Clicking the chip (not the name) opens replace / unassign for the seat it sits on. */
+  onAct?: () => void
   compact?: boolean
   draft?: boolean
 }) {
   const d = useDraggable({ id: drag?.id ?? `static:${person.id}`, data: drag?.data, disabled: !drag })
+  const quick = useQuick()
   return (
     <div
       ref={d.setNodeRef}
+      {...quickProps(quick, person.id)}
       {...(drag ? d.listeners : {})}
       {...(drag ? d.attributes : {})}
       role={drag ? 'group' : undefined}
       aria-label={drag ? person.name : undefined}
-      className={`chip${highlight ? ' hit' : ''}${d.isDragging ? ' dragging' : ''}${compact ? ' compact' : ''}${draft ? ' draft' : ''}`}
+      className={`chip${onAct ? ' actable' : ''}${highlight ? ' hit' : ''}${d.isDragging ? ' dragging' : ''}${compact ? ' compact' : ''}${draft ? ' draft' : ''}`}
       onDoubleClick={() => onOpen?.(person.id)}
-      title={`${person.name} · ${SENIORITY_LABEL[person.seniority]}${draft ? ' · proposed in the draft plan' : ''}`}
+      onClick={onAct}
+      title={`${person.name} · ${SENIORITY_LABEL[person.seniority]}${draft ? ' · proposed in the draft plan' : ''}${onAct ? ' · click to replace or unassign' : ''}`}
     >
       <span className="avatar" aria-hidden>{initials(person.name)}<i className={`sen sen-${person.seniority}`} /></span>
       <span className="who">
         <button type="button" className="name" onClick={e => { e.stopPropagation(); onOpen?.(person.id) }} onPointerDown={e => e.stopPropagation()}>{person.name}</button>
-        {!compact && <small>{person.position}{person.label ? ` · ${person.label}` : ''}</small>}
+        {!compact && <small>{person.rank ?? person.position}{person.label ? ` · ${person.label}` : ''}</small>}
       </span>
       {person.tags.filter(t => t === 'OH' || t === 'CH').map(t => <span key={t} className={`tag tag-${t}`}>{t}</span>)}
       {person.restrictions.length > 0 && <span className="tag tag-restr" title={person.restrictions.join(', ')}><ShieldAlert size={11} aria-hidden /> restricted</span>}
+      {quick && <button type="button" className="chip-more" aria-label={`Quick actions for ${person.name}`} title="Quick actions (or right-click)" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); quick(person.id, { x: r.left, y: r.bottom + 4 }) }}>⋯</button>}
     </div>
   )
 }

@@ -3,24 +3,24 @@ import { useTranslation } from 'react-i18next'
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import {
-  AlertTriangle, CalendarClock, Plus, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, LayoutGrid, MapPin, Monitor, PieChart, Repeat,
+  AlertTriangle, CalendarClock, Plus, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, LayoutGrid, Monitor, PieChart, Repeat,
   Search, Truck, UserPlus, Users, Wrench, X,
 } from 'lucide-react'
 import { api, ApiError, subscribeChanges } from './api'
 import { useAuth } from './auth'
-import type { BoardData, Person, PlanSummary, SeatCard, StaffingRow, UnitCardData, Violation } from './types'
+import type { BoardData, Person, PlanSummary, SeatCard, UnitCardData, Violation } from './types'
 import { PersonChip, SeverityBadge, STATUS_META, useToast } from './ui'
 import { AssignDialog, RuleDialog, addDaysIso } from './dialogs'
 import { AssignPicker } from './assign'
+import { SeatActionsButton, SeatActionsDialog } from './seatactions'
+import type { SeatHolderRef } from './seatactions'
 import type { FreePerson } from './assign'
-import { FleetMap } from './fleetmap'
-import type { MapData } from './fleetmap'
 import { BASE_COLORS, Donut, Legend, PageGuide, Ring } from './guide'
 import { useProfiles } from './profiles'
 import { AddUnitDialog, NewJobDialog } from './unitforms'
-import { go, useApi } from './hooks'
+import { go } from './hooks'
+import { useRanks } from './personform'
 
-type Tab = 'field' | 'base'
 type StateFilter = 'all' | 'attention' | 'bad' | 'ok' | 'idle'
 interface DragPayload { person: Person; seatId?: string; assignmentId?: string; until?: string }
 type Pending =
@@ -43,7 +43,6 @@ export default function Board() {
   const toast = useToast()
   const editor = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
 
-  const [tab, setTab] = useState<Tab>('field')
   const [date, setDate] = useState(todayIso())
   const [baseId, setBaseId] = useState('')
   const [kind, setKind] = useState<'' | 'OH' | 'CH'>('')
@@ -55,18 +54,21 @@ export default function Board() {
   const [plans, setPlans] = useState<PlanSummary[]>([])
   const [data, setData] = useState<BoardData | null>(null)
   const [error, setError] = useState('')
-  const [tv, setTv] = useState(false)
-  const [tvIndex, setTvIndex] = useState(0)
+  const [tv, setTv] = useState(() => { try { return localStorage.getItem('crewboard.board.tv') === 'on' } catch { return false } })
+  const [rankF, setRankF] = useState('')
+  const [showPeople, setShowPeople] = useState(true)
+  const [now, setNow] = useState(() => new Date())
   const { openPerson, openUnit } = useProfiles()
+  const { ranks } = useRanks()
   const setDrawer = openPerson
   const [creating, setCreating] = useState<'' | 'unit' | 'job'>('')
   const [pending, setPending] = useState<Pending | null>(null)
   const [picking, setPicking] = useState<{ seat: SeatCard; unit: UnitCardData } | null>(null)
+  const [acting, setActing] = useState<SeatHolderRef | null>(null)
   const [dragging, setDragging] = useState<DragPayload | null>(null)
   const [overview, setOverview] = useState(() => { try { return localStorage.getItem('crewboard.board.overview') !== 'hidden' } catch { return true } })
   const searchRef = useRef<HTMLInputElement>(null)
   const lanesRef = useRef<HTMLElement>(null)
-  const map = useApi<MapData>(can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER', 'HR') ? '/analytics/map' : null)
 
   const readOnly = !editor || !!data?.past || data?.layer === 'draft'
 
@@ -81,9 +83,9 @@ export default function Board() {
   useEffect(() => { void load() }, [load])
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    const stop = subscribeChanges(() => { clearTimeout(timer); timer = setTimeout(() => { void load(); void map.reload() }, 250) })
+    const stop = subscribeChanges(() => { clearTimeout(timer); timer = setTimeout(() => { void load() }, 250) })
     return () => { stop(); clearTimeout(timer) }
-  }, [load, map.reload])
+  }, [load])
   useEffect(() => { const h = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(h) }, [search])
   useEffect(() => {
     if (!editor) return
@@ -94,16 +96,18 @@ export default function Board() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); searchRef.current?.focus() }
-      if (e.key === 'Escape') setTv(false)
+      // Escape leaves the whiteboard unless it is closing a dialog or a profile first.
+      if (e.key === 'Escape' && !document.querySelector('.modal-back, .pp-back')) setTv(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+  useEffect(() => { try { localStorage.setItem('crewboard.board.tv', tv ? 'on' : 'off') } catch { /* private mode */ } }, [tv])
   useEffect(() => {
-    if (!tv || !data || data.bases.length < 2) return
-    const h = setInterval(() => setTvIndex(i => (i + 1) % data.bases.length), 15000)
+    if (!tv) return
+    const h = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(h)
-  }, [tv, data])
+  }, [tv])
 
   // Mouse: drag after a few pixels. Touch: press and hold, so a swipe still scrolls the board.
   const sensors = useSensors(
@@ -166,9 +170,8 @@ export default function Board() {
     (!q || u.match || u.seats.some(s => s.holder && hits.has(s.holder.id)))
   const shownBases = useMemo(() => {
     if (!data) return []
-    const list = data.bases.filter(b => !baseId || b.id === baseId)
-    return tv && list.length ? [list[tvIndex % list.length]] : list
-  }, [data, baseId, tv, tvIndex])
+    return data.bases.filter(b => !baseId || b.id === baseId)
+  }, [data, baseId])
   const dayLabel = data ? new Date(data.date).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : ''
 
   if (!data && !error) return <div className="loading">{t('loading', 'Loading the board…')}</div>
@@ -178,6 +181,12 @@ export default function Board() {
   const openTasks = s ? Object.values(s.openReplacementTasks).reduce((a, b) => a + b, 0) : 0
   const critical = s?.openReplacementTasks.CRITICAL ?? 0
   const peopleSlices = s ? Object.entries(s.headcount).filter(([, v]) => v > 0).map(([k, v]) => ({ key: k, value: v, color: STATUS_META[k]?.color ?? 'var(--muted)', label: STATUS_META[k]?.label ?? k })) : []
+  // Whiteboard: everyone on the board, the rank highlight, and who sits in which column.
+  const everyone: Person[] = data ? [...data.units.flatMap(u => u.seats.flatMap(x => (x.holder ? [x.holder] : []))), ...Object.values(data.columns).flat()] : []
+  const boardHits = rankF ? new Set(everyone.filter(p => p.rank === rankF).map(p => p.id)) : hits
+  const baseCode = data?.bases.find(b => b.id === baseId)?.code
+  const inLane = (p: Person) => (!rankF || p.rank === rankF) && (!baseCode || p.base === baseCode) && (!q || hits.has(p.id))
+  const column = (...keys: string[]) => keys.flatMap(k => (data?.columns[k] as Person[] | undefined) ?? []).filter(inLane)
   const pickLane = (status: string) => {
     const l = LANES.find(x => x[1] === status)
     if (!l) { setLane(''); return }
@@ -194,7 +203,7 @@ export default function Board() {
             steps={[
               t('boardStep1', 'The coloured cards are units. Green header = Open Hole, amber = Cased Hole, grey = at base without a job. A red outline means the crew breaks a rule.'),
               t('boardStep2', 'Press "Assign someone" on an empty seat to see the best people for it, or drag a person from the lanes below onto a seat.'),
-              t('boardStep3', 'Click the map, the charts or the coloured chips to filter. Click a name to see that person\'s details.'),
+              t('boardStep3', 'Click the charts or the coloured chips to filter. Click a name to see that person\'s details.'),
               t('boardStep4', 'Click a unit\'s coloured header for its details: jobs, crew history, maintenance. From there you can send it to the workshop with a note, or give it a job.'),
               t('boardStep5', '"New job" sends a unit to a well; "Add a unit" registers a new truck. Change the date to look ahead or back in time.'),
             ]}>
@@ -207,10 +216,6 @@ export default function Board() {
 
         {!tv && (
           <div className="bd-toolbar">
-            <span className="seg2" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === 'field'} className={tab === 'field' ? 'on' : ''} onClick={() => setTab('field')}><Truck size={15} aria-hidden /> {t('fieldView', 'Units in the field')}</button>
-              <button type="button" role="tab" aria-selected={tab === 'base'} className={tab === 'base' ? 'on' : ''} onClick={() => setTab('base')}><Wrench size={15} aria-hidden /> {t('baseView', 'Base staff')}</button>
-            </span>
             <span className="dates">
               <button type="button" aria-label="Previous day" onClick={() => setDate(addDaysIso(date, -1))}><ChevronLeft size={16} /></button>
               <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label="Date" />
@@ -229,10 +234,29 @@ export default function Board() {
           </div>
         )}
 
-        {tv && (
-          <header className="tv-head">
-            <strong>{t('app')} · {shownBases[0]?.name}</strong><span>{dayLabel}</span>
-            <button type="button" onClick={() => setTv(false)} aria-label="Exit TV mode"><X size={18} /> Esc</button>
+        {tv && data && (
+          <header className="wb-head">
+            <div className="wb-title">
+              <img src="/icon.svg" alt="" aria-hidden width={30} height={30} />
+              <strong>CrewBoard</strong>
+              <span>{dayLabel}</span>
+              <b className="wb-clock">{now.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</b>
+            </div>
+            <div className="wb-stats">
+              <span><b>{deployed.length}</b> {t('onJob', 'on a job')}</span>
+              <span><b>{data.units.length - deployed.length}</b> {t('atBase', 'at base')}</span>
+              <span><b>{column('standby').length}</b> {t('free', 'free')}</span>
+              {attention > 0 && <span className="bad"><b>{attention}</b> {t('needAttention', 'need attention')}</span>}
+            </div>
+            <span className="dates">
+              <button type="button" aria-label="Previous day" onClick={() => setDate(addDaysIso(date, -1))}><ChevronLeft size={16} /></button>
+              <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label="Date" />
+              <button type="button" aria-label="Next day" onClick={() => setDate(addDaysIso(date, 1))}><ChevronRight size={16} /></button>
+              {date !== todayIso() && <button type="button" onClick={() => setDate(todayIso())}>{t('today', 'Today')}</button>}
+            </span>
+            <span className="search"><Search size={14} aria-hidden /><input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder={`${t('search', 'Find a person or unit')} (Ctrl+K)`} aria-label="Search" />{search && <button type="button" className="clear" aria-label="Clear search" onClick={() => setSearch('')}><X size={14} /></button>}</span>
+            <button type="button" className={showPeople ? 'on' : ''} aria-pressed={showPeople} onClick={() => setShowPeople(!showPeople)}><Users size={16} aria-hidden /> {t('people', 'People')}</button>
+            <button type="button" onClick={() => setTv(false)} aria-label="Leave the whiteboard"><X size={16} aria-hidden /> {t('exit', 'Exit')}</button>
           </header>
         )}
 
@@ -242,18 +266,15 @@ export default function Board() {
 
         {data && s && !tv && (
           <section className="kpis2" aria-label="Today in numbers">
-            <button type="button" className="kpi2" style={{ ['--c' as string]: 'var(--pal-blue-600)' }} onClick={() => { setStateF('all'); setTab('field') }}>
+            <button type="button" className="kpi2" style={{ ['--c' as string]: 'var(--pal-blue-600)' }} onClick={() => setStateF('all')}>
               <Truck size={22} className="k-icon" aria-hidden /><strong>{deployed.length}</strong><span>{t('kpiDeployed', 'Units on a job')}</span><small>{data.units.length - deployed.length} {t('atBase', 'at base')}</small>
             </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: attention ? 'var(--pal-red-600)' : 'var(--pal-green-600)' }} onClick={() => { setStateF(attention ? 'attention' : 'all'); setTab('field') }}>
+            <button type="button" className={`kpi2${attention ? ' alert' : ''}`} style={{ ['--c' as string]: attention ? 'var(--pal-red-600)' : 'var(--pal-green-600)' }} onClick={() => setStateF(attention ? 'attention' : 'all')}>
               {attention ? <AlertTriangle size={22} className="k-icon" aria-hidden /> : <CheckCircle2 size={22} className="k-icon" aria-hidden />}
               <strong>{attention}</strong><span>{t('kpiAttention', 'Crews needing attention')}</span><small>{attention ? t('clickToSee', 'click to show them') : t('allCrewsOk', 'every crew follows the rules')}</small>
             </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: critical ? 'var(--pal-red-700)' : openTasks ? 'var(--pal-orange-600)' : 'var(--pal-green-600)' }} onClick={() => go('replacements')}>
+            <button type="button" className={`kpi2${critical ? ' alert' : ''}`} style={{ ['--c' as string]: critical ? 'var(--pal-red-700)' : openTasks ? 'var(--pal-orange-600)' : 'var(--pal-green-600)' }} onClick={() => go('replacements')}>
               <Repeat size={22} className="k-icon" aria-hidden /><strong>{openTasks}</strong><span>{t('kpiTasks', 'Seats waiting for someone')}</span><small>{critical ? `${critical} ${t('critical', 'critical')} · ` : ''}{t('openCenter', 'open the replacement center')}</small>
-            </button>
-            <button type="button" className="kpi2" style={{ ['--c' as string]: s.basePostsBelowMin ? 'var(--pal-red-600)' : 'var(--pal-indigo-600)' }} onClick={() => setTab('base')}>
-              <Wrench size={22} className="k-icon" aria-hidden /><strong>{s.basePostsBelowMin}</strong><span>{t('kpiBelowMin', 'Base posts below minimum')}</span><small>{t('seeBaseStaff', 'see base staff')}</small>
             </button>
             <button type="button" className="kpi2" style={{ ['--c' as string]: 'var(--pal-teal-600)' }} onClick={() => go('crew-changes')}>
               <CalendarClock size={22} className="k-icon" aria-hidden /><strong>{s.crewChangesNext7Days}</strong><span>{t('kpiChanges', 'Crew changes this week')}</span><small>{t('seeList', 'see the list')}</small>
@@ -263,12 +284,6 @@ export default function Board() {
 
         {data && s && overview && !tv && (
           <section className="bd-overview" aria-label="Where everyone is">
-            <div className="card2">
-              <h2><MapPin size={16} aria-hidden /> {t('whereTitle', 'Where the units are working')}<small>{t('clickBase', 'click a base to filter')}</small></h2>
-              {map.data ? <FleetMap map={map.data} units={data.units} colorOf={colorOf} selected={baseId} onBase={id => setBaseId(id)} />
-                : <p className="hint">{map.error ? t('mapUnavailable', 'The map is not available for your role.') : t('loading', 'Loading…')}</p>}
-              <Legend items={[{ color: 'var(--pal-blue-600)', label: t('lgOnUnit', 'on a unit'), shape: 'ring' }, { color: 'var(--pal-teal-600)', label: t('lgStandby', 'standby'), shape: 'ring' }, { color: 'var(--pal-slate-400)', label: t('lgOther', 'off / leave / base'), shape: 'ring' }, { color: 'var(--pal-green-600)', label: t('lgCrewOk', 'crew OK') }, { color: 'var(--pal-amber-600)', label: t('lgCrewWarn', 'warning') }, { color: 'var(--pal-red-600)', label: t('lgCrewBad', 'rule broken') }]} />
-            </div>
             <div className="card2">
               <h2><PieChart size={16} aria-hidden /> {t('peopleToday', 'Everyone today')}<small>{t('clickSlice', 'click to find them')}</small></h2>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -307,27 +322,55 @@ export default function Board() {
           </section>
         )}
 
-        {data && !tv && (
-          <div className="card2" style={{ gap: 8 }}>
+        {data && (
+          <div className={tv ? 'wb-filters' : 'card2'} style={{ gap: 8 }}>
             <div className="chips"><span className="chips-label">{t('fBase', 'Base')}</span>
               <button type="button" className={`fchip${!baseId ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--pal-slate-700)' }} onClick={() => setBaseId('')}>{t('allBases', 'All bases')}</button>
               {data.bases.map(b => <button key={b.id} type="button" className={`fchip${baseId === b.id ? ' on' : ''}`} style={{ ['--c' as string]: colorOf(b.code) }} onClick={() => setBaseId(baseId === b.id ? '' : b.id)}><i />{b.code} <b>{data.units.filter(u => u.baseId === b.id).length}</b></button>)}
               <span className="chips-label" style={{ marginInlineStart: 10 }}>{t('fType', 'Type')}</span>
               {(['', 'OH', 'CH'] as const).map(k => <button key={k || 'all'} type="button" className={`fchip${kind === k ? ' on' : ''}`} style={{ ['--c' as string]: k === 'OH' ? 'var(--oh)' : k === 'CH' ? 'var(--ch)' : 'var(--pal-slate-700)' }} onClick={() => setKind(k)}>{k ? <><i />{k === 'OH' ? 'Open Hole' : 'Cased Hole'}</> : t('allTypes', 'All')}</button>)}
-              {tab === 'field' && <>
+              <>
                 <span className="chips-label" style={{ marginInlineStart: 10 }}>{t('fState', 'Crew')}</span>
                 {([['all', 'Any', 'var(--pal-slate-700)'], ['attention', 'Needs attention', 'var(--pal-orange-600)'], ['bad', 'Rule broken', 'var(--pal-red-600)'], ['ok', 'All good', 'var(--pal-green-600)'], ['idle', 'No job', 'var(--pal-slate-500)']] as const).map(([k, l, c]) => (
                   <button key={k} type="button" className={`fchip${stateF === k ? ' on' : ''}`} style={{ ['--c' as string]: c }} onClick={() => setStateF(k)}>{k !== 'all' && <i />}{t(`fs_${k}`, l)}</button>
                 ))}
-              </>}
+              </>
+              <span className="chips-label" style={{ marginInlineStart: 10 }}>{t('fRank', 'Rank')}</span>
+              <button type="button" className={`fchip${!rankF ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--pal-slate-700)' }} onClick={() => setRankF('')}>{t('anyRank', 'Any')}</button>
+              {ranks.map(r => <button key={r.label} type="button" className={`fchip${rankF === r.label ? ' on' : ''}`} style={{ ['--c' as string]: r.position === 'Chief of Unit' ? 'var(--pal-violet-700)' : 'var(--pal-blue-700)' }} onClick={() => setRankF(rankF === r.label ? '' : r.label)}><i />{r.label} <b>{everyone.filter(p => p.rank === r.label).length}</b></button>)}
             </div>
           </div>
         )}
 
-        {data && shownBases.map(b => {
+        {data && tv && (
+          <div className={`wb-body${showPeople ? '' : ' solo'}`}>
+            <div className="wb-units">
+              {shownBases.map(b => {
+                const units = data.units.filter(u => u.baseId === b.id && unitMatches(u))
+                if (!units.length) return null
+                return (
+                  <section key={b.id} aria-label={b.name}>
+                    {shownBases.length > 1 && <h2 className="wb-base" style={{ ['--c' as string]: colorOf(b.code) }}>{b.name}</h2>}
+                    <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={boardHits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until })} />)}</div>
+                  </section>
+                )
+              })}
+              {!data.units.some(unitMatches) && <p className="empty-note">{t('noUnitsMatch', 'No unit matches.')}</p>}
+            </div>
+            {showPeople && (
+              <aside className="wb-people" aria-label={t('peopleNotOnSeat', 'People not on a seat today')}>
+                <Lane name="standby" title={t('col_standby', 'Free (standby)')} color={STATUS_META.STANDBY.color} people={column('standby')} hits={boardHits} editable={!readOnly} onOpen={setDrawer} />
+                <Lane name="daysOff" title={t('col_daysOff', 'Days off')} color={STATUS_META.DAYS_OFF.color} people={column('daysOff')} hits={boardHits} editable={!readOnly} onOpen={setDrawer} />
+                <Lane name="away" title={t('col_away', 'Away (leave, training, unavailable)')} color={STATUS_META.LEAVE.color} people={column('leave', 'unavailable', 'training', 'awaitingClearance')} hits={boardHits} editable={!readOnly} onOpen={setDrawer} />
+                {!readOnly && <small className="muted">{t('wbHint', 'Drag a name onto a seat to assign it, or onto Free to take someone off. Click a name for the full profile.')}</small>}
+              </aside>
+            )}
+          </div>
+        )}
+
+        {data && !tv && shownBases.map(b => {
           const units = data.units.filter(u => u.baseId === b.id && unitMatches(u))
-          const rows = data.staffing.filter(r => r.baseId === b.id)
-          if (tab === 'field' && units.length === 0 && (baseId || stateF !== 'all' || kind || q)) return null
+          if (units.length === 0 && (baseId || stateF !== 'all' || kind || q)) return null
           const all = data.units.filter(u => u.baseId === b.id)
           return (
             <section key={b.id} className="base-sec" aria-label={b.name}>
@@ -336,16 +379,10 @@ export default function Board() {
                 <span className="bb-stats">
                   <em>{all.filter(u => !isIdle(u)).length} {t('onJob', 'on a job')}</em>
                   <em>{all.filter(u => !isIdle(u)).reduce((n, u) => n + u.crew.filled, 0)}/{all.filter(u => !isIdle(u)).reduce((n, u) => n + u.crew.required, 0)} {t('seatsFilled', 'seats filled')}</em>
-                  {rows.some(r => r.state === 'below_min') && <em>⚠ {t('postsLow', 'base posts low')}</em>}
                 </span>
               </div>
-              {tab === 'field' ? (
-                units.length ? <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={hits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} />)}</div>
-                  : <p className="empty-note">{t('noUnits', 'No units based here.')}</p>
-              ) : (
-                rows.length ? <div className="unit-grid">{rows.map(r => <StaffingPanel key={r.positionId} row={r} hits={hits} onOpen={setDrawer} />)}</div>
-                  : <p className="empty-note">{t('noStaffing', 'No staffing template for this base yet.')}</p>
-              )}
+              {units.length ? <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={hits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until })} />)}</div>
+                : <p className="empty-note">{t('noUnits', 'No units based here.')}</p>}
             </section>
           )
         })}
@@ -357,7 +394,7 @@ export default function Board() {
               {lane && <span className="bb-stats"><em style={{ cursor: 'pointer' }} onClick={() => setLane('')}>{t('showAllLanes', 'Show all')} ✕</em></span>}
             </div>
             <div className="lanes">
-              {LANES.filter(([k]) => !lane || lane === k).map(([key, status, title]) => (
+              {LANES.filter(([k]) => !lane || lane === k).filter(([k]) => ['standby', 'daysOff'].includes(k) || ((data.columns[k] as Person[] | undefined) ?? []).length > 0).map(([key, status, title]) => (
                 <Lane key={key} name={key} title={t(`col_${key}`, title)} color={STATUS_META[status].color}
                   people={((data.columns[key] as Person[] | undefined) ?? []).filter(p => !baseId || p.base === data.bases.find(x => x.id === baseId)?.code)}
                   hits={hits} editable={!readOnly} onOpen={setDrawer} />
@@ -366,14 +403,15 @@ export default function Board() {
           </section>
         )}
 
-        {creating === 'unit' && <AddUnitDialog onClose={() => setCreating('')} onDone={id => { void load(); void map.reload(); openUnit(id) }} />}
-        {creating === 'job' && <NewJobDialog onClose={() => setCreating('')} onDone={() => { void load(); void map.reload() }} />}
+        {creating === 'unit' && <AddUnitDialog onClose={() => setCreating('')} onDone={id => { void load(); openUnit(id) }} />}
+        {creating === 'job' && <NewJobDialog onClose={() => setCreating('')} onDone={() => { void load() }} />}
         <DragOverlay>{dragging ? <div className="drag-ghost"><PersonChip person={dragging.person} compact /></div> : null}</DragOverlay>
 
         {picking && (
           <AssignPicker seat={picking.seat} unit={picking.unit} date={date} free={free} onClose={() => setPicking(null)}
             onPick={(p, end) => { const x = picking; setPicking(null); setPending({ kind: 'assign', person: p, seat: x.seat, unit: x.unit, end }) }} />
         )}
+        {acting && <SeatActionsDialog target={acting} onClose={() => setActing(null)} onDone={text => { toast(text); void load() }} />}
         {pending?.kind === 'assign' && (
           <AssignDialog person={pending.person} seat={pending.seat} unit={pending.unit} date={date} transferFrom={pending.transferFrom} initialEnd={pending.end}
             onClose={() => setPending(null)} onDone={(text, undo) => { toast(text, 'ok', undo); void load() }} />
@@ -391,7 +429,7 @@ export default function Board() {
 
 // ---------------------------------------------------------------- pieces
 
-function UnitCard({ unit, editable, hits, onOpen, onUnit, onAssign }: { unit: UnitCardData; editable: boolean; hits: Set<string>; onOpen: (id: string) => void; onUnit: () => void; onAssign: (s: SeatCard) => void }) {
+function UnitCard({ unit, editable, hits, onOpen, onUnit, onAssign, onAct }: { unit: UnitCardData; editable: boolean; hits: Set<string>; onOpen: (id: string) => void; onUnit: () => void; onAssign: (s: SeatCard) => void; onAct: (s: SeatCard) => void }) {
   const { t } = useTranslation()
   const idle = isIdle(unit)
   const problems = unit.badges.filter(b => b.severity === 'bad' || b.severity === 'warn')
@@ -415,13 +453,13 @@ function UnitCard({ unit, editable, hits, onOpen, onUnit, onAssign }: { unit: Un
       </div>
       {(problems.length > 0 || others.length > 0) && <div className="ucard-badges">{[...problems, ...others.filter(b => !/crew change/i.test(b.text))].map((b, n) => <SeverityBadge key={`${b.code}-${n}`} badge={b} />)}</div>}
       <div className="ucard-seats">
-        {unit.seats.map(s => <Seat key={s.seatId} seat={s} unit={unit} editable={editable} hits={hits} onOpen={onOpen} onAssign={onAssign} />)}
+        {unit.seats.map(s => <Seat key={s.seatId} seat={s} unit={unit} editable={editable} hits={hits} onOpen={onOpen} onAssign={onAssign} onAct={onAct} />)}
       </div>
     </article>
   )
 }
 
-function Seat({ seat, unit, editable, hits, onOpen, onAssign }: { seat: SeatCard; unit: UnitCardData; editable: boolean; hits: Set<string>; onOpen: (id: string) => void; onAssign: (s: SeatCard) => void }) {
+function Seat({ seat, unit, editable, hits, onOpen, onAssign, onAct }: { seat: SeatCard; unit: UnitCardData; editable: boolean; hits: Set<string>; onOpen: (id: string) => void; onAssign: (s: SeatCard) => void; onAct: (s: SeatCard) => void }) {
   const { t } = useTranslation()
   const drop = useDroppable({ id: `seat:${seat.seatId}`, data: { type: 'seat', seat, unit }, disabled: !editable })
   const need = seat.requirements.minSeniority === 'EXPERIENCED' || seat.requirements.minSeniority === 'SENIOR'
@@ -432,36 +470,13 @@ function Seat({ seat, unit, editable, hits, onOpen, onAssign }: { seat: SeatCard
         {SEAT_NAME[seat.position] ?? seat.position}{seat.position === 'Field Operator' ? ` ${seat.index}` : ''}{need && <em>★</em>}
       </span>
       {seat.holder
-        ? <PersonChip person={seat.holder} highlight={hits.has(seat.holder.id)} onOpen={onOpen} draft={seat.holder.draft}
+        ? <PersonChip person={seat.holder} highlight={hits.has(seat.holder.id)} onOpen={onOpen} draft={seat.holder.draft} onAct={editable && !seat.holder.draft ? () => onAct(seat) : undefined}
             drag={editable && !seat.holder.draft ? { id: `seat-person:${seat.seatId}`, data: { person: seat.holder, seatId: seat.seatId, assignmentId: seat.holder.assignmentId, until: seat.holder.until } } : undefined} />
         : editable
           ? <button type="button" className={`assign-btn${seat.required && !['AVAILABLE', 'UNDER_MAINTENANCE', 'OUT_OF_SERVICE'].includes(unit.status) ? ' req' : ''}`} onClick={() => onAssign(seat)}><UserPlus size={15} aria-hidden /> {t('assignSomeone', 'Assign someone')}</button>
           : <span className="empty-plain">{t('vacant', 'Empty')}</span>}
-      <span>{seat.issues.filter(i => i.code !== 'empty').map((i, n) => <span key={`${i.code}-${n}`} className={`issue sev-${i.severity}`} title={i.text}><AlertTriangle size={14} aria-label={i.text} /></span>)}</span>
+      <span className="seat-end">{editable && seat.holder && !seat.holder.draft && <SeatActionsButton name={seat.holder.name} onClick={() => onAct(seat)} />}{seat.issues.filter(i => i.code !== 'empty').map((i, n) => <span key={`${i.code}-${n}`} className={`issue sev-${i.severity}`} title={i.text}><AlertTriangle size={14} aria-label={i.text} /></span>)}</span>
     </div>
-  )
-}
-
-function StaffingPanel({ row, hits, onOpen }: { row: StaffingRow; hits: Set<string>; onOpen: (id: string) => void }) {
-  const { t } = useTranslation()
-  const label = { ok: t('staffOk', 'Fully staffed'), below_target: t('staffBelowTarget', 'Below target'), below_min: t('staffBelowMin', 'Below minimum'), off_day: t('staffOffDay', 'Not needed today') }[row.state]
-  const col = row.severity === 'bad' ? 'var(--pal-red-600)' : row.severity === 'warn' ? 'var(--pal-amber-600)' : row.state === 'off_day' ? 'var(--pal-slate-500)' : 'var(--pal-indigo-600)'
-  return (
-    <article className="ucard" style={{ ['--u' as string]: col }}>
-      <header className="ucard-head">
-        <Ring value={row.filled} max={Math.max(row.min, 1)} color="#fff" size={44} />
-        <span className="uh-text"><strong>{row.position}</strong><small>{label} · {t('min', 'min')} {row.min} · {t('target', 'target')} {row.target}</small></span>
-      </header>
-      <div className="ucard-seats">
-        {row.people.length === 0 && <span className="empty-plain">{t('nobodyPresent', 'Nobody present')}</span>}
-        {row.people.map(p => (
-          <div key={p.id} className="staff-person">
-            <PersonChip person={p} highlight={hits.has(p.id)} onOpen={onOpen} compact />
-            {p.workOrder && <span className="tag2" style={{ ['--c' as string]: 'var(--pal-amber-700)' }} title={`${p.workOrder.type} · ${p.workOrder.status}`}><Wrench size={11} aria-hidden /> {p.workOrder.unit}</span>}
-          </div>
-        ))}
-      </div>
-    </article>
   )
 }
 

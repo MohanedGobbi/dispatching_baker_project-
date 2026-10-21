@@ -4,6 +4,7 @@ export type Seniority = 'NEW_RECRUIT' | 'JUNIOR' | 'EXPERIENCED' | 'SENIOR'
 export interface Person {
   id: string; name: string; employeeNo: string; position: string; base: string
   seniority: Seniority; tags: string[]; restrictions: string[]; label?: string
+  rank?: string | null // the person's rank tag, e.g. Specialist, OP2
 }
 export interface Holder extends Person { assignmentId: string; until: string; draft: boolean }
 export interface Issue { code: string; severity: Severity; text: string }

@@ -8,6 +8,7 @@ import { can } from '../auth/permissions';
 import { EmployeeInsightsService, InsightsModule } from './insights';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
 import { startOfDay, Seniority } from '../domain/status';
+import { SettingsModule, SettingsService } from '../settings/settings';
 
 const FULL_SPEC: Spec = {
   employeeNo: 'string', firstName: 'string', lastName: 'string', photoUrl: 'string', phone: 'string', email: 'string',
@@ -259,5 +260,50 @@ class EmployeesController {
   }
 }
 
-@Module({ imports: [InsightsModule], controllers: [EmployeesController] })
+/**
+ * The ranks list (setting people.ranks). Saving it renames the rank on everyone who has it (`was` is the old label),
+ * sets their position and level from the rank, and takes a removed rank off the people who had it.
+ */
+@Controller('ranks')
+class RanksController {
+  constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(SettingsService) private settings: SettingsService) {}
+
+  @Put() @Require('employees', 'full')
+  async save(@Body() body: { ranks?: { label?: string; position?: string; seniority?: string; was?: string }[] }, @Req() req: AuthedRequest) {
+    const list = body?.ranks;
+    if (!Array.isArray(list) || list.length === 0) throw new BadRequestException('ranks must be a non-empty list');
+    const positions = await this.prisma.position.findMany({ where: { name: { in: ['Chief of Unit', 'Field Operator'] } } });
+    const ranks = list.map(r => {
+      const label = r.label?.trim();
+      if (!label) throw new BadRequestException('Every rank needs a name');
+      if (!positions.some(p => p.name === r.position)) throw new BadRequestException(`${label}: position must be Chief of Unit or Field Operator`);
+      if (!SENIORITY.includes(r.seniority ?? '')) throw new BadRequestException(`${label}: unknown level`);
+      return { label, position: r.position!, seniority: r.seniority as Seniority, was: r.was?.trim() || undefined };
+    });
+    if (new Set(ranks.map(r => r.label.toLowerCase())).size !== ranks.length) throw new BadRequestException('Two ranks have the same name');
+
+    const before = (await this.settings.all())['people.ranks'] as { label: string }[];
+    const kept = new Set(ranks.map(r => r.was ?? r.label));
+    await this.prisma.$transaction(async tx => {
+      for (const old of before.filter(b => !kept.has(b.label))) {
+        await tx.$executeRaw`UPDATE "Employee" SET "tags" = array_remove("tags", ${old.label}), "seniorityOverride" = NULL, "seniorityReason" = NULL WHERE ${old.label} = ANY("tags")`;
+      }
+      // two passes so swapping two names does not merge the people
+      for (const [i, r] of ranks.entries()) if (r.was && r.was !== r.label) await tx.$executeRaw`UPDATE "Employee" SET "tags" = array_replace("tags", ${r.was}, ${`~rank~${i}`}) WHERE ${r.was} = ANY("tags")`;
+      for (const [i, r] of ranks.entries()) if (r.was && r.was !== r.label) await tx.$executeRaw`UPDATE "Employee" SET "tags" = array_replace("tags", ${`~rank~${i}`}, ${r.label}) WHERE ${`~rank~${i}`} = ANY("tags")`;
+      for (const r of ranks) {
+        await tx.employee.updateMany({
+          where: { tags: { has: r.label } },
+          data: { positionId: positions.find(p => p.name === r.position)!.id, seniorityOverride: r.seniority, seniorityReason: `Rank: ${r.label}` },
+        });
+      }
+    });
+    const saved = ranks.map(({ was: _was, ...r }) => r);
+    await this.settings.set('people.ranks', saved);
+    await audit(this.prisma, req.user?.sub, 'Setting', 'people.ranks', 'update', before, saved);
+    return saved;
+  }
+}
+
+@Module({ imports: [InsightsModule, SettingsModule], controllers: [EmployeesController, RanksController] })
 export class EmployeesModule {}

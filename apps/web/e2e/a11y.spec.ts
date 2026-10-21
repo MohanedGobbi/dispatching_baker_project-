@@ -2,12 +2,11 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { foldGuides, signIn, signInManager } from './helpers'
+import { foldGuides, signInManager } from './helpers'
 
 // WCAG 2.1 AA checks with axe-core on every screen, in light and dark (plan E28/E30 accessibility audit).
 const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8')
-const SCREENS = ['board', 'units', 'tasks', 'replacements', 'crew-changes', 'plans', 'timeline', 'leave', 'extensions', 'work-orders', 'analytics', 'users', 'settings', 'data', 'audit', 'notifications']
-const PORTAL = ['today', 'todo', 'calendar', 'requests', 'alerts', 'me']
+const SCREENS = ['board', 'units', 'replacements', 'crew-changes', 'plans', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit', 'notifications']
 
 async function violations(page: Page) {
   await page.addScriptTag({ content: AXE })
@@ -39,16 +38,5 @@ for (const theme of ['light', 'dark'] as const) {
       expect(await violations(page), 'dialog').toEqual([])
     })
 
-    test('the phone portal has no WCAG 2.1 AA violations', async ({ browser }) => {
-      const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: theme })).newPage()
-      await page.goto('/')
-      await page.evaluate(t => localStorage.setItem('crewboard.theme', t), theme)
-      await signIn(page, 'employee')
-      for (const s of PORTAL) {
-        await page.goto(`/#/portal/${s}`)
-        await page.waitForTimeout(1200)
-        expect(await violations(page), s).toEqual([])
-      }
-    })
   })
 }

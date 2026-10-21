@@ -494,6 +494,7 @@ model ReplacementTask {
   sourceId    String?   // leave / restriction / extension that caused it
   assignmentId String?  // the assignment that closed this task
   escalatedAt DateTime?
+  closedAt    DateTime?  // when it stopped being open (a person was placed, or it was closed)
 
   @@index([sourceId])
 }

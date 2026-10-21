@@ -60,6 +60,12 @@ export function useDebounced<T>(value: T, ms = 300) {
   return v
 }
 
+/** Whether a broken crew rule needs a written reason (setting rules.overrideReasonRequired). Off: rules only warn. */
+export function useStrictRules() {
+  const s = useApi<Record<string, unknown>>('/settings')
+  return s.data?.['rules.overrideReasonRequired'] !== false
+}
+
 /** Whether plans go through review and approval (setting workflow.requireApproval). Off by default: the manager publishes directly. */
 export function useRequireApproval() {
   const s = useApi<Record<string, unknown>>('/settings')

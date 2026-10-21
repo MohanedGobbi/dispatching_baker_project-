@@ -187,7 +187,7 @@ class ExtensionsController {
       // The seat is covered for these days, so a replacement task for them is no longer needed.
       const tasks = await tx.replacementTask.findMany({ where: { seatId: a.seatId, status: { in: ['OPEN', 'CANDIDATE_PROPOSED'] }, fromDate: { lte: window.end }, toDate: { gte: window.start } } });
       for (const t of tasks) {
-        if (t.fromDate >= window.start && t.toDate <= window.end) await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED' } });
+        if (t.fromDate >= window.start && t.toDate <= window.end) await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', closedAt: new Date() } });
         else if (t.fromDate >= window.start) await tx.replacementTask.update({ where: { id: t.id }, data: { fromDate: addDays(window.end, 1) } });
       }
 

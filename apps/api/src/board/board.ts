@@ -140,7 +140,7 @@ class BoardController {
       if (!p) return null;
       return {
         id: p.id, name: `${p.firstName} ${p.lastName}`, employeeNo: p.employeeNo, position: p.position.name, base: p.homeBase.code,
-        seniority: sen.get(p.id)?.seniority ?? 'JUNIOR', tags: p.qualifications.map(x => SHORT_QUAL[x.qualification.name] ?? x.qualification.name),
+        seniority: sen.get(p.id)?.seniority ?? 'JUNIOR', tags: p.qualifications.map(x => SHORT_QUAL[x.qualification.name] ?? x.qualification.name), rank: p.tags[0] ?? null,
         restrictions: cell(id)?.restrictions ?? [],
       };
     };

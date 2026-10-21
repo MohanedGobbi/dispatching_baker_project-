@@ -44,16 +44,18 @@ class ReplacementsController {
       daysUntilStart: t.deadline ? Math.round((startOfDay(t.deadline).getTime() - today.getTime()) / DAY) : null,
       seatId: t.seatId, seat: `${t.seat.unit?.code ?? `${t.seat.base?.code} base`} · ${t.seat.position.name} #${t.seat.index}`,
       candidate: t.candidate ? { id: t.candidate.id, name: `${t.candidate.firstName} ${t.candidate.lastName}` } : null,
-      escalatedAt: t.escalatedAt, assignmentId: t.assignmentId,
+      escalatedAt: t.escalatedAt, assignmentId: t.assignmentId, closedAt: t.closedAt,
     };
   }
 
   // ---------- reads
 
   @Get() @Require('planning', 'view')
-  async list(@Req() req: AuthedRequest, @Query() q: { status?: string; urgency?: string; baseId?: string; all?: string }) {
+  async list(@Req() req: AuthedRequest, @Query() q: { status?: string; urgency?: string; baseId?: string; all?: string; recent?: string }) {
     const scope = await this.planning.scopeFor(req, q.baseId ? [q.baseId] : undefined);
-    const where: Record<string, unknown> = { status: q.status ? q.status : q.all === 'true' ? undefined : { in: OPEN_TASK } };
+    // Open tasks only, unless `recent=true`: then also the ones fixed in the last week (a person was placed), so the screen can show the problem is solved.
+    const weekAgo = new Date(Date.now() - 7 * DAY);
+    const where: Record<string, unknown> = q.status ? { status: q.status } : q.all === 'true' ? {} : q.recent !== 'true' ? { status: { in: OPEN_TASK } } : { OR: [{ status: { in: OPEN_TASK } }, { status: 'CLOSED', assignmentId: { not: null }, closedAt: { gte: weekAgo } }] };
     if (q.urgency) where.urgency = q.urgency;
     if (scope) where.seat = { OR: [{ baseId: { in: scope } }, { unit: { homeBaseId: { in: scope } } }] };
     const rows = await this.prisma.replacementTask.findMany({
@@ -117,7 +119,7 @@ class ReplacementsController {
     await this.assignments.assertSeatFree(t.seatId, start, end, []);
     const prev = await this.prisma.assignment.findFirst({ where: { seatId: t.seatId, status: { in: ['CONFIRMED', 'ACTIVE', 'COMPLETED'] }, plannedEnd: { lt: start } }, orderBy: { plannedEnd: 'desc' } });
     const ev = await this.assignments.evaluate([{ employeeId, seatId: t.seatId, start, end, replacesId: prev?.id }]);
-    this.assignments.requireOverride(ev, body?.overrideReason);
+    await this.assignments.requireOverride(ev, body?.overrideReason);
 
     const today = startOfDay(new Date());
     const out = await this.prisma.$transaction(async tx => {
@@ -126,7 +128,7 @@ class ReplacementsController {
       });
       const rest = subtractSpans({ start: t.fromDate, end: t.toDate }, [{ start, end }]);
       if (rest.length === 0) {
-        await tx.replacementTask.update({ where: { id }, data: { status: 'CLOSED', candidateId: employeeId, assignmentId: a.id } });
+        await tx.replacementTask.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date(), candidateId: employeeId, assignmentId: a.id } });
       } else {
         await tx.replacementTask.update({ where: { id }, data: { fromDate: rest[0].start, toDate: rest[0].end, status: 'OPEN', candidateId: null, deadline: rest[0].start } });
         for (const extra of rest.slice(1)) {
@@ -187,7 +189,7 @@ class ReplacementsController {
     const t = await this.mustLoad(id);
     if (!OPEN_TASK.includes(t.status)) throw new BadRequestException(`A ${t.status.toLowerCase()} task is already finished`);
     if (!body?.reason?.trim()) throw new BadRequestException('A reason is required to close a task without a replacement');
-    await this.prisma.replacementTask.update({ where: { id }, data: { status: 'CLOSED' } });
+    await this.prisma.replacementTask.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } });
     await audit(this.prisma, req.user?.sub, 'ReplacementTask', id, 'close', null, null, body.reason);
     return { status: 'CLOSED' };
   }

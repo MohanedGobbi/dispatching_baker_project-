@@ -31,7 +31,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   const text = await res.text()
   let json: unknown = null
   try { json = text ? JSON.parse(text) : null } catch { json = text }
-  if (res.status === 401 && path !== '/auth/login') onUnauthorized.forEach(fn => fn())
+  if (res.status === 401 && path !== '/auth/login' && path !== '/auth/auto') onUnauthorized.forEach(fn => fn())
   if (!res.ok) {
     const msg = (json as { message?: string } | null)?.message
     throw new ApiError(res.status, typeof msg === 'string' ? msg : res.statusText, json)

@@ -26,13 +26,12 @@ export default function Login() {
     <main className="login">
       <form onSubmit={submit} className="login-card">
         <div className="login-brand"><img src="/icon.svg" alt="" aria-hidden width={48} height={48} /><h1>{t('app')}</h1></div>
-        <p className="muted">{t('loginIntro', 'Crew rotation, dispatch and base staffing')}</p>
+        <p className="muted">{t('loginIntro', 'Crew rotation and dispatch')}</p>
         <label>{t('login', 'Login')}<input value={name} onChange={e => setName(e.target.value)} autoComplete="username" autoFocus /></label>
         <label>{t('password', 'Password')}<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /></label>
         {error && <p className="error" role="alert">{error}</p>}
         <button className="primary" disabled={busy}>{busy ? '…' : t('signIn', 'Sign in')}</button>
         <button type="button" className="link" onClick={() => setForgot(true)}>{t('pwForgot', 'Forgot your password?')}</button>
-        <p className="muted demo-note">{t('employeeHint', 'Employees: sign in with your employee number, e.g. e1001.')}</p>
         <p className="muted demo-note">{t('demo')} · {t('demoAdmin', 'manager account')} <code>admin</code> / <code>demo1234</code></p>
       </form>
     </main>

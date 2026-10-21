@@ -106,6 +106,24 @@ class AuthController {
     return { token: issueToken(user), user: { id: user.id, login: user.login, roles, employeeId: user.employeeId, mustChangePassword: user.mustChangePassword } };
   }
 
+  /**
+   * No sign-in page (2026-10-21): the manager is the only user, so a browser on this machine is signed in as the
+   * manager straight away. Only requests from this computer get a token; set AUTO_LOGIN=off to require the password.
+   */
+  @Public() @Post('auto')
+  async auto(@Req() req: AuthedRequest) {
+    const ip = (req as unknown as { ip?: string; socket?: { remoteAddress?: string } }).ip ?? (req as unknown as { socket?: { remoteAddress?: string } }).socket?.remoteAddress ?? '';
+    const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip);
+    if (process.env.AUTO_LOGIN === 'off' || !local) throw new UnauthorizedException('Sign in with the manager account');
+    const user = await this.prisma.user.findFirst({ where: { active: true, employeeId: null, roles: { some: { role: 'SUPER_ADMIN' } } }, include: { roles: true }, orderBy: { createdAt: 'asc' } });
+    if (!user) throw new UnauthorizedException('No manager account');
+    // No password is typed here, so a temporary one would only lock the manager out.
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), mustChangePassword: false } });
+    forgetUser(user.id);
+    const roles = user.roles.map(r => ({ role: r.role, baseScope: r.baseScope }));
+    return { token: issueToken(user), user: { id: user.id, login: user.login, roles, employeeId: user.employeeId, mustChangePassword: false } };
+  }
+
   @Get('me') @AllowTempPassword()
   me(@Req() req: AuthedRequest) { return req.user; }
 

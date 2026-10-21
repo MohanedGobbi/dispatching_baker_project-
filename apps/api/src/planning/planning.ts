@@ -506,7 +506,7 @@ class PlanningController {
     await this.assignments.assertSeatFree(draft.seatId, draft.start, draft.end, []);
     const assumed = others.map(o => ({ employeeId: o.employeeId, seatId: o.seatId, start: o.start, end: o.plannedEnd }));
     const ev = await this.assignments.evaluate([draft], [], assumed);
-    this.assignments.requireOverride(ev, overrideReason);
+    await this.assignments.requireOverride(ev, overrideReason);
     return ev;
   }
 
@@ -602,7 +602,9 @@ class PlanningController {
   async publish(@Param('id') id: string, @Body() body: { skipInvalid?: boolean }, @Req() req: AuthedRequest) {
     const plan = await this.mustPlan(id);
     // Without the review step (the default: one manager runs everything) a draft is published as it is.
-    const requireApproval = (await this.settings.all())['workflow.requireApproval'] === true;
+    const all = await this.settings.all();
+    const requireApproval = all['workflow.requireApproval'] === true;
+    const strictRules = all['rules.overrideReasonRequired'] !== false;
     const publishable = requireApproval ? ['APPROVED'] : ['DRAFT', 'REVIEW', 'APPROVED'];
     if (!publishable.includes(plan.status)) throw new BadRequestException(requireApproval ? `Only an approved plan can be published (this one is ${plan.status.toLowerCase()})` : `A ${plan.status.toLowerCase()} plan cannot be published`);
     const drafts = await this.prisma.assignment.findMany({ where: { planId: id, status: 'DRAFT' }, orderBy: [{ start: 'asc' }, { seatId: 'asc' }] });
@@ -620,7 +622,9 @@ class PlanningController {
           // already applied by the engine and when the draft was edited.
           const ev = await this.assignments.evaluate([p], [], accepted.map(a => ({ employeeId: a.employeeId, seatId: a.seatId, start: a.start, end: a.plannedEnd })), true);
           // A hard rule that someone knowingly overrode while editing the draft stays overridden.
-          if (ev.hard > 0 && !d.overrideReason) reasons.push(...ev.violations.filter(v => v.severity === 'hard').map(v => v.message));
+          // With rules as warnings only a double booking stops a draft.
+          const blocking = ev.violations.filter(v => v.severity === 'hard' && (strictRules || v.rule === 'double_booking'));
+          if (blocking.length && !d.overrideReason) reasons.push(...blocking.map(v => v.message));
         } catch (e) { reasons.push((e as Error).message); }
       }
       if (reasons.length) problems.push({ assignmentId: d.id, seatId: d.seatId, employeeId: d.employeeId, start: iso(d.start), end: iso(d.plannedEnd), reasons });
@@ -638,7 +642,7 @@ class PlanningController {
         const tasks = await tx.replacementTask.findMany({ where: { seatId: d.seatId, status: { in: OPEN_TASK }, fromDate: { lte: d.plannedEnd }, toDate: { gte: d.start } } });
         for (const t of tasks) {
           const rest = subtractSpans({ start: t.fromDate, end: t.toDate }, [{ start: d.start, end: d.plannedEnd }]);
-          if (rest.length === 0) await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', candidateId: d.employeeId, assignmentId: d.id } });
+          if (rest.length === 0) await tx.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', closedAt: new Date(), candidateId: d.employeeId, assignmentId: d.id } });
           else {
             await tx.replacementTask.update({ where: { id: t.id }, data: { fromDate: rest[0].start, toDate: rest[0].end } });
             for (const extra of rest.slice(1)) {

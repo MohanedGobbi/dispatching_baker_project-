@@ -7,6 +7,8 @@ import { errMsg, go, useApi, useLive } from './hooks'
 import { fmtDate } from './labels'
 import { Legend } from './guide'
 import { PersonLink } from './profiles'
+import { SeatActionsButton, SeatActionsDialog } from './seatactions'
+import type { SeatHolderRef } from './seatactions'
 import { DeleteUnit, EditUnit, MoveUnit, NewJobDialog } from './unitforms'
 import { STATUS } from './unitstatus'
 import type { UnitRow } from './unitforms'
@@ -14,9 +16,9 @@ import { Pill, useToast } from './ui'
 import type { Severity } from './types'
 
 interface UnitD {
-  id: string; code: string; status: string; plate: string | null; model: string | null; year: number | null; notes: string | null; homeBaseId: string
+  id: string; code: string; status: string; plate: string | null; model: string | null; year: number | null; notes: string | null; homeBaseId: string; unitTypeId: string
   unitType: { name: string; colorKey: string }; homeBase: { code: string; name: string }
-  seats: { id: string; position: string; index: number; required: boolean; holder: { id: string; employeeNo: string; firstName: string; lastName: string } | null }[]
+  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string } | null }[]
   deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string } }[]
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
   crewHistory: { id: string; start: string; plannedEnd: string; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
@@ -49,6 +51,7 @@ export default function UnitPage({ id }: { id: string }) {
   const reloadAll = () => { void u.reload(); void hist.reload(); void plans.reload(); void docs.reload() }
   useLive(u.reload)
   const [dialog, setDialog] = useState<null | 'edit' | 'move' | 'delete' | 'workshop' | 'job' | 'doc' | { plan: Plan | null } | { book: Plan } | { done: Plan }>(null)
+  const [acting, setActing] = useState<SeatHolderRef | null>(null)
   const x = u.data
   if (u.error) return <main className="page"><a className="back" href="#/units"><ArrowLeft size={15} aria-hidden /> {t('allUnits', 'All units')}</a><div className="banner error" role="alert">{u.error}</div></main>
   if (!x) return <main className="page"><p className="muted">…</p></main>
@@ -61,7 +64,7 @@ export default function UnitPage({ id }: { id: string }) {
   const nextPlan = [...(plans.data ?? [])].filter(p => p.active).sort((a, b) => a.nextDue.localeCompare(b.nextDue))[0]
   const docIssues = (docs.data ?? []).filter(d => d.validity === 'expired' || d.validity === 'expiring').length
   const row: UnitRow = {
-    id: x.id, code: x.code, type: x.unitType.name, typeId: '', colorKey: x.unitType.colorKey, home: x.homeBase, homeBaseId: x.homeBaseId, plate: x.plate, model: x.model, year: x.year, notes: x.notes,
+    id: x.id, code: x.code, type: x.unitType.name, typeId: x.unitTypeId, colorKey: x.unitType.colorKey, home: x.homeBase, homeBaseId: x.homeBaseId, plate: x.plate, model: x.model, year: x.year, notes: x.notes,
     status: x.status, job: current?.job ?? null, jobUntil: current?.end ?? null, backBy: null, crew: { filled, required }, problem: false,
   }
   const act = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); toast(ok); reloadAll() } catch (e) { toast(errMsg(e), 'error') } }
@@ -70,6 +73,7 @@ export default function UnitPage({ id }: { id: string }) {
   return (
     <main className="page wide unit-page">
       <a className="back" href="#/units"><ArrowLeft size={15} aria-hidden /> {t('allUnits', 'All units')}</a>
+      {acting && <SeatActionsDialog target={acting} onClose={() => setActing(null)} onDone={text => { toast(text); reloadAll() }} />}
       <header className="page-head">
         <div>
           <h1><Truck size={22} aria-hidden /> {x.code} <span className={`tag tag-${x.unitType.colorKey === 'amber' ? 'CH' : 'OH'}`}>{x.unitType.name}</span></h1>
@@ -92,11 +96,11 @@ export default function UnitPage({ id }: { id: string }) {
       <section className="kpis2" aria-label={t('unitNumbers', 'Unit in numbers')}>
         <div className="kpi2" style={{ ['--c' as string]: COLORS.job }}><Gauge size={22} className="k-icon" aria-hidden /><strong>{hist.data ? `${hist.data.utilisation}%` : '…'}</strong><span>{t('utilisation12', 'On a job, last 12 months')}</span></div>
         <div className="kpi2" style={{ ['--c' as string]: COLORS.shop }}><Wrench size={22} className="k-icon" aria-hidden /><strong>{hist.data ? `${hist.data.workshopShare}%` : '…'}</strong><span>{t('workshop12', 'In the workshop')}</span></div>
-        <div className="kpi2" style={{ ['--c' as string]: required && filled < required && current ? 'var(--pal-red-700)' : 'var(--pal-teal-700)' }}><Truck size={22} className="k-icon" aria-hidden /><strong>{filled}/{required}</strong><span>{t('crewToday', 'Crew seats filled today')}</span></div>
-        <div className="kpi2" style={{ ['--c' as string]: nextPlan ? (nextPlan.state === 'overdue' ? 'var(--pal-red-700)' : nextPlan.state === 'due_soon' ? 'var(--pal-amber-700)' : 'var(--pal-green-700)') : 'var(--pal-slate-600)' }}>
+        <div className={`kpi2${required && filled < required && current ? ' alert' : ''}`} style={{ ['--c' as string]: required && filled < required && current ? 'var(--pal-red-700)' : 'var(--pal-teal-700)' }}><Truck size={22} className="k-icon" aria-hidden /><strong>{filled}/{required}</strong><span>{t('crewToday', 'Crew seats filled today')}</span></div>
+        <div className={`kpi2${nextPlan?.state === 'overdue' ? ' alert' : ''}`} style={{ ['--c' as string]: nextPlan ? (nextPlan.state === 'overdue' ? 'var(--pal-red-700)' : nextPlan.state === 'due_soon' ? 'var(--pal-amber-700)' : 'var(--pal-green-700)') : 'var(--pal-slate-600)' }}>
           <CalendarCheck size={22} className="k-icon" aria-hidden /><strong>{nextPlan ? new Date(nextPlan.nextDue).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC' }) : '—'}</strong><span>{nextPlan ? `${t('nextService', 'Next service')}: ${nextPlan.name}` : t('noService', 'No service plan')}</span>
         </div>
-        <div className="kpi2" style={{ ['--c' as string]: docIssues ? 'var(--pal-red-700)' : 'var(--pal-slate-600)' }}><FileText size={22} className="k-icon" aria-hidden /><strong>{docIssues}</strong><span>{t('docIssues', 'Papers expired or expiring')}</span></div>
+        <div className={`kpi2${docIssues ? ' alert' : ''}`} style={{ ['--c' as string]: docIssues ? 'var(--pal-red-700)' : 'var(--pal-slate-600)' }}><FileText size={22} className="k-icon" aria-hidden /><strong>{docIssues}</strong><span>{t('docIssues', 'Papers expired or expiring')}</span></div>
       </section>
 
       <section className="panel">
@@ -114,6 +118,7 @@ export default function UnitPage({ id }: { id: string }) {
                 <tr key={s.id}>
                   <td>{s.position} #{s.index}{!s.required && <small className="muted"> · {t('optional', 'optional')}</small>}</td>
                   <td>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : <span className={current && s.required ? 'error' : 'muted'}>{t('empty', 'Empty')}</span>}</td>
+                  <td className="num">{s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}</td>
                 </tr>
               ))}
             </tbody>
@@ -156,7 +161,7 @@ export default function UnitPage({ id }: { id: string }) {
                     <td>{fmt(p.lastDone)}</td>
                     <td>{fmt(p.nextDue)}</td>
                     <td>{p.active ? <Pill severity={SERVICE[p.state][0]}>{SERVICE[p.state][1]}</Pill> : <span className="muted">{t('paused', 'Paused')}</span>}</td>
-                    <td>{p.openWorkOrder ? <a href="#/work-orders">{fmt(p.openWorkOrder.plannedStart)} → {fmt(p.openWorkOrder.expectedReturn)}</a> : <span className="muted">—</span>}</td>
+                    <td>{p.openWorkOrder ? <span>{fmt(p.openWorkOrder.plannedStart)} → {fmt(p.openWorkOrder.expectedReturn)}</span> : <span className="muted">—</span>}</td>
                     <td className="row-actions">
                       {!p.openWorkOrder && p.active && <button type="button" onClick={() => setDialog({ book: p })}>{t('bookNow', 'Book')}</button>}
                       <button type="button" onClick={() => setDialog({ done: p })}>{t('markDone', 'Done')}</button>
@@ -173,7 +178,7 @@ export default function UnitPage({ id }: { id: string }) {
 
       <div className="unit-grid">
         <section className="panel">
-          <h2>{t('workOrders', 'Work orders')}</h2>
+          <h2>{t('workOrders', 'Workshop visits')}</h2>
           {x.workOrders.length === 0 && <p className="muted">{t('noWos', 'Never been to the workshop.')}</p>}
           <ul className="doc-list">
             {x.workOrders.map(w => (
@@ -181,10 +186,10 @@ export default function UnitPage({ id }: { id: string }) {
                 <Wrench size={16} aria-hidden />
                 <div><strong>{w.description || w.type.replace('_', ' ')}</strong><small className="muted">{w.type.replace('_', ' ')} · {fmt(w.plannedStart)} → {fmt(w.expectedReturn)}</small></div>
                 <Pill severity={WO_SEV[w.status] ?? 'info'}>{w.status.toLowerCase().replace('_', ' ')}</Pill>
+                {OPEN_WO.includes(w.status) && <button type="button" onClick={() => void act(() => api(`/work-orders/${w.id}/status`, { method: 'POST', body: { status: 'DONE' } }), t('woDone', 'Repaired: unit available again'))}><CheckCircle2 size={14} aria-hidden /> {t('repaired', 'Repaired')}</button>}
               </li>
             ))}
           </ul>
-          {x.workOrders.some(w => OPEN_WO.includes(w.status)) && <p><a href="#/work-orders">{t('openWoBoard', 'Open the work-order board')}</a></p>}
         </section>
         <section className="panel">
           <h2>{t('jobs', 'Jobs')}</h2>

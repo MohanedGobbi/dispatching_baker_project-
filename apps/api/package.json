@@ -6,6 +6,7 @@
     "build": "tsc -p tsconfig.json",
     "start:dev": "tsx watch src/main.ts",
     "seed": "tsx prisma/seed.ts",
+    "seed:real": "tsx prisma/seed-real.ts",
     "seed:reset": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",

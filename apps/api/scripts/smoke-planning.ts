@@ -133,6 +133,12 @@ async function main() {
   const seatA2 = seatsU1.find(s => s.id === taskA2.seatId)!;
   check('board shows the replacement on that seat', (await call('GET', `/seats?unitId=${u1.id}`, disp)).json.find((s: any) => s.id === seatA2.id).holder?.id === top);
   check('cannot confirm a closed task', (await call('POST', `/replacements/${taskA2.id}/confirm`, disp, {})).status === 400);
+  const afterFix = await call('GET', '/replacements?recent=true', disp);
+  const fixedRow = afterFix.json.find((t: any) => t.id === taskA2.id);
+  check('a fixed task stays in the list for a week, marked closed with who and when', !!fixedRow && fixedRow.status === 'CLOSED' && !!fixedRow.assignmentId && !!fixedRow.closedAt && fixedRow.candidate?.id === conf.json.assignment.employeeId, fixedRow);
+  const closedNoRepl = afterFix.json.filter((t: any) => t.status === 'CLOSED' && !t.assignmentId);
+  check('only tasks fixed by placing someone are kept in the list', closedNoRepl.length === 0, closedNoRepl);
+  check('without recent=true only open tasks are listed', (await call('GET', '/replacements', disp)).json.every((t: any) => t.status !== 'CLOSED'));
 
   // partial confirm leaves the rest open
   const medA3 = await call('POST', '/leaves', hr, { employeeId: A.o3.id, typeId: medT, start: at(10), end: at(20), documentUrl: 'c2.pdf' });

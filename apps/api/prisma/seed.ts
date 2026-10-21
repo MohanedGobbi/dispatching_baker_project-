@@ -93,7 +93,6 @@ async function main() {
       data: [
         { unitTypeId: ut.id, positionId: pos['Chief of Unit'].id, count: 1, requiredQualId: q.id },
         { unitTypeId: ut.id, positionId: pos['Field Operator'].id, count: 3, requiredQualId: q.id },
-        { unitTypeId: ut.id, positionId: pos['Field Driver'].id, count: 1, optional: true },
       ],
     });
   }
@@ -118,9 +117,6 @@ async function main() {
         },
       });
     }
-    for (const [p, min, target] of [['Mechanic', 2, 3], ['Electronics Technician', 1, 1], ['Storekeeper', 1, 1], ['Base Driver', 1, 2]] as const) {
-      await prisma.baseStaffingRule.create({ data: { baseId: bases[b.code].id, positionId: pos[p].id, minCount: min, targetCount: target, scheduleWindow: p === 'Mechanic' ? null : 'working_days' } });
-    }
   }
 
   // ---- Units (9 OH, 7 CH) + crew seats
@@ -141,17 +137,8 @@ async function main() {
     const seats: Prisma.SeatCreateManyInput[] = [
       { holderType: 'UNIT', unitId: u.id, positionId: pos['Chief of Unit'].id, index: 1, requirements: { qualification: q.name } },
       ...[1, 2, 3].map(index => ({ holderType: 'UNIT' as const, unitId: u.id, positionId: pos['Field Operator'].id, index, requirements: { qualification: q.name, ...(index === 1 ? { minSeniority: 'EXPERIENCED' } : {}) } })),
-      { holderType: 'UNIT', unitId: u.id, positionId: pos['Field Driver'].id, index: 1, requiredFlag: false },
     ];
     await prisma.seat.createMany({ data: seats });
-  }
-  // Base post seats from staffing templates
-  for (const rule of await prisma.baseStaffingRule.findMany()) {
-    await prisma.seat.createMany({
-      data: Array.from({ length: rule.targetCount }, (_, i) => ({
-        holderType: 'BASE' as const, baseId: rule.baseId, positionId: rule.positionId, index: i + 1, requiredFlag: i < rule.minCount,
-      })),
-    });
   }
 
   // ---- Employees (~140). Seniority mix: 15% new, 30% junior, 40% experienced, 15% senior.
@@ -162,8 +149,7 @@ async function main() {
     return daysAgo(Math.round(yearsAgo * 365 + faker.number.int({ min: 0, max: 120 })));
   };
   const mix: [string, number][] = [
-    ['Field Operator', 100], ['Chief of Unit', 24], ['Field Driver', 8], ['Mechanic', 16], ['Electronics Technician', 8],
-    ['Welder', 3], ['Shop Foreman', 4], ['Storekeeper', 8], ['Base Driver', 8], ['HSE Officer', 4],
+    ['Field Operator', 108], ['Chief of Unit', 24],
     ['Base Manager', 4], ['Dispatcher', 2], ['Admin Officer', 2],
   ];
   const created: { id: string; position: string }[] = [];

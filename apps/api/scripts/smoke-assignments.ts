@@ -161,13 +161,37 @@ async function main() {
   check('filling the vacated days closes the replacement task it opened', fillBack.status === 201 && closedTask.status === 'CLOSED' && closedTask.assignmentId === fillBack.json.assignment.id, closedTask);
   check('transfer is audited', (await prisma.auditLog.count({ where: { entityId: mvA.id, action: 'transfer' } })) === 1);
 
+  // ---- replace (someone else takes the seat from a date, in one step)
+  const rpA = await mk(opPos, 'JUNIOR', [oh]), rpB = await mk(opPos, 'JUNIOR', [oh]), rpC = await mk(opPos, 'JUNIOR', [oh]);
+  const rpRes = await call('POST', '/assignments', disp, body(rpA, opSeat(2).id, 40, 46, { overrideReason: 'setup' }));
+  const rpId = rpRes.json.assignment?.id;
+  check('replace setup: person placed', !!rpId, rpRes.json);
+  const rpSame = await call('POST', `/assignments/${rpId}/replace`, disp, { employeeId: rpA.id, from: at(43) });
+  check('replacing someone with themselves is refused', rpSame.status === 400);
+  const rpLate = await call('POST', `/assignments/${rpId}/replace`, disp, { employeeId: rpB.id, from: at(47) });
+  check('replacing after the stretch ends is refused', rpLate.status === 400);
+  const rp = await call('POST', `/assignments/${rpId}/replace`, disp, { employeeId: rpB.id, from: at(43), reason: 'sent home sick', overrideReason: 'replace test' });
+  const rpOld = await prisma.assignment.findUniqueOrThrow({ where: { id: rpId } });
+  check('replace ends the holder the day before and hands the rest of the stretch over',
+    rp.status === 201 && day(rpOld.plannedEnd.toISOString()) === day(at(42)) && rp.json.assignment.employeeId === rpB.id
+      && day(rp.json.assignment.start) === day(at(43)) && day(rp.json.assignment.plannedEnd) === day(at(46)) && rp.json.assignment.type === 'REPLACEMENT', rp.json);
+  check('replace opens no replacement task', (await prisma.replacementTask.count({ where: { seatId: opSeat(2).id, trigger: 'unassigned', fromDate: { gte: new Date(at(40)) } } })) === 0);
+  const rpAudit = await prisma.auditLog.findFirst({ where: { entityId: rpId, action: 'replace' } });
+  check('replace is audited with the reason', !!rpAudit && (rpAudit.reason ?? '').includes('sent home sick'), rpAudit);
+  const rp2 = await call('POST', `/assignments/${rp.json.assignment.id}/replace`, disp, { employeeId: rpC.id, from: at(41), overrideReason: 'replace test' });
+  const rpB2 = await prisma.assignment.findUniqueOrThrow({ where: { id: rp.json.assignment.id } });
+  check('replacing before the stretch starts hands over all of it', rp2.status === 201 && rpB2.status === 'CANCELLED' && day(rp2.json.assignment.start) === day(at(43)), rp2.json);
+
   // ---- listing
   const seatsNow = await call('GET', `/seats?unitId=${unit.id}`, disp);
-  check('seats list shows holders', seatsNow.status === 200 && seatsNow.json.length === 5 && seatsNow.json.find((s: any) => s.position === 'Field Operator' && s.index === 1)?.holder?.id === recruit.id, seatsNow.json);
+  check('seats list shows holders', seatsNow.status === 200 && seatsNow.json.length === 4 && seatsNow.json.find((s: any) => s.position === 'Field Operator' && s.index === 1)?.holder?.id === recruit.id, seatsNow.json);
   const lst = await call('GET', `/assignments?unitId=${unit.id}&limit=100`, disp);
   check('assignments list by unit', lst.status === 200 && lst.json.total >= 5, lst.json?.total);
 
   // ---- base manager scope
+  // Base staff is not seeded any more; the scope rule still exists in the API, so the test makes its own base post.
+  const mechPos = await prisma.position.findUniqueOrThrow({ where: { name: 'Mechanic' } });
+  await prisma.seat.create({ data: { holderType: 'BASE', baseId: hmd.id, positionId: mechPos.id, index: 1, requiredFlag: true } });
   const bp = await prisma.seat.findFirstOrThrow({ where: { baseId: hmd.id, holderType: 'BASE' }, include: { position: { include: { requiredQualifications: true, requiredCertTypes: true } } } });
   const baseGuy = await prisma.employee.create({
     data: {
@@ -179,7 +203,7 @@ async function main() {
   });
   check('base manager can fill a base post at own base', (await call('POST', '/assignments', bm, body(baseGuy, bp.id, 0, 6))).status === 201);
   check('base manager cannot touch a unit seat', (await call('POST', '/assignments', bm, body(exp, opSeat(2).id, 20, 22))).status === 403);
-  const inaPost = await prisma.seat.findFirstOrThrow({ where: { baseId: ina.id, holderType: 'BASE' } });
+  const inaPost = await prisma.seat.create({ data: { holderType: 'BASE', baseId: ina.id, positionId: mechPos.id, index: 1, requiredFlag: true } });
   check('base manager cannot touch another base', (await call('POST', '/assignments', bm, body(baseGuy, inaPost.id, 0, 6))).status === 403);
   check('field-only guy on base post => work_mode', rules(await call('POST', '/assignments/preview', disp, body(j3, bp.id, 20, 22))).includes('work_mode'));
 

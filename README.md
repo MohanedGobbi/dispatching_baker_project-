@@ -1,6 +1,6 @@
 # CrewBoard
 
-Crew rotation, dispatch and base staffing platform. The full functional plan is in
+Crew rotation and dispatch platform. The full functional plan is in
 [crew-dispatch-platform-plan.md](crew-dispatch-platform-plan.md). The platform runs on **mock data** until real data is connected.
 
 ## Run it
@@ -19,16 +19,13 @@ npm run start:dev                   # API on http://localhost:3000
 
 In a second terminal: `npm run dev:web` (http://localhost:5173, proxies `/api` to the API).
 
-To fill the board with something to look at (8 units on jobs, a published four-week plan, a medical leave,
-a leave starting in 5 days), with the API running:
+To fill the board with something to look at (8 units on jobs, a published four-week plan and some open replacement tasks), with the API running:
 
 ```bash
 cd apps/api && npm run demo
 ```
 
-Sign in as the manager: `admin` / `demo1234`. For now the manager (super admin) is the only kind of user and does everything; the other seeded accounts (`dispatcher`, `ops`, `hr`, `basemanager`, `chief`, `employee`) are kept for the automated tests.
-
-Every person also has a login: their employee number in lower case (for example `e1044`). Employees get the phone-first portal at `#/portal`; resize the browser to phone width to see it. Staff who are also employees reach it from the **My portal** link in the top bar.
+Sign in as the manager: `admin` / `demo1234`. The manager is the only user of the web app. The other seeded accounts (`dispatcher`, `ops`, `hr`, every employee number) exist only for the automated tests; they are told the platform is for the manager only.
 
 ## Checks
 

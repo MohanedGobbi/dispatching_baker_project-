@@ -100,12 +100,6 @@ async function main() {
   if (restricted) await call('POST', `/employees/${restricted.employeeId}/restrictions`, hr, { kind: 'base_only', end: at(21) });
   log(7, `${waiting.firstName} ${waiting.lastName} awaits clearance; ${restricted?.employee.firstName ?? '?'} ${restricted?.employee.lastName ?? ''} is restricted to base posts`);
 
-  // ---- 8. HMD below its minimum mechanics next week because of overlapping leave
-  const mechs = await prisma.employee.findMany({ where: { homeBaseId: hmd, position: { name: 'Mechanic' }, active: true }, orderBy: { employeeNo: 'asc' } });
-  let booked = 0;
-  for (const m of mechs.slice(0, 3)) { const r = await call('POST', '/leaves', hr, { employeeId: m.id, typeId: annualT, start: at(6), end: at(13) }); if (r.status === 201) booked++; }
-  log(8, `${booked} of ${mechs.length} HMD mechanics are on leave next week (minimum is 2)`);
-
   // ---- 11. three people owed a lot of rest after repeated extensions
   const onUnit = (await holders('HL-6735')).concat(await holders('HL-6742'), await holders('HL-6749')).filter(a => a.seat.position.name === 'Field Operator').slice(0, 3);
   let n = 0;
@@ -123,8 +117,7 @@ async function main() {
 
   // ---- 13. a unit back from maintenance in 3 days
   const wu = await unit('HL-6791');
-  const mech = await prisma.employee.findFirst({ where: { homeBaseId: wu.homeBaseId, position: { name: 'Mechanic' }, active: true } });
-  const wo = await call('POST', '/work-orders', ops, { unitId: wu.id, type: 'corrective', priority: 'high', description: 'Winch and hydraulics overhaul', expectedReturn: at(3), assigneeIds: mech ? [mech.id] : [] });
+    const wo = await call('POST', '/work-orders', ops, { unitId: wu.id, type: 'corrective', priority: 'high', description: 'Winch and hydraulics overhaul', expectedReturn: at(3), assigneeIds: [] });
   log(13, `HL-6791 is in the workshop, back in 3 days (${wo.status === 201 ? 'work order opened' : wo.status})`);
 
   // ---- 14. a swap request waiting for approval between two operators
