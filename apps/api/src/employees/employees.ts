@@ -14,8 +14,10 @@ const FULL_SPEC: Spec = {
   employeeNo: 'string', firstName: 'string', lastName: 'string', photoUrl: 'string', phone: 'string', email: 'string',
   emergencyContact: 'string', homeCity: 'string', positionId: 'string', workMode: 'string', hireDate: 'date',
   contractType: 'string', homeBaseId: 'string', rotationPatternId: 'string', rotationAnchorDate: 'date',
-  backToBackId: 'string', priorFieldDays: 'number', tags: 'string[]', managerNotes: 'string',
+  backToBackId: 'string', priorFieldDays: 'number', tags: 'string[]', managerNotes: 'string', startState: 'string',
 };
+/** Starting the platform: what someone is doing right now, until their rotation has a first day of work. */
+const START_STATES = ['STANDBY', 'DAYS_OFF'];
 // Dispatchers get "view + limited edit" (plan section 3).
 const LIMITED_FIELDS = new Set(['phone', 'email', 'emergencyContact', 'tags', 'backToBackId']);
 const WORK_MODES = ['FIELD', 'BASE', 'FLEXIBLE'];
@@ -121,6 +123,9 @@ class EmployeesController {
     const full = can(roles, 'employees', 'full');
     const data = pickFields(FULL_SPEC, body);
     if (body.workMode !== undefined) data.workMode = this.workMode(body.workMode);
+    if (data.startState != null && !START_STATES.includes(data.startState as string)) throw new BadRequestException(`startState must be one of ${START_STATES.join(', ')} or null`);
+    // A first day of work means the calendar knows where they are: the hand-set mark is not needed any more.
+    if (data.rotationAnchorDate) data.startState = null;
     if (!full) {
       const denied = Object.keys(data).filter(k => !LIMITED_FIELDS.has(k));
       if (denied.length) throw new ForbiddenException(`Limited edit: cannot change ${denied.join(', ')}`);
@@ -239,7 +244,7 @@ class EmployeesController {
   async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }, @Req() req: AuthedRequest) {
     const { ids, action } = body ?? {};
     const value = body?.value ?? '';
-    const CLEARABLE = ['seniority', 'rotationAnchor'];
+    const CLEARABLE = ['seniority', 'rotationAnchor', 'startState'];
     if (!Array.isArray(ids) || !ids.length) throw new BadRequestException('ids[] is required');
     if (!value && !CLEARABLE.includes(action ?? '')) throw new BadRequestException('value is required');
     if (action === 'rank') {
@@ -275,7 +280,10 @@ class EmployeesController {
       }
     } else if (action === 'rotationAnchor') {
       const anchor = value ? startOfDay(parseDate(value)) : null;
-      await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { rotationAnchorDate: anchor } });
+      await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { rotationAnchorDate: anchor, ...(anchor ? { startState: null } : {}) } });
+    } else if (action === 'startState') {
+      if (value && !START_STATES.includes(value)) throw new BadRequestException(`startState must be one of ${START_STATES.join(', ')} or empty`);
+      await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { startState: value || null } });
     } else if (action === 'homeBase') {
       await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { homeBaseId: value } });
     } else if (action === 'rotation') {
@@ -284,7 +292,7 @@ class EmployeesController {
       const rows = await this.prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, tags: true } });
       await this.prisma.$transaction(rows.filter(r => !r.tags.includes(value)).map(r =>
         this.prisma.employee.update({ where: { id: r.id }, data: { tags: [...r.tags, value] } })));
-    } else throw new BadRequestException('action must be rank, seniority, homeBase, rotation, rotationAnchor or addTag');
+    } else throw new BadRequestException('action must be rank, seniority, homeBase, rotation, rotationAnchor, startState or addTag');
     await audit(this.prisma, req.user?.sub, 'Employee', ids.join(','), `bulk_${action}`, null, { value, count: ids.length });
     return { updated: ids.length };
   }

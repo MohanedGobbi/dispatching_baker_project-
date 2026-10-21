@@ -67,7 +67,8 @@ export class CalendarService {
           clearancePending: pending,
           unitAssignments: mine.filter(a => a.seat.holderType === 'UNIT').map(a => ({ start: a.start, end: a.actualEnd ?? a.plannedEnd, plannedEnd: a.originalEnd ?? a.plannedEnd })),
           basePostAssignments: mine.filter(a => a.seat.holderType === 'BASE').map(a => ({ start: a.start, end: a.actualEnd ?? a.plannedEnd })),
-          rotationOn: pattern && e.rotationAnchorDate ? isRotationOn(pattern, e.rotationAnchorDate, d) : true,
+          // Before a first day of work is known, the manager's "right now" mark stands in for the rotation.
+          rotationOn: pattern && e.rotationAnchorDate ? isRotationOn(pattern, e.rotationAnchorDate, d) : e.startState !== 'DAYS_OFF',
         }, d);
 
         // Weekly-schedule staff (5/2) are not at work on their weekend even if the assignment spans it.

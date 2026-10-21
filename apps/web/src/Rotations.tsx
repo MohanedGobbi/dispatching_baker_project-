@@ -13,7 +13,7 @@ import { useToast } from './ui'
 
 interface Row {
   id: string; firstName: string; lastName: string; tags: string[]; backToBackId: string | null
-  rotationPatternId: string | null; rotationAnchorDate: string | null; position: { name: string }
+  rotationPatternId: string | null; rotationAnchorDate: string | null; position: { name: string }; startState: string | null
 }
 const DAY = 86_400_000
 const plus = (iso: string, n: number) => new Date(Date.parse(iso) + n * DAY).toISOString().slice(0, 10)
@@ -80,7 +80,7 @@ export default function Rotations() {
     setBulkBusy(false)
   }
 
-  const save = async (r: Row, body: { rotationPatternId?: string | null; rotationAnchorDate?: string | null }, quiet = false) => {
+  const save = async (r: Row, body: { rotationPatternId?: string | null; rotationAnchorDate?: string | null; startState?: string | null }, quiet = false) => {
     setBusy(r.id)
     try { await api(`/employees/${r.id}`, { method: 'PUT', body }); if (!quiet) toast(`${r.firstName} ${r.lastName}: ${t('saved', 'saved')}`); await list.reload() } catch (e) { toast(errMsg(e), 'error') }
     setBusy('')
@@ -99,9 +99,9 @@ export default function Rotations() {
       <PageGuide id="rotations" Icon={CalendarRange} color="var(--pal-cyan-600)" title={t('rotationsTitle', 'Work and days off')}
         purpose={t('rotationsPurpose', 'When each person works and when they are off. Set the rotation and the first day of one work stretch; the system works out every stretch after it.')}
         steps={[
-          t('roStep1', 'Pick the first day of any work stretch (past or future) in "First day on". "Today" means a stretch starts today; "Off today" means they just finished one.'),
-          t('roStep2', 'Back-to-back partners are listed together. The ⇄ button makes the partner work exactly the stretches this person is off.'),
-          t('roStep3', 'The strip shows the next 8 weeks: dark squares are work days. Right-click any name elsewhere in the app for the same setting.'),
+          t('roStep1', 'Starting out, nobody has a rotation yet. Mark under "Right now" whether each person is working or on days off, so the board is right today.'),
+          t('roStep2', 'The counting starts by itself the next time they change: press "Starts today" on the day someone goes back to work, or "Off today" on the day they finish. From then on the system works out every stretch.'),
+          t('roStep3', 'You can always set it by hand instead: "First day on" takes any date, past or future. Back-to-back partners are listed together and ⇄ gives the partner the opposite stretches.'),
         ]} />
 
       <div className="filters">
@@ -114,14 +114,15 @@ export default function Rotations() {
       <BulkBar count={pick.count} busy={bulkBusy} onApply={applyBulk} onClear={pick.clear}
         fields={[
           { key: 'rotation', label: t('rotation', 'Rotation'), options: (patterns.data ?? []).map(x => ({ value: x.id, label: x.name })) },
-          { key: 'rotationAnchor', label: t('firstDayOn', 'First day on'), type: 'date', buttons: [{ label: t('today', 'Today'), value: () => today(), title: t('startsToday', 'A work stretch starts today') }, { label: t('noDate', 'None'), value: () => '', title: t('clearAnchor', 'Forget the first day again') }] },
+          { key: 'startState', label: t('rightNow', 'Right now'), options: [{ value: 'STANDBY', label: t('working', 'Working') }, { value: 'DAYS_OFF', label: t('daysOff', 'Days off') }] },
+          { key: 'rotationAnchor', label: t('firstDayOn', 'First day on'), type: 'date', buttons: [{ label: t('startsToday', 'Starts today'), value: () => today(), title: t('startsTodayHint', 'They go back to work today: counting starts now') }, { label: t('noDate', 'None'), value: () => '', title: t('clearAnchor', 'Forget the first day again') }] },
         ]}>
         <button type="button" disabled={bulkBusy} onClick={() => void bulkOffToday()} title={t('offTodayHint', 'Today is their first day off: the stretch before it has just ended')}>{t('offToday', 'Off today')}</button>
       </BulkBar>
 
       <div className="table-scroll">
         <table className="table compact rot-table">
-          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAll', 'Select everyone shown')} /></th><th>{t('name', 'Name')}</th><th>{t('rank', 'Rank')}</th><th>{t('rotation', 'Rotation')}</th><th>{t('firstDayOn', 'First day on')}</th><th>{t('today', 'Today')}</th><th>{t('next8', 'Next 8 weeks')}</th><th /></tr></thead>
+          <thead><tr><th className="pick-col"><SelectAllBox all={pick.all} some={pick.some} onChange={pick.toggleAll} label={t('selectAll', 'Select everyone shown')} /></th><th>{t('name', 'Name')}</th><th>{t('rank', 'Rank')}</th><th>{t('rotation', 'Rotation')}</th><th>{t('rightNow', 'Right now')}</th><th>{t('firstDayOn', 'First day on')}</th><th>{t('next8', 'Next 8 weeks')}</th><th /></tr></thead>
           <tbody>
             {rows.map(({ row: r, paired }) => {
               const p = patternOf(r)
@@ -138,12 +139,19 @@ export default function Rotations() {
                       <option value="">—</option>{patterns.data?.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
                     </select>
                   </td>
-                  <td className="rot-anchor">
-                    <input type="date" value={anchor} disabled={busy === r.id} onChange={e => void save(r, { rotationAnchorDate: e.target.value || null, ...(r.rotationPatternId ? {} : { rotationPatternId: patterns.data?.find(x => x.name === '28/28')?.id ?? null }) })} aria-label={`${t('firstDayOn', 'First day on')} ${r.firstName} ${r.lastName}`} />
-                    <button type="button" disabled={busy === r.id} onClick={() => void save(r, { rotationAnchorDate: today() })}>{t('today', 'Today')}</button>
-                    {p?.type === 'cycle' && <button type="button" disabled={busy === r.id} onClick={() => void save(r, { rotationAnchorDate: plus(today(), -(p.daysOn ?? 28)) })}>{t('offToday', 'Off today')}</button>}
+                  <td>
+                    {now
+                      ? <span className={`rot-now ${now.on ? 'on' : 'off'}`}>{now.on ? t('workingUntil', 'Working until') : t('offUntil', 'Off until')} {fmt(now.until)}</span>
+                      : <span className="now-pick">
+                          <button type="button" className={r.startState !== 'DAYS_OFF' ? 'on' : ''} disabled={busy === r.id} aria-pressed={r.startState !== 'DAYS_OFF'} onClick={() => void save(r, { startState: 'STANDBY' })} title={t('markWorking', 'At work or available today')}>{t('working', 'Working')}</button>
+                          <button type="button" className={r.startState === 'DAYS_OFF' ? 'on' : ''} disabled={busy === r.id} aria-pressed={r.startState === 'DAYS_OFF'} onClick={() => void save(r, { startState: 'DAYS_OFF' })} title={t('markOff', 'On days off today')}>{t('daysOff', 'Days off')}</button>
+                        </span>}
                   </td>
-                  <td>{now ? <span className={`rot-now ${now.on ? 'on' : 'off'}`}>{now.on ? t('workingUntil', 'Working until') : t('offUntil', 'Off until')} {fmt(now.until)}</span> : <span className="muted">{anchor ? '' : t('notSet', 'not set')}</span>}</td>
+                  <td className="rot-anchor">
+                    <input type="date" value={anchor} disabled={busy === r.id} onChange={e => void save(r, { rotationAnchorDate: e.target.value || null, ...(r.rotationPatternId ? {} : { rotationPatternId: patterns.data?.find(x => x.name === '35/28')?.id ?? null }) })} aria-label={`${t('firstDayOn', 'First day on')} ${r.firstName} ${r.lastName}`} />
+                    <button type="button" disabled={busy === r.id} onClick={() => void save(r, { rotationAnchorDate: today() })} title={t('startsTodayHint', 'They go back to work today: counting starts now')}>{t('startsToday', 'Starts today')}</button>
+                    {p?.type === 'cycle' && <button type="button" disabled={busy === r.id} onClick={() => void save(r, { rotationAnchorDate: plus(today(), -(p.daysOn ?? 28)) })} title={t('offTodayHint2', 'They finish today: days off start now')}>{t('offToday', 'Off today')}</button>}
+                  </td>
                   <td><RotationStrip pattern={p} anchor={anchor} /></td>
                   <td className="row-actions">
                     {mate && <button type="button" disabled={!anchor || p?.type !== 'cycle' || busy !== ''} onClick={() => void opposite(r)} title={`${mate.firstName} ${mate.lastName} ${t('worksOppositeShort', 'works the opposite stretches')}`} aria-label={`${mate.firstName} ${mate.lastName} ${t('worksOppositeShort', 'works the opposite stretches')}`}><ArrowLeftRight size={14} aria-hidden /></button>}
@@ -151,7 +159,7 @@ export default function Rotations() {
                 </tr>
               )
             })}
-            {list.data && rows.length === 0 && <tr><td colSpan={8} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
+            {list.data && rows.length === 0 && <tr><td colSpan={9} className="muted">{t('noPeopleMatch', 'Nobody matches.')}</td></tr>}
           </tbody>
         </table>
       </div>

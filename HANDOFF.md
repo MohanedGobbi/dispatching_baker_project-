@@ -210,3 +210,16 @@ The Board's "Base staff" view, the "Base posts below minimum" tile and Analytics
   and status calculation keeps working; the screens read `openEnded` and say "until you end it" instead of that date.
   "End job today" is now on the unit page as well as the unit panel. Note that ending a job today leaves the unit
   deployed for the rest of that day (unchanged behaviour); it is back at base the next day.
+
+## Starting the platform: "right now" marks (2026-10-21)
+
+Nobody's rotation is known on day one, so `Employee.startState` (migration `20261021150000_start_state`,
+`'STANDBY' | 'DAYS_OFF' | null`) records what a person is doing **right now**. While they have no
+`rotationAnchorDate` it stands in for the rotation in both status paths (`calendar.service.ts` and
+`employees/insights.ts`), so the board, lanes and lists are right from the first day.
+
+The mark is temporary by design: setting a first day of work clears it (single `PUT /employees/:id` and the
+`rotationAnchor` bulk action both do), and from then on the rotation calendar decides. The handover is one click on
+Work & days off: **Starts today** (anchor = today) the day someone goes back to work, or **Off today**
+(anchor = today − daysOn) the day they finish. Setting any date by hand still works and always has.
+Bulk action `startState` sets or clears the mark for a whole selection.

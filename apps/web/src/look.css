@@ -1107,3 +1107,7 @@ small, .why, .muted small { font-size: 12px; }
 .bulk-bar button:hover:not(:disabled) { border-color: var(--accent-fill); }
 .bulk-bar button:disabled { opacity: .55; cursor: default; }
 @media (max-width: 760px) { .bulk-bar { position: static; } }
+/* "Right now" mark, used until a rotation has a first day of work */
+.now-pick { display: inline-flex; gap: 4px; }
+.now-pick button { border: 1px solid var(--border); background: var(--bg); color: var(--muted); border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+.now-pick button.on { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; font-weight: 600; }

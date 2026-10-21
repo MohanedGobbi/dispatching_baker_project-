@@ -18,7 +18,7 @@ const plus = (iso: string, n: number) => isoDay(new Date(Date.parse(iso) + n * D
 export interface Pattern { id: string; name: string; type: string; daysOn: number | null; daysOff: number | null; weeklyMask: string | null }
 interface QuickPerson {
   id: string; firstName: string; lastName: string; backToBackId: string | null
-  rotationPatternId: string | null; rotationAnchorDate: string | null
+  rotationPatternId: string | null; rotationAnchorDate: string | null; startState?: string | null
   assignments: { id: string; start: string; plannedEnd: string; status: string; seat: { unit: { code: string } | null } }[]
 }
 
@@ -221,6 +221,7 @@ export function RotationDialog({ person, onClose, onDone }: { person: QuickPerso
   const [patternId, setPatternId] = useState(person.rotationPatternId ?? '')
   const [anchor, setAnchor] = useState(person.rotationAnchorDate?.slice(0, 10) ?? '')
   const [pairUp, setPairUp] = useState(!!person.backToBackId)
+  const [startState, setStartState] = useState(person.startState ?? 'STANDBY')
   const [busy, setBusy] = useState(false)
   useEffect(() => { if (!patternId && patterns.data?.length) setPatternId(patterns.data.find(p => p.name === '28/28')?.id ?? patterns.data[0].id) }, [patterns.data, patternId])
   const p = patterns.data?.find(x => x.id === patternId)
@@ -229,7 +230,7 @@ export function RotationDialog({ person, onClose, onDone }: { person: QuickPerso
   const save = async () => {
     setBusy(true)
     try {
-      await api(`/employees/${person.id}`, { method: 'PUT', body: { rotationPatternId: patternId || null, rotationAnchorDate: anchor || null } })
+      await api(`/employees/${person.id}`, { method: 'PUT', body: { rotationPatternId: patternId || null, rotationAnchorDate: anchor || null, ...(anchor ? {} : { startState }) } })
       if (pairUp && person.backToBackId && partnerAnchor) await api(`/employees/${person.backToBackId}`, { method: 'PUT', body: { rotationPatternId: patternId, rotationAnchorDate: partnerAnchor } })
       toast(`${person.firstName} ${person.lastName}: ${t('rotationSaved', 'rotation saved')}`); onDone?.(); onClose()
     } catch (e) { toast(errMsg(e), 'error'); setBusy(false) }
@@ -242,15 +243,23 @@ export function RotationDialog({ person, onClose, onDone }: { person: QuickPerso
           <label>{t('firstDayOn', 'First day of a work stretch')}<input type="date" value={anchor} onChange={e => setAnchor(e.target.value)} autoFocus /></label>
         </div>
         <div className="quick-days">
-          <button type="button" onClick={() => setAnchor(today())}>{t('startsToday', 'Starts today')}</button>
+          <button type="button" onClick={() => setAnchor(today())} title={t('startsTodayHint', 'They go back to work today: counting starts now')}>{t('startsToday', 'Starts today')}</button>
           {p?.type === 'cycle' && <button type="button" onClick={() => setAnchor(plus(today(), -(p.daysOn ?? 28)))}>{t('offToday', 'Goes off today')}</button>}
           {anchor && <><button type="button" onClick={() => setAnchor(plus(anchor, -7))}>−7 {t('d', 'd')}</button><button type="button" onClick={() => setAnchor(plus(anchor, -1))}>−1</button><button type="button" onClick={() => setAnchor(plus(anchor, 1))}>+1</button><button type="button" onClick={() => setAnchor(plus(anchor, 7))}>+7 {t('d', 'd')}</button></>}
           {anchor && <button type="button" onClick={() => setAnchor('')}>{t('clear', 'Clear')}</button>}
         </div>
+        {!anchor && (
+          <label>{t('rightNow', 'Right now')}
+            <span className="now-pick">
+              <button type="button" className={startState !== 'DAYS_OFF' ? 'on' : ''} aria-pressed={startState !== 'DAYS_OFF'} onClick={() => setStartState('STANDBY')}>{t('working', 'Working')}</button>
+              <button type="button" className={startState === 'DAYS_OFF' ? 'on' : ''} aria-pressed={startState === 'DAYS_OFF'} onClick={() => setStartState('DAYS_OFF')}>{t('daysOff', 'Days off')}</button>
+            </span>
+          </label>
+        )}
         {anchor ? <>
           <RotationStrip pattern={p} anchor={anchor} />
           {now && <p style={{ margin: 0 }}>{now.on ? t('workingUntil', 'Working until') : t('offUntil', 'Off until')} <b>{now.until}</b>, {now.on ? t('offFrom', 'off from') : t('backOn', 'back on')} <b>{now.next}</b>.</p>}
-        </> : <p className="muted" style={{ margin: 0 }}>{t('noAnchor', 'Without a first day the system does not know when they are off, so it never counts them on days off.')}</p>}
+        </> : <p className="muted" style={{ margin: 0 }}>{t('noAnchor2', 'Until a first day of work is known, this mark is what the board shows. Press "Starts today" on the day they go back to work (or "Goes off today" when they finish) and the system takes over from there.')}</p>}
         {person.backToBackId && partnerAnchor && (
           <label className="check"><input type="checkbox" checked={pairUp} onChange={e => setPairUp(e.target.checked)} /> {t('partnerOpposite', 'Partner')} {partner.data ? `${partner.data.firstName} ${partner.data.lastName}` : ''} {t('partnerStarts', 'works the opposite stretches (starts')} {partnerAnchor})</label>
         )}

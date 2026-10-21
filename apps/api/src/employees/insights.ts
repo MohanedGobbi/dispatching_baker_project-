@@ -51,7 +51,8 @@ export class EmployeeInsightsService {
       const pattern = e.rotationPattern && e.rotationAnchorDate
         ? isRotationOn({ type: e.rotationPattern.type as 'cycle' | 'weekly' | 'custom', daysOn: e.rotationPattern.daysOn ?? undefined,
             daysOff: e.rotationPattern.daysOff ?? undefined, weeklyMask: e.rotationPattern.weeklyMask ?? undefined }, e.rotationAnchorDate, asOf)
-        : true;
+        // Before a first day of work is known, the manager's "right now" mark stands in for the rotation.
+        : (e as { startState?: string | null }).startState !== 'DAYS_OFF';
       const status = computeStatus({
         active: e.active,
         medicalLeaves: medical.map(l => ({ start: l.start, end: l.end })),
