@@ -5,6 +5,7 @@ import {
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { interval, map, merge, Observable, Subject, tap } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { fitTasksToJobs } from '../absence/absence.service';
 import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
@@ -254,6 +255,7 @@ class BoardController {
     }
 
     // ---- summary for the manager's overview
+    await fitTasksToJobs(this.prisma);
     const taskCounts = await this.prisma.replacementTask.groupBy({ by: ['urgency'], where: { status: { in: OPEN_TASK } }, _count: true });
     const matchedPeople = needle ? people.filter(p => `${p.firstName} ${p.lastName} ${p.employeeNo}`.toLowerCase().includes(needle)).map(p => p.id) : [];
 

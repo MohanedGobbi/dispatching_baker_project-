@@ -1,5 +1,6 @@
 import { Inject, Injectable, Module } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { fitTasksToJobs } from '../absence/absence.service';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { CalendarCoreModule, CalendarService, DayCell, addDays, iso } from '../calendar/calendar.service';
@@ -176,6 +177,7 @@ export class AnalyticsService {
 
     const crews = await this.crewStates(today, baseId);
     const staffing = await this.baseStaffingToday(people, days, baseId);
+    await fitTasksToJobs(this.prisma);
     const tasks = await this.prisma.replacementTask.groupBy({ by: ['urgency'], where: { status: { in: ['OPEN', 'ESCALATED', 'CANDIDATE_PROPOSED'] } }, _count: true });
     const ending = await this.prisma.assignment.count({ where: { status: { in: [...LIVE] }, plannedEnd: { gte: today, lte: addDays(today, 6) }, ...(baseId ? { seat: { OR: [{ baseId }, { unit: { homeBaseId: baseId } }] } } : {}) } });
     return {

@@ -24,6 +24,9 @@ async function main() {
   const base = (await call('POST', '/bases', ops, { code: 'BRD2', name: 'Notif Base' })).json;
   const site = (await call('POST', '/sites', ops, { name: 'BRD2-W1', baseId: base.id })).json;
   const u1 = (await call('POST', '/units', ops, { code: 'HL-N1', unitTypeId: ut.id, homeBaseId: base.id })).json;
+  // on a job: only then do its empty seats need someone
+  const job = (await call('POST', '/jobs', ops, { siteId: site.id, serviceType: 'Rig Notif', plannedStart: at(-3), plannedEnd: at(40) })).json;
+  await call('POST', `/jobs/${job.id}/deploy`, ops, { unitId: u1.id });
   const seats = await prisma.seat.findMany({ where: { unitId: u1.id }, include: { position: true } });
   const seat = (p: string, i = 1) => seats.find(s => s.position.name === p && s.index === i)!;
 

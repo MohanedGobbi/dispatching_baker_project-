@@ -262,3 +262,13 @@ away. Replace and split pass the open end on to the new holder. Unassigning or s
 replacement gap of one 28-day stretch, not 5 years. Open stays cannot be extended and give no "next crew change" in
 the portal. In the app: the seat menu (⋯ / person icon on a seat) has a **Crew change** date with "Set date" and
 "Not decided yet". Live checks: `scripts/smoke-openstay.ts`.
+
+## No replacement warnings for units that are not on a job (2026-10-21)
+
+Replacement tasks are opened from many places (leave, archiving someone, unassigning, splitting, crew changes) and
+most of them did not look at whether the unit was on a job, so an idle unit could show "critical, needs crew".
+`fitTasksToJobs()` (`absence/absence.service.ts`) now fits every open task on a unit seat to the unit's jobs: closed
+when the unit has no job in those days, trimmed to the job days otherwise (urgency recomputed when it starts later).
+It runs where open tasks are read or counted: the replacement center, the board summary, analytics and the daily
+job, so existing bad tasks are cleaned up the next time any of those is opened. Base posts are not touched.
+Live checks: `scripts/smoke-idle-tasks.ts`; `smoke-notifications.ts` now puts its unit on a job.

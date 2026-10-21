@@ -2,6 +2,7 @@ import {
   BadRequestException, Body, Controller, Get, Inject, Module, NotFoundException, Param, Post, Query, Req,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { fitTasksToJobs } from '../absence/absence.service';
 import { NotificationsService } from '../notifications/notifications';
 import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
@@ -53,6 +54,7 @@ class ReplacementsController {
   @Get() @Require('planning', 'view')
   async list(@Req() req: AuthedRequest, @Query() q: { status?: string; urgency?: string; baseId?: string; all?: string; recent?: string }) {
     const scope = await this.planning.scopeFor(req, q.baseId ? [q.baseId] : undefined);
+    await fitTasksToJobs(this.prisma); // no warnings for units that are not on a job
     // Open tasks only, unless `recent=true`: then also the ones fixed in the last week (a person was placed), so the screen can show the problem is solved.
     const weekAgo = new Date(Date.now() - 7 * DAY);
     const where: Record<string, unknown> = q.status ? { status: q.status } : q.all === 'true' ? {} : q.recent !== 'true' ? { status: { in: OPEN_TASK } } : { OR: [{ status: { in: OPEN_TASK } }, { status: 'CLOSED', assignmentId: { not: null }, closedAt: { gte: weekAgo } }] };

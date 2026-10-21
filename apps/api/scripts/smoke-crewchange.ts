@@ -29,7 +29,7 @@ async function main() {
   const unitRows = after.changes.filter((c: any) => c.unitId === handover.unitId && c.date !== to);
   if (unitRows.length) {
     const d = unitRows[0].date; const seats = unitRows.filter((c: any) => c.date === d).map((c: any) => c.seatId);
-    const u = await call('POST', '/assignments/crew-change', admin, { seatIds: seats, from: d, to: plus(d, -1), overrideReason: 'smoke' });
+    const u = await call('POST', '/assignments/crew-change', admin, { seatIds: seats, from: d, to: plus(d, 1), overrideReason: 'smoke' });
     check(`moving the whole unit (${seats.length} seats) works`, u.status === 201 && u.json.seats === seats.length, u.json);
   }
 

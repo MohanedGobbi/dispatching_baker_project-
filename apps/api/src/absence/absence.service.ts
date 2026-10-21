@@ -8,6 +8,40 @@ import { startOfDay } from '../domain/status';
 export interface ReleasedSeat { assignmentId: string; seatId: string; removed: Span; taskId: string | null; cancelled: boolean }
 
 const OPEN_TASK = ['OPEN', 'ESCALATED', 'CANDIDATE_PROPOSED', 'CANDIDATE_CONFIRMED'];
+const DAY = 86_400_000;
+
+/**
+ * A unit seat only needs someone while the unit is on a job. Open replacement tasks on unit seats are fitted to the
+ * unit's jobs: closed when the unit has no job in those days, trimmed to the job days otherwise. Tasks are opened from
+ * many places (leave, archiving, unassigning, crew changes) and jobs move or end, so this runs wherever open tasks are
+ * read or counted; it is cheap and safe to repeat.
+ */
+export async function fitTasksToJobs(db: Pick<Prisma.TransactionClient, 'replacementTask' | 'unitDeployment'>) {
+  const tasks = await db.replacementTask.findMany({
+    where: { status: { in: OPEN_TASK }, seat: { holderType: 'UNIT', unitId: { not: null } } },
+    include: { seat: { select: { unitId: true } } },
+  });
+  if (!tasks.length) return 0;
+  const deps = await db.unitDeployment.findMany({ where: { unitId: { in: [...new Set(tasks.map(t => t.seat.unitId!))] } }, select: { unitId: true, start: true, end: true } });
+  const today = startOfDay(new Date());
+  let changed = 0;
+  for (const t of tasks) {
+    const on = deps.filter(d => d.unitId === t.seat.unitId && startOfDay(d.start) <= t.toDate && t.fromDate <= d.end);
+    if (!on.length) {
+      await db.replacementTask.update({ where: { id: t.id }, data: { status: 'CLOSED', closedAt: new Date() } });
+      changed++; continue;
+    }
+    const from = new Date(Math.max(t.fromDate.getTime(), Math.min(...on.map(d => startOfDay(d.start).getTime()))));
+    const to = new Date(Math.min(t.toDate.getTime(), Math.max(...on.map(d => startOfDay(d.end).getTime()))));
+    if (from.getTime() === t.fromDate.getTime() && to.getTime() === t.toDate.getTime()) continue;
+    // A gap that now starts later is less pressing.
+    const away = Math.round((from.getTime() - today.getTime()) / DAY);
+    const urgency = from.getTime() === t.fromDate.getTime() ? t.urgency : away <= 0 ? 'CRITICAL' : away <= 7 ? 'HIGH' : 'NORMAL';
+    await db.replacementTask.update({ where: { id: t.id }, data: { fromDate: from, toDate: to, deadline: from, urgency } });
+    changed++;
+  }
+  return changed;
+}
 
 @Injectable()
 export class AbsenceService {

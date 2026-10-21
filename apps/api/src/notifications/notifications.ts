@@ -3,6 +3,7 @@ import {
   OnModuleDestroy, OnModuleInit, Param, Post, Put, Query, Req,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { fitTasksToJobs } from '../absence/absence.service';
 import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { CalendarCoreModule, CalendarService } from '../calendar/calendar.service';
@@ -157,6 +158,7 @@ export class NotificationsService {
 
     // 4. replacement tasks whose first uncovered day is close become escalated
     const within = settings['replacements.escalateWithinDays'] as number;
+    await fitTasksToJobs(this.prisma);
     const due = await this.prisma.replacementTask.findMany({ where: { status: { in: OPEN_TASK }, deadline: { lte: addDays(today, within) } } });
     for (const t of due) {
       await this.prisma.replacementTask.update({ where: { id: t.id }, data: { status: 'ESCALATED', escalatedAt: new Date() } });
