@@ -1,6 +1,7 @@
 {
   "name": "@crewboard/web",
   "private": true,
+  "author": "Mohaned Gobbi",
   "version": "0.0.0",
   "type": "module",
   "scripts": {

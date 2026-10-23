@@ -1,6 +1,7 @@
 {
   "name": "crewboard",
   "private": true,
+  "author": "Mohaned Gobbi",
   "workspaces": [
     "apps/*"
   ],

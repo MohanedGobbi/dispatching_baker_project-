@@ -75,7 +75,6 @@
   <a href="#settings">Settings</a>
   <a href="#data">Import / export</a>
   <a href="#audit">Audit</a>
-  <a href="#notifications">Notifications</a>
   <div class="grp">Reference</div>
   <a href="#rules">How the rules work</a>
   <a href="#colours">Colours and labels</a>
@@ -103,16 +102,12 @@
 </ul>
 
 <h3>Who uses it</h3>
-<p>CrewBoard has <strong>one user: the manager</strong>, who plans, dispatches and decides everything. There are no other accounts, no employee app and no approval steps. The manager signs in as <code>admin</code>.</p>
-<p class="note">Other account types still exist inside the system for later and for the automated tests, but they cannot use the web app: they are told it is for the manager only.</p>
-
-<h3>Signing in</h3>
-<figure><img src="img/01-sign-in.png" alt="Sign-in page"><figcaption>The sign-in page. The manager signs in as <code>admin</code>.</figcaption></figure>
+<p>CrewBoard has <strong>one user: the manager</strong>, who plans, dispatches and decides everything. There are no other accounts, no sign-in and no employee app: CrewBoard is installed on the manager's computer and opens straight on the board.</p>
+<h3>Opening CrewBoard</h3>
 <ol class="steps">
-  <li>Open the web address of your CrewBoard (during local use: <code>http://localhost:5173</code>).</li>
-  <li>Type your login and password and press <strong>Sign in</strong>. Demo password: <code>demo1234</code>.</li>
-  <li>If your password is temporary, CrewBoard asks you to choose your own before continuing.</li>
-  <li>Forgot it? Use the <strong>Forgot password</strong> link; a reset link is emailed if email sending is set up.</li>
+  <li>Install it once with <code>CrewBoard Setup 1.0.0.exe</code>. It adds CrewBoard to the Start menu and the desktop.</li>
+  <li>Open <strong>CrewBoard</strong> from the Start menu or the desktop. It opens in its own window, on the board.</li>
+  <li>Close the window to stop it. Opening it again while it is open brings the window back.</li>
 </ol>
 
 <h2 id="around">2. Finding your way around</h2>
@@ -131,10 +126,7 @@
 
 <h3>The top bar</h3>
 <ul>
-  <li><strong>Bell:</strong> your notifications; the number is what you have not read yet.</li>
   <li><strong>Moon / sun:</strong> switch between light and dark appearance. CrewBoard remembers your choice; until you choose, it follows your computer.</li>
-  <li><strong>Key:</strong> change your password.</li>
-  <li><strong>Door arrow:</strong> sign out.</li>
 </ul>
 
 <h3>Page guides</h3>
@@ -325,10 +317,10 @@
   <li>Press <strong>New plan</strong>, choose the weeks and the bases (or all bases). The planner fills every seat it can while following every rule: hardest seats first, then scored on rest, fairness, qualifications and distance.</li>
   <li>Open the draft (v1, v2...). Each assignment says <strong>why</strong> that person was chosen. Seats it could not fill are listed as gaps with ways to fix them.</li>
   <li>Change anything by hand.</li>
-  <li><strong>Publish.</strong> The plan becomes live on the board and everyone concerned is notified.</li>
+  <li><strong>Submit for review</strong>, then <strong>Approve</strong> and <strong>Publish</strong>. The plan becomes live on the board.</li>
 </ol>
 <p class="warn">A draft changes nothing until published. Publishing re-checks every assignment against today's facts (someone may have been taken off a seat since); any assignment it has to skip opens a replacement task.</p>
-<p class="note">There is no review step by default: a plan goes straight from draft to published. If you ever need one, the setting <code>workflow.requireApproval</code> in Settings turns on draft, review, approved, published.</p>
+<p class="note">Plans go draft, review, approved, published. The setting <code>workflow.requireApproval</code> in Settings turns the review steps off: a plan then goes straight from draft to published, and extensions apply in one go instead of being requested then approved.</p>
 
 <h2 id="timeline">Timeline</h2>
 <p class="lead">Everyone's next weeks at a glance: one line per person, one colour per kind of day.</p>
@@ -377,6 +369,7 @@
   <tr><td><code>workflow.requireApproval</code></td><td>Turn on the draft, review, approved, published pipeline for plans and extensions</td></tr>
 </table>
 <p class="warn">Changes apply immediately to all future calculations and are audited. Change one number at a time and look at the board afterwards.</p>
+<p><strong>Backups</strong> at the top of Settings: a copy of all data and files is made every day (the 14 newest are kept, then one per month), and <strong>Back up now</strong> makes one straight away. Copy the folder it names to a USB drive from time to time. <strong>About</strong> at the bottom shows the version.</p>
 
 <h2 id="data">Import / export</h2>
 <p class="lead">Excel in and out. An upload is checked first; nothing is written until you confirm.</p>
@@ -392,16 +385,10 @@
 <p class="lead">Every change, who made it and why. Read only.</p>
 <figure><img src="img/10-audit.png" alt="Audit log"><figcaption>The audit log, newest first.</figcaption></figure>
 <ul>
-  <li>Filter by record type, action, person (login), record id and dates.</li>
+  <li>Filter by record type, action, record id and dates.</li>
   <li>Open a row (the small arrow) to see exactly what changed and the reason given, for example an override reason on a rule.</li>
 </ul>
 
-<h2 id="notifications">Notifications</h2>
-<figure><img src="img/19-notifications.png" alt="Notifications"><figcaption>The notification centre behind the bell.</figcaption></figure>
-<ul>
-  <li>Notices that need your answer (for example a proposed replacement) are marked, and the bell turns red while any are waiting.</li>
-  <li>The list is a read-only history of what CrewBoard told you.</li>
-</ul>
 
 <h2 id="rules">How the rules work</h2>
 
@@ -444,29 +431,12 @@
 <p>Colour is never the only signal: every state also has a text label or icon.</p>
 
 <h2 id="setup">Running and setting up</h2>
-<h3>Starting CrewBoard (Windows)</h3>
-<p>Double-click <code>start-crewboard.cmd</code> at the root of the project. It starts Docker, the database, the API and the web app and opens the browser. <code>stop-crewboard.cmd</code> stops them.</p>
-<h3>Starting it by hand</h3>
-<pre style="background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:10px;overflow:auto;font-size:13.5px">npm install
-npm run db:up                      # PostgreSQL on port 5440
-cd apps/api
-cp .env.example .env
-npx prisma migrate deploy
-npm run seed                       # catalogs, bases, units, about 150 people, accounts
-npm run start:dev                  # API on http://localhost:3000
-# in a second terminal, from the project root:
-npm run dev:web                    # web app on http://localhost:5173
-npm run demo                       # (API running) fills the board with a demo story</pre>
-<h3>Demo accounts</h3>
-<p>Password <code>demo1234</code>. The manager is <code>admin</code>. Other seeded accounts exist only for the automated tests and cannot use the web app.</p>
-<h3>Before real use</h3>
-<ul>
-  <li>Set a real <code>JWT_SECRET</code>, the <code>APP_URL</code> (used in password reset emails) and the SMTP settings in <code>apps/api/.env</code>.</li>
-  <li>Change the manager password (key button in the top bar) and turn the extra demo accounts off (<code>SEED_STAFF=off</code>).</li>
-  <li>Set up database backups.</li>
-  <li>Import your real people, units and bases with Import / export.</li>
-</ul>
-<p class="note">The platform currently runs on mock data until real data is connected. Re-seeding wipes and recreates it.</p>
+<h3>Installing</h3>
+<p>Run <code>CrewBoard Setup 1.0.0.exe</code> (built with <code>npm run dist</code> in the <code>desktop</code> folder of the project). It installs for the current Windows user and needs nothing else: no database server, no browser, no Node.</p>
+<h3>Where the data is</h3>
+<p>Everything is in <code>%APPDATA%CrewBoarddata</code>: the database (<code>crewboard.db</code>), the uploaded files and the daily backups. Uninstalling CrewBoard keeps this folder. To move to another computer, install CrewBoard there and copy this folder over before opening it.</p>
+<h3>Without installing</h3>
+<p><code>start-crewboard.cmd</code> at the root of the project builds the app if needed, runs it on <code>http://127.0.0.1:3000</code> and opens the browser, on the same data. <code>stop-crewboard.cmd</code> stops it.</p>
 
 <h2 id="faq">Questions and fixes</h2>
 <table>
@@ -476,8 +446,7 @@ npm run demo                       # (API running) fills the board with a demo s
   <tr><td>A person is missing from "Best matches".</td><td>Open <em>Why others were ruled out</em>. They may be on days off, already on another seat, unqualified, or would break a rule.</td></tr>
   <tr><td>A unit shows "In the workshop" and I did not do that.</td><td>A preventive service came due and opened a workshop visit. Press Repaired on the unit when it is back.</td></tr>
   <tr><td>A unit cannot be deleted.</td><td>It has history (crew, jobs or workshop visits). Use Out of service.</td></tr>
-  <tr><td>I forgot my password.</td><td>Use "Forgot password" on the sign-in page (needs email to be set up).</td></tr>
-  <tr><td>The board looks out of date.</td><td>It refreshes by itself; if the connection dropped, reload the page.</td></tr>
+  <tr><td>The board looks out of date.</td><td>It refreshes after every change you make; press Ctrl+R to reload it.</td></tr>
   <tr><td>I want to know who changed something.</td><td>Open Audit and filter by record type or person.</td></tr>
 </table>
 
@@ -495,7 +464,8 @@ npm run demo                       # (API running) fills the board with a demo s
   <tr><td>Fixed</td><td>A replacement task that was solved by putting someone on the seat</td></tr>
   <tr><td>Rest owed</td><td>Days a person is owed after extensions</td></tr>
 </table>
-<p style="margin-top:40px;color:var(--muted)">The screenshots were taken from the running platform on the demo data. They can be regenerated with <code>npx playwright test -c playwright.manual.config.ts</code> in <code>apps/web</code> (see docs/manual/README.md).</p>
+<p style="margin-top:40px">CrewBoard is made by <strong>Mohaned Gobbi</strong>. © 2026 Mohaned Gobbi.</p>
+<p style="color:var(--muted)">The screenshots were taken from the running platform on the demo data. They can be regenerated with <code>npx playwright test -c playwright.manual.config.ts</code> in <code>apps/web</code> (see docs/manual/README.md).</p>
 </main>
 </div>
 </body>

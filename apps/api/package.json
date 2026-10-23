@@ -2,6 +2,7 @@
   "name": "@crewboard/api",
   "version": "0.1.0",
   "private": true,
+  "author": "Mohaned Gobbi",
   "scripts": {
     "build": "node scripts/build.cjs",
     "start": "node dist/src/main.js",

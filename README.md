@@ -1,7 +1,7 @@
 # CrewBoard
 
-Crew rotation and dispatch platform. The full functional plan is in
-[crew-dispatch-platform-plan.md](crew-dispatch-platform-plan.md). The platform runs on **mock data** until real data is connected.
+Crew rotation and dispatch, made by **Mohaned Gobbi**. A desktop app for one manager on one Windows PC. The full functional plan is in
+[crew-dispatch-platform-plan.md](crew-dispatch-platform-plan.md); how it became a desktop app is in [docs/desktop-plan.md](docs/desktop-plan.md).
 
 ## Run it
 

@@ -92,6 +92,11 @@ export default function Settings() {
           })}
         </section>
       ))}
+      <section className="panel">
+        <h2>{t('set_about', 'About')}</h2>
+        <p>CrewBoard {__APP_VERSION__} · {t('aboutWhat', 'Crew rotation and dispatch')}</p>
+        <p>{t('madeBy', 'Made by')} <strong>Mohaned Gobbi</strong> <span className="muted">· © 2026 Mohaned Gobbi</span></p>
+      </section>
     </main>
   )
 }

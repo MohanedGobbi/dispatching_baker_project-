@@ -455,10 +455,9 @@ button.link { background: none; border: 0; color: var(--accent); text-decoration
 .side-nav a b { font-weight: 600; font-size: 13.5px; }
 .side-nav a.on small { color: #e2e8f0; }
 .side-nav a small { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.side-me { display: flex; align-items: center; gap: 10px; padding: 10px 6px 2px; border-top: 1px solid rgba(255,255,255,.08); }
-.side-me span:last-child { display: grid; line-height: 1.2; }
-.side-me small { color: #94a3b8; font-size: 11px; }
-.avatar-sm { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #334155; font-size: 11px; font-weight: 700; }
+/* the author's signature at the foot of the sidebar */
+.side-sign { margin-top: auto; padding: 10px 6px 2px; border-top: 1px solid rgba(255,255,255,.08); color: #94a3b8; font-size: 12px; line-height: 1.3; }
+.side-sign b { color: #e2e8f0; font-weight: 600; }
 .shell2.slim .side-label { display: none; }
 .shell2.slim .side-brand { flex-direction: column; }
 .shell2.slim .side-nav a { justify-content: center; }
@@ -835,12 +834,12 @@ p > button + button, span > button + button, div:not([class]) > button + button,
 .month-grid .d { text-shadow: 0 1px 1px rgba(0,0,0,.35); }
 
 /* ================= P1 fixes: no text under 12px ================= */
-.who small, .tag, .wo, .tl-name small, .tl-day, .tl-block, .side-brand small, .side-nav a small, .side-me small,
+.who small, .tag, .wo, .tl-name small, .tl-day, .tl-block, .side-brand small, .side-nav a small,
 .donut-center small, .kpi2 small, .fchip b, .ucard-head .type-pill, .role-pill, .st-dot, .gantt, .gantt .g-day, .gantt .g-bar,
 .rc-lane-title, .tcard .count small, .tag2, .big-strip .bs-block, .strip-axis, .month-grid .dow, .month-grid .d,
 .pp-stats span, .fact span, .side-group-title, .an-heat, .an-heat .an-day, .an-heat td.an-num, .an-col, .badge, .legend, .legend2 { font-size: 12px; }
 .tl-day b { font-size: 11px; }      /* month name sitting above the day number */
-.chip.compact .avatar, .avatar, .avatar-sm { font-size: 11px; }  /* initials inside avatars are not read as text */
+.chip.compact .avatar, .avatar { font-size: 11px; }  /* initials inside avatars are not read as text */
 .tl-row { grid-template-columns: 210px repeat(var(--n), minmax(26px, 1fr)); min-width: calc(210px + var(--n) * 26px); }
 .gantt { grid-template-columns: 170px repeat(var(--n), minmax(22px, 1fr)); min-width: calc(170px + var(--n) * 22px); }
 
@@ -925,11 +924,7 @@ p > button + button, span > button + button, div:not([class]) > button + button,
   .chip { position: relative; touch-action: pan-y; min-height: 44px; }
   .chip .who .name::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
 }
-.side-account { display: none; }
 @media (max-width: 760px) {
-  .nav .acct { display: none; }
-  .side-account { display: grid; gap: 6px; padding-top: 6px; }
-  .side-account button { display: flex; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #e2e8f0; border-radius: 10px; padding: 10px 12px; }
   .nav .crumb { flex: 1 1 auto; }
   .nav .spacer { display: none; }
 }

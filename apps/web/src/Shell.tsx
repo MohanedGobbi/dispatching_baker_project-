@@ -83,6 +83,7 @@ export default function Shell() {
             )
           })}
         </nav>
+        <div className="side-sign side-label"><span>{t('madeBy', 'Made by')} <b>Mohaned Gobbi</b></span></div>
       </aside>
       <div className="main-col">
       <header className="nav">
