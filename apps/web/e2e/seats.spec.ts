@@ -66,7 +66,7 @@ test('the same actions are on the unit panel, the unit page and the person panel
   await expect(page.getByRole('dialog', { name: /Replace or unassign/ })).toBeVisible()
   await page.keyboard.press('Escape')
 
-  await page.locator('.unit-page table a, .unit-page table button').filter({ hasText: /\w+ \w+/ }).first().click()
+  await page.locator('.unit-page table .name-link').first().click()
   await expect(page.locator('.pp-body').getByText('Seats now and coming up')).toBeVisible()
   await expect(page.locator('.pp-body .seat-act').first()).toBeVisible()
 })

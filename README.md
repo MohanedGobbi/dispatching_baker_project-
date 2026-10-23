@@ -46,8 +46,19 @@ npm test            # pure-logic unit tests (rules, engine, status, calendars...
 npx tsx scripts/db-summary.ts   # read-only: every table with its row count, and any broken references
 ```
 
-The smoke suites (`npm run smoke`) and the browser tests (`npm run e2e` in apps/web) still sign in as several roles;
-they are being rewritten for the single-user app. Run them only against a throwaway `DATA_DIR`: they change data.
+**Smoke suites and browser tests change data: run them only on a throwaway folder, never the real data.**
+
+```bash
+# 1. a throwaway database with the mock data (PowerShell: $env:DATA_DIR = 'C:	empcrewboard-test')
+cd apps/api && npm run build
+DATA_DIR=/tmp/crewboard-test npx tsx prisma/seed.ts
+DATA_DIR=/tmp/crewboard-test JOBS=off npm start        # API and web on http://127.0.0.1:3000, in another terminal
+# 2. the 12 API smoke suites (386 checks)
+npm run smoke
+# 3. the demo story, then the 14 browser tests (apps/web; PW_CHANNEL=msedge uses the installed Edge)
+npm run demo
+cd ../web && npm run e2e
+```
 
 Performance at 5x the mock volume: see [docs/performance.md](docs/performance.md).
 
@@ -76,7 +87,7 @@ Nothing is required. `apps/api/.env` (see `.env.example`) can set `DATA_DIR` and
 | E22-E25 analytics, forecast, recommendations, map | API and web: 90-day coverage forecast with heat map, 13 KPIs, 7 dashboards, recommendations (recruit, transfer, relief, spread leave, train, promote), offline-friendly map |
 | Web: extensions, settings | extension requests/approval/balances/report; settings editor |
 | E26 audit log | audit screen with filters and field-by-field before/after; setting changes audited |
-| E28-E30 testing and polish | 83 unit tests, 12 API smoke suites, 12 Playwright browser tests; performance at 5x; WCAG 2.1 AA audit with 0 violations |
+| E28-E30 testing and polish | 83 unit tests, 12 API smoke suites (386 checks), 14 Playwright browser tests; performance at 5x; WCAG 2.1 AA audit with 0 violations |
 | E27 import / export | Excel templates, export, validate-first import with a row-by-row report, then commit, for employees (incl. rotation sheet), units and bases. PDF export not built |
 
 **Demo:** see [DEMO.md](DEMO.md) for logins, the planted scenarios and a click-by-click walkthrough of the 12 acceptance scenarios.

@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => { await openApp(page); await foldGuides(page
 test('the fleet: tiles filter, add, edit, move, retire and delete a unit', async ({ page }) => {
   await page.goto('/#/units')
   await page.locator('.kpi2', { hasText: 'On a job' }).click()
-  for (const cell of await page.locator('.units-table tbody tr td:nth-child(4)').allInnerTexts()) expect(cell).toContain('On a job')
+  for (const cell of await page.locator('.units-table tbody tr td:nth-child(5)').allInnerTexts()) expect(cell).toContain('On a job')
   await page.locator('.kpi2', { hasText: 'All units' }).click()
 
   const code = unique('HL-E')

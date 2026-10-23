@@ -169,6 +169,22 @@ by Vite and the main process is plain JavaScript.
 
 ## Final pass (after Step 5)
 
+**Result (2026-10-23): done.** Both apps type-check; 83 logic tests pass; the 12 smoke suites pass (386 checks) and
+the 14 Playwright tests pass (Edge, including the WCAG 2.1 AA audit of every screen in light and dark); the rebuilt
+installer was installed over the old one and every screen renders in it, with the real data file unchanged.
+What changed along the way:
+- The suites no longer sign in. Checks about roles, sign-in, privacy between users and the live-update stream were
+  removed (nothing is left to check); the leave and tasks suites were rewritten around the manager.
+- `/api` is understood by the API in every mode, so scripts and the web app call the same paths.
+- A bug from Step 3 was found by the suites and fixed: the replacement list ignored a base *code*.
+- The demo's scenario 14 is now an extension waiting for approval (shift swaps are gone).
+- Three older browser tests were out of date, not broken by this work: the Units status column moved one place (a
+  selection column was added), the person-panel test clicked a crew-change button instead of a name, and the plan
+  test now follows draft, review, approved, published.
+- The Playwright tests, smoke suites and demo are never to run against `%APPDATA%CrewBoard`: they change data.
+
+Original plan for this pass:
+
 - Type check and lint on API and web.
 - The 89 logic tests, unchanged.
 - The smoke scripts, rewritten for SQLite and no logins. The ones for the portal, users and notifications are deleted;
