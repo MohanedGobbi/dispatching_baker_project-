@@ -61,7 +61,7 @@ class ReplacementsController {
 
   @Get()
   async list(@Query() q: { status?: string; urgency?: string; baseId?: string; all?: string; recent?: string }) {
-    const scope = q.baseId ? [q.baseId] : undefined;
+    const scope = q.baseId ? await this.planning.scopeFor([q.baseId]) : undefined; // a base id or code
     await fitTasksToJobs(this.prisma); // no warnings for units that are not on a job
     await this.escalateDue();
     // Open tasks only, unless `recent=true`: then also the ones fixed in the last week (a person was placed), so the screen can show the problem is solved.

@@ -1,9 +1,9 @@
 // Live smoke test for E9 (seats & assignments + rule validator). Mutates data: run `npm run seed` afterwards.
-// Usage: API=http://localhost:3000 tsx scripts/smoke-assignments.ts
+// Usage: API=http://127.0.0.1:3000/api tsx scripts/smoke-assignments.ts
 import '../src/env';
 import { PrismaClient } from '../src/db';
 
-const API = process.env.API ?? 'http://localhost:3000';
+const API = process.env.API ?? 'http://127.0.0.1:3000/api';
 const prisma = new PrismaClient();
 let failed = 0;
 let seq = 0;
@@ -21,7 +21,7 @@ function check(name: string, ok: boolean, extra?: unknown) {
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  ' + JSON.stringify(extra)?.slice(0, 400)}`);
 }
-const login = async (l: string) => (await call('POST', '/auth/login', undefined, { login: l, password: 'demo1234' })).json.token as string;
+const login = async (_who: string) => ''; // no sign-in any more: every request acts as the manager
 const DAY = 86_400_000;
 const today = new Date(); today.setUTCHours(0, 0, 0, 0);
 const at = (n: number) => new Date(today.getTime() + n * DAY).toISOString();
@@ -75,7 +75,6 @@ async function main() {
   check('preview writes nothing', (await prisma.assignment.count({ where: { employeeId: j1.id } })) === 0);
   check('preview: recruit on the Experienced seat => seat_seniority', rules(await call('POST', '/assignments/preview', disp, body(recruit, opSeat(1).id))).includes('seat_seniority'));
   check('preview: Cased-Hole-only operator on OH seat => qualification', rules(await call('POST', '/assignments/preview', disp, body(chOnly, opSeat(2).id))).includes('qualification'));
-  check('preview: employee-role has no access (needs view on assignments is fine, but unauth is 401)', (await call('POST', '/assignments/preview', undefined, body(j1, opSeat(2).id))).status === 401);
 
   // ---- build a crew of juniors
   const c1 = await call('POST', '/assignments', disp, body(chief, chiefSeat.id));
@@ -202,9 +201,7 @@ async function main() {
     },
   });
   check('base manager can fill a base post at own base', (await call('POST', '/assignments', bm, body(baseGuy, bp.id, 0, 6))).status === 201);
-  check('base manager cannot touch a unit seat', (await call('POST', '/assignments', bm, body(exp, opSeat(2).id, 20, 22))).status === 403);
   const inaPost = await prisma.seat.create({ data: { holderType: 'BASE', baseId: ina.id, positionId: mechPos.id, index: 1, requiredFlag: true } });
-  check('base manager cannot touch another base', (await call('POST', '/assignments', bm, body(baseGuy, inaPost.id, 0, 6))).status === 403);
   check('field-only guy on base post => work_mode', rules(await call('POST', '/assignments/preview', disp, body(j3, bp.id, 20, 22))).includes('work_mode'));
 
   console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');

@@ -1,8 +1,9 @@
-// Shared helpers for the live smoke scripts. They mutate the database: run `npm run seed` afterwards.
+// Shared helpers for the live smoke scripts. They mutate the database: run them only with DATA_DIR pointing at a
+// throwaway folder seeded with `npm run seed`, never against the real data.
 import '../src/env';
 import { PrismaClient } from '../src/db';
 
-export const API = process.env.API ?? 'http://127.0.0.1:3000';
+export const API = process.env.API ?? 'http://127.0.0.1:3000/api';
 export const prisma = new PrismaClient();
 export const DAY = 86_400_000;
 export const today = new Date(); today.setUTCHours(0, 0, 0, 0);
@@ -28,7 +29,8 @@ export function check(name: string, ok: boolean, extra?: unknown) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  ' + (typeof extra === 'string' ? extra : JSON.stringify(extra))?.slice(0, 500)}`);
 }
 
-export const login = async (l: string) => (await call('POST', '/auth/login', undefined, { login: l, password: 'demo1234' })).json.token as string;
+/** No sign-in any more: every request acts as the manager. Kept so the suites read the same; the token is empty. */
+export const login = async (_who: string) => '';
 
 /** A person with valid certs, a chosen seniority and qualification, on a 28/28 rotation that began 2 days ago. */
 export async function mkEmployee(opts: { position: string; level: 'NEW_RECRUIT' | 'JUNIOR' | 'EXPERIENCED' | 'SENIOR'; quals: string[]; base: string; anchorOffset?: number }) {
@@ -47,12 +49,6 @@ export async function mkEmployee(opts: { position: string; level: 'NEW_RECRUIT' 
   });
 }
 
-/** A login for an employee (password demo1234), so the portal and notifications can be tried as that person. */
-export async function mkUser(employeeId: string, roles: { role: string; baseScope?: string }[] = [{ role: 'EMPLOYEE' }], login?: string) {
-  const { hashPassword } = await import('../src/auth/crypto');
-  seq++;
-  return prisma.user.create({ data: { login: login ?? `u${Date.now() % 1e6}-${seq}`, passwordHash: hashPassword('demo1234'), employeeId, roles: { create: roles } } });
-}
 
 export async function finish() {
   console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');

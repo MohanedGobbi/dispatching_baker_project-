@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { foldGuides, signInManager } from './helpers'
+import { foldGuides, openApp } from './helpers'
 
 // Replace or unassign the person on a seat, from the board, the unit panel, the unit page and the person panel.
 
@@ -14,7 +14,7 @@ async function openActions(page: Page, n = 0) {
 }
 
 test('replace someone on a board seat with a ranked candidate', async ({ page }) => {
-  await signInManager(page)
+  await openApp(page)
   await foldGuides(page)
   await page.goto('/#/board')
   const name = await openActions(page)
@@ -37,7 +37,7 @@ test('replace someone on a board seat with a ranked candidate', async ({ page })
 })
 
 test('unassign someone from a seat, with an optional reason', async ({ page }) => {
-  await signInManager(page)
+  await openApp(page)
   await foldGuides(page)
   await page.goto('/#/board')
   // Clicking the person's chip (not the name, which opens the profile) opens the same dialog.
@@ -51,7 +51,7 @@ test('unassign someone from a seat, with an optional reason', async ({ page }) =
 })
 
 test('the same actions are on the unit panel, the unit page and the person panel', async ({ page }) => {
-  await signInManager(page)
+  await openApp(page)
   await foldGuides(page)
   await page.goto('/#/board')
   await page.locator('.ucard-head.clickable').first().click()

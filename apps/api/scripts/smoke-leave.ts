@@ -1,10 +1,11 @@
 // Live smoke test for E12-E14: leave, medical leave, clearance, restrictions, extensions, days-off balance.
-// Usage: tsx scripts/smoke-leave.ts   (API running, freshly seeded)
+// Usage: tsx scripts/smoke-leave.ts   (API running on a throwaway DATA_DIR, freshly seeded)
+// One user: the manager enters every leave, so it is in effect at once (medical and absence RECORDED, the rest APPROVED).
 import '../src/env';
-import { at, call, check, day, DAY, finish, login, mkEmployee, mkUser, prisma, today } from './lib';
+import { at, call, check, day, DAY, finish, login, mkEmployee, prisma, today } from './lib';
 
 async function main() {
-  const [admin, ops, hr, disp, bm, emp] = await Promise.all(['admin', 'ops', 'hr', 'dispatcher', 'basemanager', 'employee'].map(login));
+  const [admin, ops, hr, disp] = await Promise.all(['admin', 'ops', 'hr', 'dispatcher'].map(login));
   const type = async (name: string) => (await prisma.leaveType.findUniqueOrThrow({ where: { name } })).id;
   const [medT, annualT, recoveryT, absenceT] = await Promise.all([type('Medical leave'), type('Annual leave'), type('Recovery days'), type('Unjustified absence')]);
 
@@ -26,10 +27,8 @@ async function main() {
   check('setup: crew placed', !!pA && !!qA && !!rA, { pA, qA, rA });
 
   // ================= medical leave (acceptance 2, 3) =================
-  check('dispatcher cannot record medical leave', (await call('POST', '/leaves', disp, { employeeId: P.id, typeId: medT, start: at(0), end: at(9) })).status === 403);
-  check('base manager cannot record medical leave', (await call('POST', '/leaves', bm, { employeeId: P.id, typeId: medT, start: at(0), end: at(9) })).status === 403);
   const med = await call('POST', '/leaves', hr, { employeeId: P.id, typeId: medT, start: at(0), end: at(9), documentUrl: 'cert-1.pdf', notes: 'CONFIDENTIAL-NOTE' });
-  check('HR records medical leave => RECORDED', med.status === 201 && med.json.leave.status === 'RECORDED', med.json);
+  check('medical leave is recorded at once => RECORDED', med.status === 201 && med.json.leave.status === 'RECORDED', med.json);
   const fx = med.json.effects.released;
   check('acceptance 2: one seat released', fx.length === 1 && fx[0].seatId === seat('Field Operator', 2).id, fx);
   const task = await prisma.replacementTask.findFirstOrThrow({ where: { sourceId: med.json.leave.id } });
@@ -46,36 +45,25 @@ async function main() {
   const rep = await call('POST', '/assignments', disp, { employeeId: E.id, seatId: seat('Field Operator', 2).id, start: at(0), end: at(9), type: 'REPLACEMENT' });
   check('acceptance 3: replacement can take the freed seat', rep.status === 201, rep.json);
 
-  // ---- privacy
-  const asDisp = await call('GET', `/leaves/${med.json.leave.id}`, disp);
-  check('dispatcher sees "Unavailable" with dates, no notes/certificate', asDisp.json.type.name === 'Unavailable' && !('notes' in asDisp.json) && !('documentUrl' in asDisp.json) && asDisp.json.start, asDisp.json);
-  const dispList = await call('GET', `/leaves?employeeId=${P.id}`, disp);
-  check('dispatcher list masks the reason', dispList.json.items.every((l: any) => l.type.name === 'Unavailable') && !dispList.text.includes('CONFIDENTIAL') && !dispList.text.toLowerCase().includes('medical'), dispList.text.slice(0, 300));
-  const bmView = await call('GET', `/leaves/${med.json.leave.id}`, bm);
-  check('base manager also sees only Unavailable', bmView.json.type.name === 'Unavailable' && !('notes' in bmView.json));
-  const hrView = await call('GET', `/leaves/${med.json.leave.id}`, hr);
-  check('HR sees certificate and notes', hrView.json.documentUrl === 'cert-1.pdf' && hrView.json.notes === 'CONFIDENTIAL-NOTE', hrView.json);
-  check('ops can view medical details', (await call('GET', `/leaves/${med.json.leave.id}`, ops)).json.documentUrl === 'cert-1.pdf');
-  check('HR view is written to the access log', (await prisma.auditLog.count({ where: { entityId: med.json.leave.id, action: 'medical_view' } })) >= 1);
-  const empList = await call('GET', '/leaves', emp);
-  const empSelf = (await prisma.user.findUniqueOrThrow({ where: { login: 'employee' } })).employeeId;
-  check('employee role only gets own rows', empList.status === 200 && empList.json.items.every((l: any) => l.employeeId === empSelf), empList.json);
+  // ---- the manager sees everything
+  const detail = await call('GET', `/leaves/${med.json.leave.id}`, hr);
+  check('detail shows the certificate and notes', detail.json.documentUrl === 'cert-1.pdf' && detail.json.notes === 'CONFIDENTIAL-NOTE', detail.json);
+  const list = await call('GET', `/leaves?employeeId=${P.id}`, hr);
+  check('the list shows the real reason', list.json.items.some((l: any) => l.type.name === 'Medical leave'), list.json.items);
+  check('nobody needs a sign-in', (await call('GET', '/leaves')).status === 200);
 
-  // ---- employee-submitted medical leave waits for HR validation
-  const empTok = await login((await mkUser(Q.id)).login);
-  check('employee needs a certificate', (await call('POST', '/leaves', empTok, { typeId: medT, start: at(16), end: at(18) })).status === 400);
-  const sub = await call('POST', '/leaves', empTok, { typeId: medT, start: at(16), end: at(18), documentUrl: 'self-cert.pdf' });
-  check('employee submits medical leave => SUBMITTED, no effect yet', sub.status === 201 && sub.json.leave.status === 'SUBMITTED' && sub.json.effects === null, sub.json);
-  check('employee cannot book leave for someone else', (await call('POST', '/leaves', empTok, { employeeId: P.id, typeId: annualT, start: at(40), end: at(41) })).status === 403);
-  check('dispatcher cannot validate', (await call('POST', `/leaves/${sub.json.leave.id}/approve`, disp)).status === 403);
-  const val = await call('POST', `/leaves/${sub.json.leave.id}/approve`, hr);
-  check('HR validates => RECORDED + effects (releases seat on the covered days)', val.status === 201 && val.json.status === 'RECORDED', val.json);
-  check('employee cannot cancel after validation', (await call('POST', `/leaves/${sub.json.leave.id}/cancel`, empTok, {})).status === 403);
+  // ---- a sick call before the certificate arrives
+  const sub = await call('POST', '/leaves', hr, { employeeId: Q.id, typeId: medT, start: at(16), end: at(18) });
+  check('medical leave without a certificate is recorded, with a reminder', sub.status === 201 && sub.json.leave.status === 'RECORDED' && sub.json.warnings.some((w: string) => w.includes('Certificate')), sub.json);
+  // A request left waiting by the old employee portal can still be decided.
+  const waiting = await prisma.leave.create({ data: { employeeId: Q.id, typeId: medT, start: new Date(today.getTime() + 22 * DAY), end: new Date(today.getTime() + 24 * DAY), status: 'SUBMITTED', documentUrl: 'self-cert.pdf' } });
+  const val = await call('POST', `/leaves/${waiting.id}/approve`, hr);
+  check('a waiting medical request is validated => RECORDED', val.status === 201 && val.json.status === 'RECORDED', val.json);
 
   // ---- extension of medical leave + long-term flag
   check('extend needs a new certificate', (await call('POST', `/leaves/${med.json.leave.id}/extend`, hr, { newEnd: at(14) })).status === 400);
   const ext = await call('POST', `/leaves/${med.json.leave.id}/extend`, hr, { newEnd: at(14), documentUrl: 'cert-2.pdf' });
-  check('HR extends medical leave; only added days free more seats', ext.status === 201 && ext.json.end === day(at(14)), ext.json);
+  check('medical leave extended; only added days free more seats', ext.status === 201 && ext.json.end === day(at(14)), ext.json);
   const lt = await call('POST', '/leaves', hr, { employeeId: W.id, typeId: medT, start: at(1), end: at(45), documentUrl: 'long.pdf' });
   check('45-day medical leave is flagged long-term', lt.status === 201 && lt.json.leave.longTerm === true, lt.json);
 
@@ -86,13 +74,10 @@ async function main() {
   check('after a long medical leave ends: AWAITING_CLEARANCE', (await call('GET', `/employees/${X.id}`, hr)).json.status === 'AWAITING_CLEARANCE');
   const queue = await call('GET', '/leaves/clearance/queue', hr);
   check('clearance queue lists X, not the short leave', queue.status === 200 && queue.json.some((r: any) => r.employee.id === X.id) && !queue.json.some((r: any) => r.leaveId === short.id), queue.json);
-  check('dispatcher has no access to the queue', (await call('GET', '/leaves/clearance/queue', disp)).status === 403);
-  check('ops can see the queue but not clear', (await call('GET', '/leaves/clearance/queue', ops)).status === 200);
   const xLeave = (await prisma.leave.findFirstOrThrow({ where: { employeeId: X.id } })).id;
-  check('ops cannot clear', (await call('POST', `/leaves/${xLeave}/clearance`, ops, {})).status === 403);
   check('invalid restriction kind rejected', (await call('POST', `/leaves/${xLeave}/clearance`, hr, { restriction: { kind: 'nope' } })).status === 400);
   const clr = await call('POST', `/leaves/${xLeave}/clearance`, hr, { restriction: { kind: 'base_only', end: at(14) } });
-  check('acceptance 4: HR clears with base_only restriction', clr.status === 201 && clr.json.restriction.kind === 'base_only', clr.json);
+  check('acceptance 4: cleared with base_only restriction', clr.status === 201 && clr.json.restriction.kind === 'base_only', clr.json);
   check('restriction frees X\'s unit seat with a HIGH task', clr.json.released.length === 1 && (await prisma.replacementTask.findFirstOrThrow({ where: { sourceId: clr.json.restriction.id } })).urgency === 'HIGH', clr.json.released);
   check('X is no longer awaiting clearance', (await call('GET', `/employees/${X.id}`, hr)).json.status !== 'AWAITING_CLEARANCE');
   check('cannot clear twice', (await call('POST', `/leaves/${xLeave}/clearance`, hr, {})).status === 400);
@@ -104,24 +89,22 @@ async function main() {
   check('ending twice is rejected', (await call('DELETE', `/employees/${X.id}/restrictions/${rs.json.restriction.id}`, hr)).status === 400);
 
   // ================= other leave types =================
-  const ann = await call('POST', '/leaves', empTok, { typeId: annualT, start: at(30), end: at(36) });
-  check('employee requests annual leave => SUBMITTED', ann.status === 201 && ann.json.leave.status === 'SUBMITTED', ann.json);
-  check('own request cannot be approved by the same employee', (await call('POST', `/leaves/${ann.json.leave.id}/approve`, empTok)).status === 403);
-  check('reject needs a reason', (await call('POST', `/leaves/${ann.json.leave.id}/reject`, bm, {})).status === 400);
-  const ap = await call('POST', `/leaves/${ann.json.leave.id}/approve`, bm, { note: 'ok' });
-  check('base manager approves leave of own-base staff', ap.status === 201 && ap.json.status === 'APPROVED', ap.json);
-  const bal0 = await call('GET', `/leaves/balance/${Q.id}`, empTok);
+  const ann = await call('POST', '/leaves', hr, { employeeId: Q.id, typeId: annualT, start: at(30), end: at(36) });
+  check('annual leave entered by the manager => APPROVED', ann.status === 201 && ann.json.leave.status === 'APPROVED', ann.json);
+  check('an approved leave cannot be rejected', (await call('POST', `/leaves/${ann.json.leave.id}/reject`, hr, { reason: 'x' })).status === 400);
+  const bal0 = await call('GET', `/leaves/balance/${Q.id}`, hr);
   check('annual entitlement tracked (30 - 7 = 23)', bal0.json.annualLeave.taken === 7 && bal0.json.annualLeave.remaining === 23, bal0.json.annualLeave);
-  check('employee cannot read someone else\'s balance', (await call('GET', `/leaves/balance/${P.id}`, empTok)).status === 403);
-  const can1 = await call('POST', `/leaves/${ann.json.leave.id}/cancel`, bm, { reason: 'plans changed' });
+  const can1 = await call('POST', `/leaves/${ann.json.leave.id}/cancel`, hr, { reason: 'plans changed' });
   check('cancel approved leave', can1.status === 201 && can1.json.status === 'CANCELLED');
-  check('cancelled leave frees the entitlement', (await call('GET', `/leaves/balance/${Q.id}`, empTok)).json.annualLeave.taken === 0);
-  check('only managers record unjustified absence', (await call('POST', '/leaves', empTok, { typeId: absenceT, start: at(1), end: at(1) })).status === 403);
-  check('no recovery days without balance', (await call('POST', '/leaves', empTok, { typeId: recoveryT, start: at(40), end: at(41) })).status === 400);
+  check('cancelled leave frees the entitlement', (await call('GET', `/leaves/balance/${Q.id}`, hr)).json.annualLeave.taken === 0);
+  const V = await mkEmployee({ position: 'Field Operator', level: 'JUNIOR', quals: ['Open Hole'], base: 'HMD' });
+  const abs = await call('POST', '/leaves', hr, { employeeId: V.id, typeId: absenceT, start: at(1), end: at(1) });
+  check('unjustified absence is recorded at once', abs.status === 201 && abs.json.leave.status === 'RECORDED', abs.json);
+  check('no recovery days without balance', (await call('POST', '/leaves', hr, { employeeId: Q.id, typeId: recoveryT, start: at(40), end: at(41) })).status === 400);
 
   // returning early
   const ann2 = await call('POST', '/leaves', hr, { employeeId: W.id, typeId: annualT, start: at(60), end: at(70) });
-  check('HR enters leave for someone => approved directly', ann2.json.leave.status === 'APPROVED', ann2.json);
+  check('leave entered for someone => approved directly', ann2.json.leave.status === 'APPROVED', ann2.json);
   check('return early shortens the leave', (await call('POST', `/leaves/${ann2.json.leave.id}/return-early`, hr, { lastDay: at(63) })).json.end === day(at(63)));
   check('return-early after the end rejected', (await call('POST', `/leaves/${ann2.json.leave.id}/return-early`, hr, { lastDay: at(80) })).status === 400);
 
@@ -136,15 +119,12 @@ async function main() {
   // aggregate-only medical stats
   const st = await call('GET', '/leaves/stats/medical', hr);
   check('medical stats are aggregated, no individuals', st.status === 200 && st.json.length > 0 && !st.text.includes('Smoke') && !st.text.includes('employee'), st.text.slice(0, 200));
-  check('dispatcher cannot see medical stats', (await call('GET', '/leaves/stats/medical', disp)).status === 403);
 
   // ================= extensions & balance (acceptance 8) =================
   const reqE = await call('POST', '/extensions', disp, { assignmentId: qA.id, days: 2, reason: 'no_replacement' });
-  check('dispatcher requests an extension', reqE.status === 201 && !reqE.json.needsOverride, reqE.json);
+  check('extension requested', reqE.status === 201 && !reqE.json.needsOverride, reqE.json);
   check('duplicate pending request => 409', (await call('POST', '/extensions', disp, { assignmentId: qA.id, days: 1, reason: 'urgent_job' })).status === 409);
   check('invalid reason rejected', (await call('POST', '/extensions', disp, { assignmentId: qA.id, days: 1, reason: 'bored' })).status === 400);
-  check('employee role cannot request', (await call('POST', '/extensions', empTok, { assignmentId: qA.id, days: 1, reason: 'other' })).status === 403);
-  check('dispatcher cannot approve', (await call('POST', `/extensions/${reqE.json.extension.id}/approve`, disp, {})).status === 403);
   const app1 = await call('POST', `/extensions/${reqE.json.extension.id}/approve`, ops, {});
   check('successor on the seat blocks the extension (409)', app1.status === 409, app1.json);
   // an open replacement task for the days we are about to cover
@@ -157,10 +137,6 @@ async function main() {
   check('the matching replacement task was closed', (await prisma.replacementTask.count({ where: { seatId: seat('Field Operator', 3).id, trigger: 'leave', status: 'CLOSED' } })) === 1);
   check('days beyond the original end show as EXTENDED', (await call('GET', `/employees/${Q.id}?date=${at(11)}`, hr)).json.status === 'EXTENDED');
   check('balance now +2', (await call('GET', `/leaves/balance/${Q.id}`, hr)).json.daysOffBalance === 2);
-
-  // acknowledgement by the employee concerned
-  check('another user cannot acknowledge', (await call('POST', `/extensions/${reqE.json.extension.id}/acknowledge`, hr)).status === 403);
-  check('employee acknowledges', (await call('POST', `/extensions/${reqE.json.extension.id}/acknowledge`, empTok)).json.acknowledgedAt);
 
   // limits: used 2 of 7 per rotation; asking 6 more breaches
   const big = await call('POST', '/extensions', disp, { assignmentId: qA.id, days: 9, reason: 'urgent_job' });
@@ -178,15 +154,13 @@ async function main() {
   check('adjustment +3', (await call('POST', '/extensions/balance-adjust', ops, { employeeId: Q.id, days: 3, note: 'Manual credit' })).status === 201);
   const rank = await call('GET', '/extensions/balances', ops);
   check('balance ranking puts Q first with 5', rank.json[0]?.id === Q.id && rank.json[0].balance === 5, rank.json?.slice?.(0, 2));
-  const rec = await call('POST', '/leaves', empTok, { typeId: recoveryT, start: at(50), end: at(52) });
-  check('recovery days now allowed (balance 5, asking 3)', rec.status === 201, rec.json);
-  await call('POST', `/leaves/${rec.json.leave.id}/approve`, hr);
-  check('approved recovery days consume the balance (5 - 3 = 2)', (await call('GET', `/leaves/balance/${Q.id}`, hr)).json.daysOffBalance === 2);
+  const rec = await call('POST', '/leaves', hr, { employeeId: Q.id, typeId: recoveryT, start: at(50), end: at(52) });
+  check('recovery days now allowed (balance 5, asking 3)', rec.status === 201 && rec.json.leave.status === 'APPROVED', rec.json);
+  check('recovery days consume the balance (5 - 3 = 2)', (await call('GET', `/leaves/balance/${Q.id}`, hr)).json.daysOffBalance === 2);
   check('cancelling restores the balance', (await call('POST', `/leaves/${rec.json.leave.id}/cancel`, hr, {})).status === 201 && (await call('GET', `/leaves/balance/${Q.id}`, hr)).json.daysOffBalance === 5);
 
   const rep2 = await call('GET', '/extensions/report?groupBy=reason', ops);
   check('extension report by reason', rep2.status === 200 && rep2.json.find((r: any) => r.key === 'no_replacement')?.days === 2, rep2.json);
-  check('employee cannot see the report', (await call('GET', '/extensions/report', empTok)).status === 403);
 
   // rotation-shift policy instead of balance
   await call('PUT', '/settings/rules.shiftNextRotationOnExtension', admin, { value: true });

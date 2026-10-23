@@ -14,7 +14,6 @@ async function main() {
   // ================= plans =================
   check('a plan needs a name and an interval', (await call('POST', `/units/${unit.id}/maintenance-plans`, admin, { name: 'x' })).status === 400);
   check('interval must be sensible', (await call('POST', `/units/${unit.id}/maintenance-plans`, admin, { name: 'x', everyDays: 0 })).status === 400);
-  check('dispatcher cannot change plans (maintenance is view-only for them)', (await call('POST', `/units/${unit.id}/maintenance-plans`, disp, { name: 'x', everyDays: 30 })).status === 403);
   const due = (await call('POST', `/units/${unit.id}/maintenance-plans`, admin, { name: 'Engine service', everyDays: 90, durationDays: 2, leadDays: 14, startFrom: ago(200), lastDone: ago(80) })).json;
   check('a service done 80 days ago every 90 days is due soon, due in 10 days', due.state === 'due_soon' && due.nextDue === day(at(10)), due);
   const late = (await call('POST', `/units/${unit.id}/maintenance-plans`, admin, { name: 'Winch check', everyDays: 30, startFrom: ago(200), lastDone: ago(40) })).json;

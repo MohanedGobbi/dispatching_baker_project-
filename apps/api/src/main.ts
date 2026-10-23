@@ -52,11 +52,17 @@ function serveWeb(app: { use: (...a: unknown[]) => unknown }) {
   if (!existsSync(join(dir, 'index.html'))) return false;
   const files = express.static(dir, { index: false });
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.url === '/api' || req.url.startsWith('/api/')) { req.url = req.url.slice(4) || '/'; return next(); }
+    if (req.url === '/api' || req.url.startsWith('/api/')) return next();
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     files(req, res, () => res.sendFile(join(dir, 'index.html')));
   });
   return true;
+}
+
+/** API routes answer under /api (how the web app and the scripts call them) as well as at the root (Vite's proxy). */
+function stripApiPrefix(req: Request, _res: Response, next: NextFunction) {
+  if (req.url === '/api' || req.url.startsWith('/api/')) req.url = req.url.slice(4) || '/';
+  next();
 }
 
 async function bootstrap() {
@@ -72,6 +78,7 @@ async function bootstrap() {
   if (key) app.use((req: Request, res: Response, next: NextFunction) => { if (req.headers['x-crewboard-key'] === key) next(); else res.status(403).end(); });
   app.use(json({ limit: "12mb" }));
   const web = serveWeb(app);
+  app.use(stripApiPrefix);
   if (!web) app.enableCors(); // development: the Vite dev server calls the API from another port
   const port = Number(process.env.PORT ?? 3000), host = process.env.HOST ?? '127.0.0.1';
   await app.listen(port, host);

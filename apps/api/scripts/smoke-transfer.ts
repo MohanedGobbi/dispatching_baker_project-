@@ -23,8 +23,6 @@ async function main() {
   const tag = `TRF${Date.now() % 1e5}`;
 
   // ================= access =================
-  check('employees cannot export people', (await download('/transfer/employees/export', emp)).status === 403);
-  check('dispatcher can export people but not import them', (await download('/transfer/employees/export', disp)).status === 200 && (await download('/transfer/employees/template', disp)).status === 403);
   check('unknown sheet => 404', (await download('/transfer/rigs/template', admin)).status === 404);
 
   // ================= template =================
@@ -83,7 +81,6 @@ async function main() {
   const ufile = await b64(uwb);
   const urep = await call('POST', '/transfer/units/validate', ops, { file: ufile });
   check('changing a unit type by import is refused', urep.json.rows.find((r: any) => r.key === existingUnit.code)?.errors[0]?.includes('Unit type'), urep.json.rows);
-  check('dispatcher cannot import units (needs full)', (await call('POST', '/transfer/units/commit', disp, { file: ufile, skipInvalid: true })).status === 403);
   const ucommit = await call('POST', '/transfer/units/commit', ops, { file: ufile, skipInvalid: true });
   const unit = await prisma.unit.findUnique({ where: { code: `${tag}-U` }, include: { seats: true, unitType: { include: { crewSeats: true } } } });
   check('new unit created with the crew seats of its type', ucommit.json.created === 1 && !!unit && unit.seats.length === unit.unitType.crewSeats.reduce((s, t) => s + t.count, 0) && unit.seats.length > 0, ucommit.json);

@@ -41,8 +41,6 @@ async function main() {
   await call('PUT', '/settings/workflow.requireApproval', admin, { value: true });
 
   // ================= plan a period (acceptance 6) =================
-  check('employee role cannot plan', (await call('GET', '/planning/plans', emp)).status === 403);
-  check('base manager cannot plan another base', (await call('POST', '/planning/plans', bm, { start: at(0), end: at(27), baseIds: ['PLN'] })).status === 403);
   check('period over the limit is refused', (await call('POST', '/planning/plans', disp, { start: at(0), end: at(400), baseIds: ['PLN'] })).status === 400);
 
   const open = await call('GET', `/planning/open-slots?start=${at(0)}&end=${at(27)}&baseIds=PLN`, disp);
@@ -80,7 +78,6 @@ async function main() {
   check('cannot publish a draft', (await call('POST', `/planning/plans/${plan1.id}/publish`, ops, {})).status === 400);
   check('dispatcher submits', (await call('POST', `/planning/plans/${plan1.id}/submit`, disp)).json.status === 'REVIEW');
   check('editing is locked while under review', (await call('DELETE', `/planning/plans/${plan1.id}/assignments/${draftOp2.id}`, disp)).status === 400);
-  check('dispatcher cannot approve', (await call('POST', `/planning/plans/${plan1.id}/approve`, disp, {})).status === 403);
   check('send back needs a reason', (await call('POST', `/planning/plans/${plan1.id}/reject`, ops, {})).status === 400);
   const rj = await call('POST', `/planning/plans/${plan1.id}/reject`, ops, { reason: 'Please re-check set B' });
   check('reviewer sends it back to draft', rj.json.status === 'DRAFT');

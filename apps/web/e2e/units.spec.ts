@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
-import { foldGuides, signInManager, unique } from './helpers'
+import { foldGuides, openApp, unique } from './helpers'
 
-test.beforeEach(async ({ page }) => { await signInManager(page); await foldGuides(page) })
+test.beforeEach(async ({ page }) => { await openApp(page); await foldGuides(page) })
 
 test('the fleet: tiles filter, add, edit, move, retire and delete a unit', async ({ page }) => {
   await page.goto('/#/units')

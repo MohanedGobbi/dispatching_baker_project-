@@ -1,6 +1,6 @@
 import { test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { signInManager } from '../e2e/helpers'
+import { openApp } from '../e2e/helpers'
 
 const OUT = '../../docs/manual/img'
 const ALL = ['board', 'units', 'replacements', 'crew-changes', 'plans', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']
@@ -22,8 +22,7 @@ test('staff screens', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => localStorage.setItem('crewboard.theme', 'light'))
   await page.reload()
-  await snap(page, '01-sign-in')
-  await signInManager(page)
+  await openApp(page)
 
   await guidesOpen(page)
   for (const s of ALL) { await open(page, s); await snap(page, `10-${s}`, s === 'board') }
@@ -117,7 +116,6 @@ test('staff screens', async ({ page }) => {
     await snap(page, '18-tv-mode')
     await page.keyboard.press('Escape')
   })
-  await step('notifications', async () => { await open(page, 'notifications'); await snap(page, '19-notifications', true) })
   await step('dark', async () => {
     await page.evaluate(() => localStorage.setItem('crewboard.theme', 'dark'))
     await page.reload()

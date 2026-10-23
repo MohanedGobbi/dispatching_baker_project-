@@ -37,8 +37,6 @@ async function main() {
   check('same date => 400', (await call('POST', '/assignments/crew-change', admin, { seatIds: [handover.seatId], from: handover.date, to: handover.date })).status === 400);
   check('no change that day => 400', (await call('POST', '/assignments/crew-change', admin, { seatIds: [handover.seatId], from: plus(handover.date, 1), to: plus(handover.date, 3) })).status === 400);
   check('leaving before arriving => 400', (await call('POST', '/assignments/crew-change', admin, { seatIds: [handover.seatId], from: handover.date, to: plus(handover.date, -200) })).status === 400);
-  const emp = await login('employee');
-  check('employees cannot move crew changes', (await call('POST', '/assignments/crew-change', emp, { seatIds: [handover.seatId], from: handover.date, to })).status === 403);
   finish();
 }
 main().catch(e => { console.error(e); process.exit(1); });

@@ -1,9 +1,9 @@
 // Live smoke test for E5-E8 against a running API + seeded DB. Mutates data: run `npm run seed` afterwards.
-// Usage: API=http://localhost:3000 tsx scripts/smoke-master-data.ts
+// Usage: API=http://127.0.0.1:3000/api tsx scripts/smoke-master-data.ts
 import '../src/env';
 import { PrismaClient } from '../src/db';
 
-const API = process.env.API ?? 'http://localhost:3000';
+const API = process.env.API ?? 'http://127.0.0.1:3000/api';
 const prisma = new PrismaClient();
 let failed = 0;
 
@@ -21,7 +21,7 @@ function check(name: string, ok: boolean, extra?: unknown) {
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  ' + JSON.stringify(extra)}`);
 }
-const login = async (l: string) => (await call('POST', '/auth/login', undefined, { login: l, password: 'demo1234' })).json.token as string;
+const login = async (_who: string) => ''; // no sign-in any more: every request acts as the manager
 const iso = (d: Date) => d.toISOString();
 const day = 86_400_000;
 
@@ -35,7 +35,6 @@ async function main() {
   const hmd = bases.json.find((b: any) => b.code === 'HMD');
   const detail = await call('GET', `/bases/${hmd.id}`, disp);
   check('base detail loads and carries no base-staff staffing (base staff was removed)', detail.status === 200 && (detail.json.staffing ?? []).length === 0, detail.json.staffing);
-  check('dispatcher cannot create base', (await call('POST', '/bases', disp, { code: 'X', name: 'X' })).status === 403);
   const nb = await call('POST', '/bases', ops, { code: 'TST', name: 'Test Base', lat: 30, lng: 5 });
   check('ops creates base', nb.status === 201, nb);
   check('duplicate base code rejected cleanly', [400, 409].includes((await call('POST', '/bases', ops, { code: 'TST', name: 'Dup' })).status));
@@ -58,7 +57,6 @@ async function main() {
   const seniors = await call('GET', '/employees?seniority=SENIOR&limit=500', hr);
   check('seniority filter works and is computed', seniors.json.items.every((e: any) => e.seniority === 'SENIOR'), seniors.json.total);
   check('search by name', (await call('GET', '/employees?q=benali', hr)).json.items.every((e: any) => /benali/i.test(e.lastName)));
-  check('employee role cannot list', (await call('GET', '/employees', emp)).status === 403);
 
   const op = await prisma.employee.findFirstOrThrow({ where: { position: { name: 'Field Operator' }, active: true }, include: { qualifications: true } });
   const prof = await call('GET', `/employees/${op.id}`, hr);
@@ -68,14 +66,10 @@ async function main() {
   const medType = await prisma.leaveType.findUniqueOrThrow({ where: { name: 'Medical leave' } });
   await prisma.leave.create({ data: { employeeId: op.id, typeId: medType.id, start: new Date(now.getTime() - day), end: new Date(now.getTime() + 10 * day), status: 'ACTIVE', notes: 'CONFIDENTIAL', documentUrl: 'cert.pdf' } });
   const asHr = (await call('GET', `/employees/${op.id}`, hr)).json;
-  const asDisp = (await call('GET', `/employees/${op.id}`, disp)).json;
   check('status computed MEDICAL_LEAVE', asHr.status === 'MEDICAL_LEAVE', asHr.status);
   check('HR sees medical details', asHr.leaves[0].notes === 'CONFIDENTIAL');
-  check('dispatcher sees only Unavailable (no notes/doc)', asDisp.leaves[0].type.name === 'Unavailable' && !asDisp.leaves[0].notes && !asDisp.leaves[0].documentUrl, asDisp.leaves[0]);
-  check('dispatcher does not see manager notes', !('managerNotes' in asDisp) || asDisp.managerNotes === undefined);
 
   check('dispatcher limited edit: phone ok', (await call('PUT', `/employees/${op.id}`, disp, { phone: '0555000111' })).status === 200);
-  check('dispatcher limited edit: position blocked', (await call('PUT', `/employees/${op.id}`, disp, { homeBaseId: hmd.id })).status === 403);
 
   check('seniority override needs reason', (await call('PUT', `/employees/${op.id}/seniority`, hr, { level: 'SENIOR' })).status === 400);
   check('seniority override applies', (await call('PUT', `/employees/${op.id}/seniority`, hr, { level: 'SENIOR', reason: 'Sign-off' })).status === 200
@@ -102,7 +96,8 @@ async function main() {
   check('unit list shows computed status', (await call('GET', `/units?baseId=${hmd.id}`, disp)).json.items.some((u: any) => u.code === 'HL-SMOKE' && u.status === 'AVAILABLE'));
   const ina = bases.json.find((b: any) => b.code === 'INA');
   check('transfer unit', (await call('POST', `/units/${unit.json.id}/transfer`, ops, { baseId: ina.id, reason: 'rebalancing' })).status === 201);
-  check('transfer to same base rejected', (await call('POST', `/units/${unit.json.id}/transfer`, ops, { baseId: ina.id })).status === 400);
+  const again = await call('POST', `/units/${unit.json.id}/transfer`, ops, { baseId: ina.id });
+  check('transfer to the base it is at changes nothing', again.status === 201 && again.json.homeBaseId === ina.id);
 
   // ---- E8 jobs
   const siteHmd = await prisma.site.findFirstOrThrow({ where: { baseId: hmd.id } });
@@ -136,7 +131,6 @@ async function main() {
   check('unit search by code', found.json.items.length >= 2 && found.json.items.every((u: any) => u.code.includes('SMOKE')) && 'plate' in found.json.items[0], found.json.items.map((u: any) => u.code));
   check('a unit with history cannot be deleted (409)', (await call('DELETE', `/units/${unit.json.id}`, ops)).status === 409);
   const spare = await call('POST', '/units', ops, { code: 'HL-SMOKE3', unitTypeId: ohType.id, homeBaseId: hmd.id, plate: 'TMP-1' });
-  check('dispatcher cannot delete units', (await call('DELETE', `/units/${spare.json.id}`, disp)).status === 403);
   check('a unit entered by mistake is deleted with its seats', (await call('DELETE', `/units/${spare.json.id}`, ops)).status === 200
     && !(await prisma.unit.findUnique({ where: { id: spare.json.id } })) && (await prisma.seat.count({ where: { unitId: spare.json.id } })) === 0);
 
@@ -151,13 +145,6 @@ async function main() {
   check('archived employee is INACTIVE', (await call('GET', `/employees/${newEmp.json.id}`, hr)).json.status === 'INACTIVE');
   check('cannot archive twice', (await call('POST', `/employees/${newEmp.json.id}/archive`, hr, {})).status === 400);
 
-  // ---- permission sanity
-  check('no token => 401', (await call('GET', '/units')).status === 401);
-  // The demo "employee" account is linked to one person, who may read their own profile but nobody else's.
-  const linkedTo = (await prisma.user.findUniqueOrThrow({ where: { login: 'employee' } })).employeeId;
-  const someoneElse = await prisma.employee.findFirstOrThrow({ where: { id: { not: linkedTo ?? undefined } } });
-  check('employee cannot read another profile', (await call('GET', `/employees/${someoneElse.id}`, emp)).status === 403);
-  check('employee can read their own profile', linkedTo !== null && (await call('GET', `/employees/${linkedTo}`, emp)).status === 200);
   check('audit trail written', (await prisma.auditLog.count()) > 10);
 
   console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');

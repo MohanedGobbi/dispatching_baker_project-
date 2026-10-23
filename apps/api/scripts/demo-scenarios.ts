@@ -1,4 +1,4 @@
-// Plants the 14 scenarios of plan section 28.2 on top of `demo-plan --publish`, so every screen has a story to tell.
+// Plants the 14 scenarios of plan section 28.2 (14 is now an extension waiting for approval; shift swaps were removed) on top of `demo-plan --publish`, so every screen has a story to tell.
 // Usage (API running, freshly seeded, after demo-plan): tsx scripts/demo-scenarios.ts
 import '../src/env';
 import { at, call, DAY, login, prisma, today } from './lib';
@@ -13,7 +13,7 @@ async function main() {
   const unit = (code: string) => prisma.unit.findUniqueOrThrow({ where: { code }, include: { homeBase: { include: { sites: true } }, unitType: true } });
   const holders = (code: string) => prisma.assignment.findMany({
     where: { status: { in: ['ACTIVE', 'CONFIRMED'] }, start: { lte: today }, plannedEnd: { gte: today }, seat: { unit: { code } } },
-    include: { employee: { include: { user: true, qualifications: { include: { qualification: true } } } }, seat: { include: { position: true } } },
+    include: { employee: { include: { qualifications: { include: { qualification: true } } } }, seat: { include: { position: true } } },
   });
   const qual = async (name: string) => (await prisma.qualification.findUniqueOrThrow({ where: { name } })).id;
   const [qCH, qOH] = await Promise.all([qual('Cased Hole'), qual('Open Hole')]);
@@ -120,26 +120,20 @@ async function main() {
     const wo = await call('POST', '/work-orders', ops, { unitId: wu.id, type: 'corrective', priority: 'high', description: 'Winch and hydraulics overhaul', expectedReturn: at(3), assigneeIds: [] });
   log(13, `HL-6791 is in the workshop, back in 3 days (${wo.status === 201 ? 'work order opened' : wo.status})`);
 
-  // ---- 14. a swap request waiting for approval between two operators
+  // ---- 14. an extension request waiting for approval (plans and extensions go through review by default)
   const upcoming = await prisma.assignment.findMany({
-    where: { status: 'CONFIRMED', start: { gt: today, lte: d(25) }, seat: { holderType: 'UNIT', position: { name: 'Field Operator' } } },
-    include: { employee: { include: { user: true } }, seat: true }, orderBy: { start: 'asc' }, take: 60,
+    where: { status: 'CONFIRMED', openEnded: false, start: { gt: today, lte: d(25) }, seat: { holderType: 'UNIT', position: { name: 'Field Operator' } } },
+    include: { employee: true }, orderBy: { start: 'asc' }, take: 20,
   });
-  let swapped = false;
-  for (let i = 0; i < upcoming.length && !swapped; i++) {
-    for (let j = i + 1; j < upcoming.length && !swapped; j++) {
-      const a = upcoming[i], b = upcoming[j];
-      if (a.employeeId === b.employeeId || !a.employee.user || !b.employee.user) continue;
-      const ta = await login(a.employee.user.login);
-      const r = await call('POST', '/swaps', ta, { requesterAssignmentId: a.id, colleagueAssignmentId: b.id, note: 'Family event that week' });
-      if (r.status !== 201) continue;
-      const tb = await login(b.employee.user.login);
-      await call('POST', `/swaps/${r.json.id}/respond`, tb, { accept: true });
-      log(14, `${a.employee.firstName} ${a.employee.lastName} and ${b.employee.firstName} ${b.employee.lastName} asked to swap; waiting for a manager`);
-      swapped = true;
-    }
+  let requested = false;
+  for (const a of upcoming) {
+    const r = await call('POST', '/extensions', disp, { assignmentId: a.id, days: 2, reason: 'urgent_job' });
+    if (r.status !== 201) continue;
+    log(14, `${a.employee.firstName} ${a.employee.lastName}: 2 extra days requested, waiting for approval`);
+    requested = true;
+    break;
   }
-  if (!swapped) log(14, 'no valid pair found for a swap request');
+  if (!requested) log(14, 'no upcoming stretch could take an extension request');
 
   // ---- history: four earlier rotations on every unit with a job, so the board's time machine has something to show
   const crewedUnits = await prisma.unit.findMany({ where: { deployments: { some: {} } }, include: { seats: { where: { holderType: 'UNIT', requiredFlag: true }, include: { position: true } } } });
@@ -190,20 +184,19 @@ async function main() {
   }
   log('H', `${pastJobs} past jobs and ${pastShop} past workshop visits recorded for the unit charts`);
 
-  // ---- tasks from the manager, so the 'employee' account's To do tab has something in it
-  const emp = await prisma.user.findUnique({ where: { login: 'employee' }, select: { employeeId: true } });
-  if (emp?.employeeId) {
-    const others = await prisma.employee.findMany({ where: { active: true, id: { not: emp.employeeId } }, orderBy: { employeeNo: 'asc' }, take: 3, select: { id: true } });
-    await call('POST', '/tasks', ops, { employeeIds: [emp.employeeId], title: 'Bring your updated H2S certificate to the base office', dueDate: d(-1).toISOString() });
-    await call('POST', '/tasks', ops, { employeeIds: [emp.employeeId, ...others.map(o => o.id)], title: 'Attend the winter driving briefing', notes: 'Meeting room, 08:00. About 45 minutes.', dueDate: d(4).toISOString() });
-    await call('POST', '/tasks', ops, { employeeIds: [emp.employeeId], title: 'Check your logging tool kit before the next rotation' });
-    log('T', 'tasks given to the employee account (one overdue) and three colleagues');
+  // ---- tasks from the manager, one of them overdue
+  const firstFour = await prisma.employee.findMany({ where: { active: true }, orderBy: { employeeNo: 'asc' }, take: 4, select: { id: true } });
+  if (firstFour.length) {
+    const [first, ...others] = firstFour;
+    await call('POST', '/tasks', ops, { employeeIds: [first.id], title: 'Bring your updated H2S certificate to the base office', dueDate: d(-1).toISOString() });
+    await call('POST', '/tasks', ops, { employeeIds: [first.id, ...others.map(o => o.id)], title: 'Attend the winter driving briefing', notes: 'Meeting room, 08:00. About 45 minutes.', dueDate: d(4).toISOString() });
+    await call('POST', '/tasks', ops, { employeeIds: [first.id], title: 'Check your logging tool kit before the next rotation' });
+    log('T', 'tasks given to four people (one overdue)');
   }
 
-  // ---- let the rules look at the world and send the daily reminders
+  // ---- let the rules look at the world
   const rec = await call('POST', '/analytics/recommendations/run', ops);
-  const daily = await call('POST', '/notifications/run-daily', disp);
-  console.log(`\nRecommendations: ${JSON.stringify(rec.json)}\nDaily job: ${JSON.stringify(daily.json)}`);
+  console.log(`\nRecommendations: ${JSON.stringify(rec.json)}`);
   await prisma.$disconnect();
 }
 main().catch(e => { console.error(e); process.exit(1); });

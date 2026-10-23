@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
-import { foldGuides, signInManager } from './helpers'
+import { foldGuides, openApp } from './helpers'
 
 test('the manager publishes a draft plan directly, without a review step', async ({ page }) => {
-  await signInManager(page)
+  await openApp(page)
   await page.goto('/#/plans')
   await page.getByRole('button', { name: 'New plan' }).click()
   await page.getByRole('button', { name: 'Suggest a plan' }).click()
@@ -11,7 +11,7 @@ test('the manager publishes a draft plan directly, without a review step', async
 })
 
 test('putting someone on an empty seat shows the problem as fixed', async ({ page }) => {
-  await signInManager(page)
+  await openApp(page)
   await foldGuides(page)
   await page.goto('/#/replacements')
   const cards = page.locator('.tcard')
@@ -33,7 +33,7 @@ test('putting someone on an empty seat shows the problem as fixed', async ({ pag
 })
 
 test('the solo manager sees no leave, tasks, work orders, users or portal', async ({ page }) => {
-  await signInManager(page)
+  await openApp(page)
   for (const name of ['Leave', 'Tasks', 'Work orders', 'Users']) await expect(page.locator('.side-nav').getByRole('link', { name: new RegExp(`^${name}`) })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /My portal/ })).toHaveCount(0)
 })

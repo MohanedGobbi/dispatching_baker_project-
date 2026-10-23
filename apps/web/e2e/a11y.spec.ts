@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { foldGuides, signInManager } from './helpers'
+import { foldGuides, openApp } from './helpers'
 
 // WCAG 2.1 AA checks with axe-core on every screen, in light and dark (plan E28/E30 accessibility audit).
 const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8')
@@ -26,7 +26,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.evaluate(t => localStorage.setItem('crewboard.theme', t), theme)
       await page.reload()
       expect(await violations(page), 'sign-in').toEqual([])
-      await signInManager(page)
+      await openApp(page)
       await foldGuides(page)
       for (const s of SCREENS) {
         await page.goto(`/#/${s}`)
