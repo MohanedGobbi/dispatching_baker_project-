@@ -44,7 +44,7 @@ Installer 133 MB, per-user, publisher "Mohaned Gobbi"; uninstalling keeps the da
 
 - Build the API to plain JavaScript (`tsc`) and the web app to static files (`vite build`).
 - The API serves the web app on `127.0.0.1:3000`, so one Node process runs everything.
-- `start-crewboard.cmd` starts it hidden and opens the browser.
+- `start-crewboard.cmd` starts it hidden and opens the browser (the launcher was removed later: the desktop app replaced it).
 - `tsx watch` and the Vite dev server leave the normal start (they stay as `npm run dev:*` for development).
 - Docker is still needed until Step 2.
 
@@ -161,7 +161,7 @@ by Vite and the main process is plain JavaScript.
 
 **Addition (2026-10-23): the installer carries the crew data.** `desktop/scripts/snapshot-data.cjs` copies the
 current data (database via VACUUM INTO, plus the uploaded files) into `build/seed-data`, shipped as `resources/seed-data`;
-`main.js` copies it to `%APPDATA%CrewBoarddata` only when no database exists there. Checked with the installed app:
+`main.js` copies it to `%APPDATA%\CrewBoard\data` only when no database exists there. Checked with the installed app:
 a new computer starts with 74 people, 70 assignments and 51 files; a computer with its own data keeps it untouched;
 the source data was byte-for-byte unchanged by the build. `npm run dist:empty` builds an installer without data.
 
@@ -187,7 +187,7 @@ What changed along the way:
 - Three older browser tests were out of date, not broken by this work: the Units status column moved one place (a
   selection column was added), the person-panel test clicked a crew-change button instead of a name, and the plan
   test now follows draft, review, approved, published.
-- The Playwright tests, smoke suites and demo are never to run against `%APPDATA%CrewBoard`: they change data.
+- The Playwright tests, smoke suites and demo are never to run against `%APPDATA%\CrewBoard`: they change data.
 
 Original plan for this pass:
 
