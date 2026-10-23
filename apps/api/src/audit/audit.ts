@@ -29,7 +29,7 @@ class AuditController {
     if (q.entityId) where.entityId = q.entityId;
     if (q.action) where.action = q.action;
     if (q.userId) where.userId = q.userId;
-    if (q.login) where.user = { login: { contains: q.login, mode: 'insensitive' } };
+    if (q.login) where.user = { login: { contains: q.login } };
     if (q.from || q.to) {
       const to = q.to ? parseDate(q.to) : undefined;
       where.at = { gte: q.from ? parseDate(q.from) : undefined, lt: to ? new Date(to.getTime() + 86_400_000) : undefined };

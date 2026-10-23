@@ -29,6 +29,11 @@ export function pickFields(spec: Spec, body: Record<string, unknown> | undefined
   return out;
 }
 
+/** A list-of-strings column (Employee.tags, Base.facilities, Plan.scope): stored as JSON since SQLite has no arrays. */
+export function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
 export function page(q: { limit?: string; offset?: string }) {
   const take = Math.min(Math.max(parseInt(q.limit ?? '50', 10) || 50, 1), 200);
   const skip = Math.max(parseInt(q.offset ?? '0', 10) || 0, 0);

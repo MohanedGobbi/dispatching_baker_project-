@@ -79,7 +79,7 @@ class CalendarController {
     const where: Record<string, unknown> = { active: true, position: { category: { in: ['FIELD_CREW', 'BASE_STAFF'] } } };
     if (q.baseId) where.homeBaseId = q.baseId;
     if (q.positionId) where.positionId = q.positionId;
-    if (q.q) where.OR = ['firstName', 'lastName', 'employeeNo'].map(f => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
+    if (q.q) where.OR = ['firstName', 'lastName', 'employeeNo'].map(f => ({ [f]: { contains: q.q } }));
     if (q.unitId) where.assignments = { some: { seat: { unitId: q.unitId }, status: { in: ['CONFIRMED', 'ACTIVE', 'COMPLETED'] }, start: { lte: to }, plannedEnd: { gte: from } } };
     const emps = await this.prisma.employee.findMany({
       where: where as never, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }], take: 300,

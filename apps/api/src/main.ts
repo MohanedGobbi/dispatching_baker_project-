@@ -5,7 +5,9 @@ import express, { json, NextFunction, Request, Response } from 'express';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Controller, Get, Module } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { PrismaModule } from './prisma/prisma.service';
+import { prepareDatabase } from './prisma/migrate';
 import { AuthModule, Public } from './auth/auth.module';
 import { SettingsModule } from './settings/settings';
 import { CatalogsModule } from './catalogs/catalogs';
@@ -32,6 +34,7 @@ import { AuditModule } from './audit/audit';
 import { TransferModule } from './transfer/transfer';
 import { FleetModule } from './fleet/fleet';
 import { TasksModule } from './tasks/tasks';
+import { BackupModule } from './backup/backup';
 
 @Controller()
 class HealthController {
@@ -40,7 +43,7 @@ class HealthController {
 }
 
 @Module({
-  imports: [PrismaModule, MailModule, AuthModule, UsersModule, AuditModule, TransferModule, FleetModule, TasksModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule],
+  imports: [PrismaModule, MailModule, AuthModule, UsersModule, AuditModule, TransferModule, FleetModule, TasksModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule, BackupModule],
   controllers: [HealthController],
 })
 class AppModule {}
@@ -63,6 +66,10 @@ function serveWeb(app: { use: (...a: unknown[]) => unknown }) {
 }
 
 async function bootstrap() {
+  // Create or migrate the database before any module (timers included) can query it.
+  const db = new PrismaClient();
+  await prepareDatabase(db);
+  await db.$disconnect();
   // Uploads arrive as base64 in JSON, so the body limit is raised above the 100 kB default.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.use(json({ limit: "12mb" }));

@@ -9,7 +9,7 @@ import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { AssignmentsModule, AssignmentsService, Proposal } from '../assignments/assignments';
 import { buildCandidate, buildSeatFacts } from '../assignments/facts';
-import { audit, parseDate } from '../common/validate';
+import { audit, parseDate, strings } from '../common/validate';
 import { createEngine, EngineInput, EngineSlot, FixOption, Weights } from '../domain/engine';
 import { intersect, mergeSpans, Span, subtractSpans } from '../domain/spans';
 import { Seniority, startOfDay } from '../domain/status';
@@ -411,9 +411,9 @@ class PlanningController {
 
   private scopeFor(req: AuthedRequest, requested?: string[]) { return this.svc.scopeFor(req, requested); }
 
-  private async assertPlanScope(req: AuthedRequest, plan: { scope: string[] }) {
+  private async assertPlanScope(req: AuthedRequest, plan: { scope: unknown }) {
     const allowed = await this.scopeFor(req);
-    if (allowed && plan.scope.some(s => !allowed.includes(s))) throw new ForbiddenException('This plan covers bases outside your scope');
+    if (allowed && strings(plan.scope).some(s => !allowed.includes(s))) throw new ForbiddenException('This plan covers bases outside your scope');
   }
 
   private async mustPlan(id: string) {

@@ -7,9 +7,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../src/auth/crypto';
+import { prepareDatabase, singleConnectionUrl, wipeDatabase } from '../src/prisma/migrate';
 import { RANKS, RankCode } from '../src/employees/ranks';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasourceUrl: singleConnectionUrl() });
 
 interface Data {
   base: { code: string; name: string };
@@ -19,13 +20,12 @@ interface Data {
 const data: Data = JSON.parse(readFileSync(join(__dirname, 'real', 'crew.json'), 'utf8'));
 
 async function main() {
+  await prepareDatabase(prisma);
   // Keep the manager accounts (with their password) and the settings across the reset.
   const managers = await prisma.user.findMany({ where: { employeeId: null, roles: { some: { role: 'SUPER_ADMIN' } } }, include: { roles: true } });
   const settings = await prisma.setting.findMany();
 
-  const tables: string[] = (await prisma.$queryRaw<{ tablename: string }[]>`
-    SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT LIKE '\\_prisma%'`).map(t => `"${t.tablename}"`);
-  if (tables.length) await prisma.$executeRawUnsafe(`TRUNCATE ${tables.join(',')} RESTART IDENTITY CASCADE`);
+  await wipeDatabase(prisma);
 
   for (const s of settings) await prisma.setting.create({ data: { key: s.key, value: s.value as never } });
   // Rules warn instead of block: the manager can put anyone on any seat.

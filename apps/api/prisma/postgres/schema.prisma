@@ -1,0 +1,695 @@
+// The Postgres schema as it was before the switch to SQLite (2026-10-23). Read-only source for
+// scripts/copy-from-postgres.ts; delete with the Postgres database once the copy is confirmed.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/postgres" // only scripts/copy-from-postgres.ts uses it
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+// ---------- Locations ----------
+model Region {
+  id    String @id @default(cuid())
+  name  String
+  bases Base[]
+}
+
+model Base {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  regionId     String?
+  region       Region?  @relation(fields: [regionId], references: [id])
+  address      String?
+  city         String?
+  lat          Float?
+  lng          Float?
+  phone        String?
+  managerId    String?
+  unitCapacity Int?
+  bedCapacity  Int?
+  facilities   String[]
+  schedule     Json?
+  active       Boolean  @default(true)
+
+  sites        Site[]
+  units        Unit[]
+  employees    Employee[]
+  staffing     BaseStaffingRule[]
+  seats        Seat[]
+  workOrders   WorkOrder[]
+  recommendations Recommendation[]
+}
+
+model Site {
+  id          String @id @default(cuid())
+  name        String
+  type        String @default("well")
+  lat         Float?
+  lng         Float?
+  baseId      String
+  base        Base   @relation(fields: [baseId], references: [id])
+  client      String?
+  travelHours Float?
+  accessNotes String?
+  jobs        Job[]
+}
+
+// ---------- Catalogs ----------
+enum PositionCategory {
+  FIELD_CREW
+  BASE_STAFF
+  MANAGEMENT
+}
+
+enum WorkMode {
+  FIELD
+  BASE
+  FLEXIBLE
+}
+
+model Position {
+  id                 String           @id @default(cuid())
+  name               String           @unique
+  category           PositionCategory
+  canFillUnitSeat    Boolean          @default(false)
+  canFillBasePost    Boolean          @default(false)
+  defaultRotationId  String?
+  defaultRotation    RotationPattern? @relation(fields: [defaultRotationId], references: [id])
+  requiredQualifications Qualification[] @relation("PositionQualifications")
+  requiredCertTypes  CertificationType[] @relation("PositionCerts")
+
+  employees  Employee[]
+  staffing   BaseStaffingRule[]
+  crewSeats  CrewTemplateSeat[]
+  seats      Seat[]
+}
+
+model Qualification {
+  id        String @id @default(cuid())
+  name      String @unique
+  positions Position[] @relation("PositionQualifications")
+  employees EmployeeQualification[]
+  crewSeats CrewTemplateSeat[]
+}
+
+model CertificationType {
+  id        String @id @default(cuid())
+  name      String @unique
+  positions Position[] @relation("PositionCerts")
+  certs     Certification[]
+}
+
+model RotationPattern {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  type         String  // cycle | weekly | custom
+  daysOn       Int?
+  daysOff      Int?
+  weeklyMask   String? // e.g. "1111100"
+  travelPolicy String  @default("separate")
+  positions    Position[]
+  employees    Employee[]
+}
+
+model BaseStaffingRule {
+  id             String   @id @default(cuid())
+  baseId         String
+  base           Base     @relation(fields: [baseId], references: [id])
+  positionId     String
+  position       Position @relation(fields: [positionId], references: [id])
+  minCount       Int
+  targetCount    Int
+  scheduleWindow String?
+
+  @@unique([baseId, positionId])
+}
+
+model UnitType {
+  id         String @id @default(cuid())
+  name       String @unique
+  colorKey   String // green (OH) | amber (CH)
+  crewSeats  CrewTemplateSeat[]
+  units      Unit[]
+}
+
+model CrewTemplateSeat {
+  id                  String         @id @default(cuid())
+  unitTypeId          String
+  unitType            UnitType       @relation(fields: [unitTypeId], references: [id])
+  positionId          String
+  position            Position       @relation(fields: [positionId], references: [id])
+  count               Int
+  optional            Boolean        @default(false)
+  requiredQualId      String?
+  requiredQual        Qualification? @relation(fields: [requiredQualId], references: [id])
+  minSeniority        Seniority?
+}
+
+// ---------- People ----------
+enum Seniority {
+  NEW_RECRUIT
+  JUNIOR
+  EXPERIENCED
+  SENIOR
+}
+
+model Employee {
+  id                 String   @id @default(cuid())
+  employeeNo         String   @unique
+  firstName          String
+  lastName           String
+  photoUrl           String?
+  phone              String?
+  email              String?
+  emergencyContact   String?
+  homeCity           String?
+  positionId         String
+  position           Position @relation(fields: [positionId], references: [id])
+  workMode           WorkMode @default(FIELD)
+  hireDate           DateTime
+  contractType       String   @default("permanent")
+  homeBaseId         String
+  homeBase           Base     @relation(fields: [homeBaseId], references: [id])
+  rotationPatternId  String?
+  rotationPattern    RotationPattern? @relation(fields: [rotationPatternId], references: [id])
+  rotationAnchorDate DateTime?
+  /// Starting the platform: what this person is doing right now, until a rotation anchor is known.
+  /// "DAYS_OFF" or "STANDBY"; cleared the moment rotationAnchorDate is set and the calendar takes over.
+  startState         String?
+  backToBackId       String?
+  seniorityOverride  Seniority?
+  priorFieldDays     Int      @default(0) // field days worked before the system (imported history)
+  seniorityReason    String?
+  tags               String[]
+  managerNotes       String?
+  active             Boolean  @default(true)
+
+  qualifications EmployeeQualification[]
+  tasks          EmployeeTask[]
+  certifications Certification[]
+  assignments    Assignment[]
+  leaves         Leave[]
+  restrictions   Restriction[]
+  extensions     Extension[]
+  ledger         DaysOffLedger[]
+  workOrderLinks WorkOrderAssignee[]
+  user           User?
+  candidateFor   ReplacementTask[]
+}
+
+model EmployeeQualification {
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id])
+  qualificationId String
+  qualification   Qualification @relation(fields: [qualificationId], references: [id])
+  obtainedAt      DateTime
+  validatedBy     String?
+
+  @@id([employeeId, qualificationId])
+}
+
+model Certification {
+  id         String            @id @default(cuid())
+  employeeId String
+  employee   Employee          @relation(fields: [employeeId], references: [id])
+  typeId     String
+  type       CertificationType @relation(fields: [typeId], references: [id])
+  issuedAt   DateTime
+  expiresAt  DateTime? // unused: certificates do not expire in this product
+  documentUrl String?
+}
+
+// ---------- Units & jobs ----------
+enum UnitStatus {
+  AVAILABLE
+  DEPLOYED
+  IN_TRANSIT
+  UNDER_MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+model Unit {
+  id         String     @id @default(cuid())
+  code       String     @unique
+  unitTypeId String
+  unitType   UnitType   @relation(fields: [unitTypeId], references: [id])
+  homeBaseId String
+  homeBase   Base       @relation(fields: [homeBaseId], references: [id])
+  status     UnitStatus @default(AVAILABLE) // manual override: only OUT_OF_SERVICE / IN_TRANSIT stored; rest computed
+  plate      String?
+  model      String?
+  year       Int?
+  notes      String?
+
+  seats       Seat[]
+  deployments UnitDeployment[]
+  workOrders  WorkOrder[]
+  maintenancePlans MaintenancePlan[]
+  documents   UnitDocument[]
+}
+
+/// Preventive maintenance (plan E19): a service repeated every N days. A work order is opened when it comes due;
+/// finishing that work order records the service as done.
+model MaintenancePlan {
+  id           String    @id @default(cuid())
+  unitId       String
+  unit         Unit      @relation(fields: [unitId], references: [id])
+  name         String
+  everyDays    Int
+  durationDays Int       @default(1)  // workshop days the service takes
+  leadDays     Int       @default(14) // open the work order this many days before it is due
+  startFrom    DateTime  // counts from here until the first service is recorded
+  lastDone     DateTime?
+  active       Boolean   @default(true)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  workOrders   WorkOrder[]
+
+  @@index([unitId])
+}
+
+/// Papers kept for a unit: registration, insurance, inspection certificate... optionally with a file and an expiry.
+model UnitDocument {
+  id        String      @id @default(cuid())
+  unitId    String
+  unit      Unit        @relation(fields: [unitId], references: [id])
+  kind      String      // registration | insurance | inspection | other
+  title     String
+  fileId    String?
+  file      StoredFile? @relation(fields: [fileId], references: [id])
+  expiresAt DateTime?
+  notes     String?
+  createdBy String?
+  createdAt DateTime    @default(now())
+
+  @@index([unitId])
+}
+
+enum JobStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  ref          String    @unique
+  wellName     String
+  rigName      String?
+  client       String?
+  siteId       String
+  site         Site      @relation(fields: [siteId], references: [id])
+  serviceType  String    // Open Hole | Cased Hole
+  plannedStart DateTime
+  /// An open job has no agreed end: plannedEnd sits far ahead and the manager ends it from the unit or the job.
+  plannedEnd   DateTime
+  openEnded    Boolean   @default(false)
+  actualStart  DateTime?
+  actualEnd    DateTime?
+  status       JobStatus @default(PLANNED)
+  deployments  UnitDeployment[]
+}
+
+model UnitDeployment {
+  id     String   @id @default(cuid())
+  unitId String
+  unit   Unit     @relation(fields: [unitId], references: [id])
+  jobId  String
+  job    Job      @relation(fields: [jobId], references: [id])
+  start  DateTime
+  end    DateTime
+}
+
+// ---------- Seats & assignments ----------
+enum SeatHolder {
+  UNIT
+  BASE
+}
+
+model Seat {
+  id           String     @id @default(cuid())
+  holderType   SeatHolder
+  unitId       String?
+  unit         Unit?      @relation(fields: [unitId], references: [id])
+  baseId       String?
+  base         Base?      @relation(fields: [baseId], references: [id])
+  positionId   String
+  position     Position   @relation(fields: [positionId], references: [id])
+  index        Int
+  requirements Json?
+  requiredFlag Boolean    @default(true)
+
+  assignments Assignment[]
+  tasks       ReplacementTask[]
+}
+
+enum AssignmentType {
+  NORMAL
+  REPLACEMENT
+  EXTENSION_COVER
+  TEMPORARY_COVER
+}
+
+enum AssignmentStatus {
+  DRAFT
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Plan {
+  id          String     @id @default(cuid())
+  scope       String[]
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String     @default("DRAFT") // DRAFT | REVIEW | APPROVED | PUBLISHED
+  version     Int        @default(1)
+  createdBy   String?
+  approvedBy  String?
+  createdAt   DateTime   @default(now())
+  publishedAt DateTime?
+  submittedBy String?
+  decisionNote String?
+  summary     Json?      // engine stats, gaps with fix options, mode
+  assignments Assignment[]
+}
+
+model Assignment {
+  id          String           @id @default(cuid())
+  employeeId  String
+  employee    Employee         @relation(fields: [employeeId], references: [id])
+  seatId      String
+  seat        Seat             @relation(fields: [seatId], references: [id])
+  start       DateTime
+  plannedEnd  DateTime
+  originalEnd DateTime?        // planned end before any approved extension
+  actualEnd   DateTime?
+  /// No crew change date yet: plannedEnd sits far ahead until the manager sets the day they leave.
+  openEnded   Boolean          @default(false)
+  type        AssignmentType   @default(NORMAL)
+  status      AssignmentStatus @default(CONFIRMED)
+  replacesId  String?
+  planId      String?
+  plan        Plan?            @relation(fields: [planId], references: [id])
+  explanation String?
+  overrideReason String?   // a hard rule was knowingly overridden when this was placed
+
+  extensions Extension[]
+
+  @@index([employeeId, start])
+  @@index([seatId, start])
+}
+
+// ---------- Leave ----------
+model LeaveType {
+  id            String  @id @default(cuid())
+  name          String  @unique
+  category      String  // leave | medical | training | absence
+  needsApproval Boolean @default(true)
+  needsDocument Boolean @default(false)
+  leaves        Leave[]
+}
+
+model Leave {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  typeId     String
+  type       LeaveType @relation(fields: [typeId], references: [id])
+  start      DateTime
+  end        DateTime
+  status     String    @default("SUBMITTED")
+  documentUrl String?
+  enteredBy  String?
+  approvedBy String?
+  notes      String?   // restricted (HR / Ops / employee only)
+  longTerm   Boolean   @default(false)
+  decisionNote String?
+  fitForDuty FitForDuty?
+
+  @@index([employeeId, start])
+}
+
+model FitForDuty {
+  id            String       @id @default(cuid())
+  leaveId       String       @unique
+  leave         Leave        @relation(fields: [leaveId], references: [id])
+  clearedAt     DateTime
+  clearedBy     String
+  restrictionId String?      @unique
+  restriction   Restriction? @relation(fields: [restrictionId], references: [id])
+}
+
+model Restriction {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  kind       String    // base_only | no_field | no_night | custom
+  start      DateTime
+  end        DateTime?
+  source     String?
+  fitForDuty FitForDuty?
+}
+
+model Extension {
+  id             String     @id @default(cuid())
+  assignmentId   String
+  assignment     Assignment @relation(fields: [assignmentId], references: [id])
+  employeeId     String
+  employee       Employee   @relation(fields: [employeeId], references: [id])
+  days           Int
+  reason         String
+  status         String     @default("REQUESTED")
+  requestedBy    String?
+  approvedBy     String?
+  acknowledgedAt DateTime?
+  overrideReason String?
+  createdAt      DateTime   @default(now())
+}
+
+// Signed days: +owed to the employee (extension), -used (recovery days). Balance = sum.
+model DaysOffLedger {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  days       Int
+  reason     String   // extension | recovery | medical_credit | adjustment
+  refId      String?
+  note       String?
+  createdBy  String?
+  at         DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([refId])
+}
+
+model ReplacementTask {
+  id          String    @id @default(cuid())
+  seatId      String
+  seat        Seat      @relation(fields: [seatId], references: [id])
+  fromDate    DateTime
+  toDate      DateTime
+  trigger     String
+  urgency     String    // CRITICAL | HIGH | NORMAL
+  status      String    @default("OPEN")
+  candidateId String?
+  candidate   Employee? @relation(fields: [candidateId], references: [id])
+  deadline    DateTime?
+  sourceId    String?   // leave / restriction / extension that caused it
+  assignmentId String?  // the assignment that closed this task
+  escalatedAt DateTime?
+  closedAt    DateTime?  // when it stopped being open (a person was placed, or it was closed)
+
+  @@index([sourceId])
+}
+
+// ---------- Maintenance ----------
+model WorkOrder {
+  id             String   @id @default(cuid())
+  unitId         String
+  unit           Unit     @relation(fields: [unitId], references: [id])
+  baseId         String
+  base           Base     @relation(fields: [baseId], references: [id])
+  type           String
+  priority       String   @default("normal")
+  description    String?
+  plannedStart   DateTime
+  expectedReturn DateTime
+  status         String   @default("OPEN")
+  completedAt    DateTime?
+  maintenancePlanId String?
+  maintenancePlan   MaintenancePlan? @relation(fields: [maintenancePlanId], references: [id])
+  assignees      WorkOrderAssignee[]
+}
+
+model WorkOrderAssignee {
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+
+  @@id([workOrderId, employeeId])
+}
+
+// ---------- Platform ----------
+model User {
+  id           String    @id @default(cuid())
+  login        String    @unique
+  passwordHash String
+  employeeId   String?   @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  email        String?   // for staff without an employee record; otherwise the employee's email is used
+  active       Boolean   @default(true)
+  mustChangePassword Boolean @default(false)
+  passwordChangedAt  DateTime? // tokens issued before this are refused
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  roles        UserRole[]
+  notifications Notification[]
+  audits       AuditLog[]
+  prefs        UserPrefs?
+  files        StoredFile[]
+  resetTokens  PasswordResetToken[]
+}
+
+/// Self-service password reset. Only a hash of the token is stored; the token itself goes out by email.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model UserRole {
+  userId    String
+  user      User   @relation(fields: [userId], references: [id])
+  role      String // SUPER_ADMIN | OPS_MANAGER | DISPATCHER | HR | BASE_MANAGER | CHIEF_OF_UNIT | EMPLOYEE
+  baseScope String?
+
+  @@id([userId, role])
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  type           String
+  payload        Json
+  channel        String    @default("in_app")
+  readAt         DateTime?
+  acknowledgedAt DateTime?
+  requiresAck    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model Recommendation {
+  id              String  @id @default(cuid())
+  type            String
+  baseId          String?
+  base            Base?   @relation(fields: [baseId], references: [id])
+  data            Json
+  suggestedAction String
+  status          String  @default("OPEN") // OPEN | ACCEPTED | DISMISSED | SNOOZED
+  key             String? @unique // stable id of the finding, so re-running updates instead of duplicating
+  title           String  @default("")
+  severity        String  @default("medium")
+  snoozedUntil    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+}
+
+model Setting {
+  key   String @id
+  value Json
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  userId   String?
+  user     User?    @relation(fields: [userId], references: [id])
+  entity   String
+  entityId String
+  action   String
+  before   Json?
+  after    Json?
+  reason   String?
+  at       DateTime @default(now())
+}
+
+// ---------- notifications, files, swaps
+model UserPrefs {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inApp  Json   @default("{}")  // type -> false to mute
+  email  Json   @default("{}")  // type -> true/false overrides the default
+}
+
+// Emails are queued here; an SMTP adapter sends them (plan 19: in-app and email first).
+model EmailOutbox {
+  id        String    @id @default(cuid())
+  toEmail   String
+  userId    String?
+  type      String
+  subject   String
+  body      String
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  error     String?
+  attempts  Int       @default(0)
+}
+
+model StoredFile {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  owner       User     @relation(fields: [ownerUserId], references: [id])
+  kind        String   // medical (restricted bucket) | general
+  name        String
+  mime        String
+  size        Int
+  path        String
+  createdAt   DateTime @default(now())
+  unitDocuments UnitDocument[]
+}
+
+/// Something the manager asks a person to do (bring a document, attend a training, check equipment...).
+model EmployeeTask {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  title      String
+  notes      String?
+  dueDate    DateTime?
+  status     String    @default("OPEN") // OPEN | DONE
+  doneAt     DateTime?
+  doneNote   String?
+  createdBy  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, status])
+}
+
+model SwapRequest {
+  id               String   @id @default(cuid())
+  requesterId      String   // employee
+  colleagueId      String   // employee
+  requesterAssignmentId String
+  colleagueAssignmentId String
+  status           String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | APPROVED | REJECTED | CANCELLED
+  note             String?
+  decidedBy        String?
+  decisionNote     String?
+  createdAt        DateTime @default(now())
+}

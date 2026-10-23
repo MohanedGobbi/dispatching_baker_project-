@@ -28,6 +28,35 @@ const HINTS: Record<string, string> = {
   'security.resetLinkMinutes': 'How long an emailed reset link stays valid, in minutes',
 }
 type V = string | number | boolean | string[]
+interface Backups { dir: string; backups: { name: string; at: string; sizeBytes: number }[] }
+
+const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`
+
+/** The database and uploaded files are copied once a day on their own; this adds a copy on demand. */
+function BackupPanel({ editor }: { editor: boolean }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const list = useApi<Backups>('/backups')
+  const [busy, setBusy] = useState(false)
+  const now = async () => {
+    setBusy(true)
+    try { await api('/backups', { method: 'POST' }); toast(t('backupDone', 'Backup made')); await list.reload() } catch (e) { toast(errMsg(e), 'error') } finally { setBusy(false) }
+  }
+  const latest = list.data?.backups[0]
+  return (
+    <section className="panel">
+      <h2>{t('set_backups', 'Backups')}</h2>
+      <div className="set-row">
+        <div>
+          {latest ? <>{t('backupLatest', 'Last backup')}: <strong>{new Date(latest.at).toLocaleString()}</strong> ({mb(latest.sizeBytes)})</> : t('backupNone', 'No backup yet')}
+          <small className="muted"> {t('backupHint', 'A copy of all data and files is made every day. The 14 newest are kept, then one per month. Copy this folder to a USB drive from time to time:')} <code>{list.data?.dir}</code></small>
+        </div>
+        {editor && <button type="button" className="primary" disabled={busy} onClick={now}>{busy ? t('backupBusy', 'Backing up…') : t('backupNow', 'Back up now')}</button>}
+      </div>
+      {list.error && <div className="banner error" role="alert">{list.error}</div>}
+    </section>
+  )
+}
 
 /** Every number in the product is a setting (plan 22); changes apply to the next calculation and are audited. */
 export default function Settings() {
@@ -46,6 +75,7 @@ export default function Settings() {
     <main className="page">
       <header className="page-head"><div><h1>{t('setTitle', 'Settings')}</h1><p className="muted">{t('setIntro', 'The rules and numbers behind every calculation. Nothing is hard-coded.')}</p></div></header>
       {all.error && <div className="banner error" role="alert">{all.error}</div>}
+      <BackupPanel editor={editor} />
       {groups.map(([g, ks]) => (
         <section key={g} className="panel">
           <h2>{t(`set_${g}`, GROUPS[g])}</h2>

@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Require, AuthedRequest } from '../auth/auth.module';
 import { can } from '../auth/permissions';
 import { EmployeeInsightsService, InsightsModule } from './insights';
-import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
+import { audit, page, parseDate, pickFields, Spec, strings } from '../common/validate';
 import { startOfDay, Seniority } from '../domain/status';
 import { SettingsModule, SettingsService } from '../settings/settings';
 
@@ -47,7 +47,7 @@ class EmployeesController {
     if (q.positionId) where.positionId = q.positionId;
     if (q.qualificationId) where.qualifications = { some: { qualificationId: q.qualificationId } };
     if (q.q) {
-      where.OR = ['firstName', 'lastName', 'employeeNo'].map(f => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
+      where.OR = ['firstName', 'lastName', 'employeeNo'].map(f => ({ [f]: { contains: q.q } }));
     }
     const all = await this.prisma.employee.findMany({
       where: where as never, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
@@ -258,7 +258,7 @@ class EmployeesController {
       await this.prisma.$transaction(rows.map(r => this.prisma.employee.update({
         where: { id: r.id },
         data: {
-          tags: [rank.label, ...r.tags.filter(t => t !== rank.label && !ranks.some(x => x.label === t))],
+          tags: [rank.label, ...strings(r.tags).filter(t => t !== rank.label && !ranks.some(x => x.label === t))],
           positionId: position.id, seniorityOverride: rank.seniority as Seniority, seniorityReason: `Rank: ${rank.label}`,
         },
       })));
@@ -271,7 +271,7 @@ class EmployeesController {
         const ranks = (await this.settings.all())['people.ranks'] as { label: string; seniority: string }[];
         const rows = await this.prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, tags: true } });
         await this.prisma.$transaction(rows.map(r => {
-          const rank = ranks.find(x => r.tags.includes(x.label));
+          const rank = ranks.find(x => strings(r.tags).includes(x.label));
           return this.prisma.employee.update({
             where: { id: r.id },
             data: rank ? { seniorityOverride: rank.seniority as Seniority, seniorityReason: `Rank: ${rank.label}` } : { seniorityOverride: null, seniorityReason: null },
@@ -290,8 +290,8 @@ class EmployeesController {
       await this.prisma.employee.updateMany({ where: { id: { in: ids } }, data: { rotationPatternId: value } });
     } else if (action === 'addTag') {
       const rows = await this.prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, tags: true } });
-      await this.prisma.$transaction(rows.filter(r => !r.tags.includes(value)).map(r =>
-        this.prisma.employee.update({ where: { id: r.id }, data: { tags: [...r.tags, value] } })));
+      await this.prisma.$transaction(rows.filter(r => !strings(r.tags).includes(value)).map(r =>
+        this.prisma.employee.update({ where: { id: r.id }, data: { tags: [...strings(r.tags), value] } })));
     } else throw new BadRequestException('action must be rank, seniority, homeBase, rotation, rotationAnchor, startState or addTag');
     await audit(this.prisma, req.user?.sub, 'Employee', ids.join(','), `bulk_${action}`, null, { value, count: ids.length });
     return { updated: ids.length };
@@ -335,17 +335,21 @@ class RanksController {
 
     const before = (await this.settings.all())['people.ranks'] as { label: string }[];
     const kept = new Set(ranks.map(r => r.was ?? r.label));
+    const removed = new Set(before.filter(b => !kept.has(b.label)).map(b => b.label));
+    // Old label -> new label. Each tag is renamed once, so swapping two names does not merge the people.
+    const renamed = new Map(ranks.filter(r => r.was && r.was !== r.label).map(r => [r.was!, r.label]));
     await this.prisma.$transaction(async tx => {
-      for (const old of before.filter(b => !kept.has(b.label))) {
-        await tx.$executeRaw`UPDATE "Employee" SET "tags" = array_remove("tags", ${old.label}), "seniorityOverride" = NULL, "seniorityReason" = NULL WHERE ${old.label} = ANY("tags")`;
-      }
-      // two passes so swapping two names does not merge the people
-      for (const [i, r] of ranks.entries()) if (r.was && r.was !== r.label) await tx.$executeRaw`UPDATE "Employee" SET "tags" = array_replace("tags", ${r.was}, ${`~rank~${i}`}) WHERE ${r.was} = ANY("tags")`;
-      for (const [i, r] of ranks.entries()) if (r.was && r.was !== r.label) await tx.$executeRaw`UPDATE "Employee" SET "tags" = array_replace("tags", ${`~rank~${i}`}, ${r.label}) WHERE ${`~rank~${i}`} = ANY("tags")`;
-      for (const r of ranks) {
-        await tx.employee.updateMany({
-          where: { tags: { has: r.label } },
-          data: { positionId: positions.find(p => p.name === r.position)!.id, seniorityOverride: r.seniority, seniorityReason: `Rank: ${r.label}` },
+      const people = await tx.employee.findMany({ select: { id: true, tags: true } });
+      for (const p of people) {
+        const was = strings(p.tags);
+        if (!was.some(t => removed.has(t) || renamed.has(t) || ranks.some(r => r.label === t))) continue;
+        const tags = was.filter(t => !removed.has(t)).map(t => renamed.get(t) ?? t);
+        const rank = [...ranks].reverse().find(r => tags.includes(r.label)); // the later rank won before too (one update per rank, in order)
+        await tx.employee.update({
+          where: { id: p.id },
+          data: rank
+            ? { tags, positionId: positions.find(x => x.name === rank.position)!.id, seniorityOverride: rank.seniority, seniorityReason: `Rank: ${rank.label}` }
+            : { tags, seniorityOverride: null, seniorityReason: null },
         });
       }
     });

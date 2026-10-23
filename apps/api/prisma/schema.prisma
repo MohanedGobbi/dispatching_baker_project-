@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -28,7 +28,7 @@ model Base {
   managerId    String?
   unitCapacity Int?
   bedCapacity  Int?
-  facilities   String[]
+  facilities   Json     @default("[]") // list of strings
   schedule     Json?
   active       Boolean  @default(true)
 
@@ -181,7 +181,7 @@ model Employee {
   seniorityOverride  Seniority?
   priorFieldDays     Int      @default(0) // field days worked before the system (imported history)
   seniorityReason    String?
-  tags               String[]
+  tags               Json     @default("[]") // list of strings; the first is the rank
   managerNotes       String?
   active             Boolean  @default(true)
 
@@ -362,7 +362,7 @@ enum AssignmentStatus {
 
 model Plan {
   id          String     @id @default(cuid())
-  scope       String[]
+  scope       Json       // base ids
   periodStart DateTime
   periodEnd   DateTime
   status      String     @default("DRAFT") // DRAFT | REVIEW | APPROVED | PUBLISHED

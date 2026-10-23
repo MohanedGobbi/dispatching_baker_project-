@@ -45,9 +45,6 @@ if (-not (Listening 3000)) {
     npm run build | Out-Null
     if ($LASTEXITCODE -ne 0) { Fail 'The build failed. Run "npm run build" in this folder to see the error.' }
   }
-  Push-Location apps\api
-  npx prisma migrate deploy | Out-Null
-  Pop-Location
   New-Item -ItemType Directory -Force logs | Out-Null
   Start-Process node -ArgumentList 'dist\src\main.js' -WorkingDirectory "$root\apps\api" -WindowStyle Hidden `
     -RedirectStandardOutput "$root\logs\crewboard.log" -RedirectStandardError "$root\logs\crewboard-error.log"

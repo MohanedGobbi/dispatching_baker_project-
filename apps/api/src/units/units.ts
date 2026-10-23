@@ -49,7 +49,7 @@ class UnitsController {
     const units = await this.prisma.unit.findMany({
       where: {
         ...(q.typeId ? { unitTypeId: q.typeId } : {}), ...(q.baseId ? { homeBaseId: q.baseId } : {}),
-        ...(text ? { OR: ['code', 'plate', 'model', 'notes'].map(f => ({ [f]: { contains: text, mode: 'insensitive' } })) } : {}),
+        ...(text ? { OR: ['code', 'plate', 'model', 'notes'].map(f => ({ [f]: { contains: text } })) } : {}),
       },
       orderBy: { code: 'asc' },
       include: {

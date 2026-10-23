@@ -41,8 +41,8 @@ class UsersController {
     if (q.role) where.roles = { some: { role: q.role } };
     if (q.q) {
       where.OR = [
-        { login: { contains: q.q, mode: 'insensitive' } }, { email: { contains: q.q, mode: 'insensitive' } },
-        ...['firstName', 'lastName', 'employeeNo'].map(f => ({ employee: { [f]: { contains: q.q, mode: 'insensitive' } } })),
+        { login: { contains: q.q } }, { email: { contains: q.q } },
+        ...['firstName', 'lastName', 'employeeNo'].map(f => ({ employee: { [f]: { contains: q.q } } })),
       ];
     }
     const rows = await this.prisma.user.findMany({ where: where as never, include, orderBy: { login: 'asc' } });

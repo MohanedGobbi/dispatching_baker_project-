@@ -20,3 +20,9 @@ spike/
 
 # CrewBoard app logs (start-crewboard)
 logs/
+
+# Prisma client generated from the old Postgres schema (copy script only)
+apps/api/generated/
+
+# CrewBoard data: SQLite database, uploaded files and backups (real data, never commit)
+data/

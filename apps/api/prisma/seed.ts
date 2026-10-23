@@ -5,8 +5,9 @@ import '../src/env';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { faker } from '@faker-js/faker/locale/fr';
 import { hashPassword } from '../src/auth/crypto';
+import { singleConnectionUrl, wipeDatabase } from '../src/prisma/migrate';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasourceUrl: singleConnectionUrl() });
 faker.seed(process.env.SEED_RANDOM ? Date.now() : 42);
 
 const NOW = new Date('2026-10-19T00:00:00Z');
@@ -25,15 +26,8 @@ const BASES = [
 const SURNAMES = ['Benali', 'Boudiaf', 'Cherif', 'Djebbar', 'Haddad', 'Kaci', 'Lounis', 'Messaoudi', 'Nouri', 'Ouali', 'Rahmani', 'Saadi', 'Taleb', 'Yahiaoui', 'Zerrouki', 'Belkacem', 'Hamidi', 'Mansouri'];
 const FIRSTNAMES = ['Karim', 'Yacine', 'Samir', 'Amine', 'Nabil', 'Redouane', 'Walid', 'Sofiane', 'Hicham', 'Mourad', 'Farid', 'Lyes', 'Bilal', 'Anis', 'Riad', 'Salim', 'Tarek', 'Ilyes'];
 
-async function wipe() {
-  const tables: string[] = (await prisma.$queryRaw<{ tablename: string }[]>`
-    SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT LIKE '\\_prisma%'`)
-    .map(t => `"${t.tablename}"`);
-  if (tables.length) await prisma.$executeRawUnsafe(`TRUNCATE ${tables.join(',')} RESTART IDENTITY CASCADE`);
-}
-
 async function main() {
-  await wipe();
+  await wipeDatabase(prisma);
 
   // ---- Catalogs
   const [qOH, qCH, qMech, qElec, qWeld] = await Promise.all(

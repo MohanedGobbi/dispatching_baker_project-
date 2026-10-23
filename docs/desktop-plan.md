@@ -79,6 +79,19 @@ the app process uses about 100 MB; Docker Desktop and its Linux VM about 2.5 GB,
 - Removed: `docker-compose.yml`, Redis, and the Docker steps in the scripts and docs.
 - **Checkpoint:** pause for your OK before anything is deleted.
 
+**Result (2026-10-23): copied, waiting at the checkpoint.** The real data is in `data/crewboard.db` (gitignored) with the
+51 uploaded files in `data/storage`. `npm run copy-from-postgres` matched every table's row count (690 rows and files)
+with no broken references, and `-- --verify` found every row of all 42 models identical. The app ran on a throwaway
+copy with every screen loading and no failed request; "Back up now" made a backup that opens with the same numbers.
+Notes for later work:
+- The API creates and migrates the database itself at start (`src/prisma/migrate.ts`, table `_migrations`); the
+  Prisma CLI no longer runs migrations. New migration: `npx prisma migrate diff --from-schema-datasource
+  prisma/schema.prisma ...` is not available without a live URL, so diff from the previous schema file and **check
+  JSON defaults**: Prisma writes `DEFAULT []` / `DEFAULT {}` unquoted for SQLite, which SQLite rejects.
+- The seeds (`seed`, `seed:real`) wipe every table. They must never run against the real data.
+- Still in place until the checkpoint OK: Docker, `docker-compose.yml`, the Postgres schema copy and old migrations
+  in `prisma/postgres/`, the `POSTGRES_URL` line in `.env`, and the Docker step in `start-crewboard.ps1`.
+
 ## Step 3: remove the multi-user parts and notifications
 
 - Auth: no sign-in, password, token or role check; every endpoint acts as the manager. The permissions file, the role

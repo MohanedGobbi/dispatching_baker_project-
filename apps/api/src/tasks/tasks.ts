@@ -39,7 +39,7 @@ class TasksController {
     if (!manager) where.employeeId = req.user!.employeeId;
     else if (q.employeeId) where.employeeId = q.employeeId;
     if (q.status === 'OPEN' || q.status === 'DONE') where.status = q.status;
-    if (q.q && manager) where.OR = [{ title: { contains: q.q, mode: 'insensitive' } }, ...['firstName', 'lastName', 'employeeNo'].map(f => ({ employee: { [f]: { contains: q.q, mode: 'insensitive' } } }))];
+    if (q.q && manager) where.OR = [{ title: { contains: q.q } }, ...['firstName', 'lastName', 'employeeNo'].map(f => ({ employee: { [f]: { contains: q.q } } }))];
     const rows = await this.prisma.employeeTask.findMany({ where: where as never, include, orderBy: [{ status: 'desc' }, { dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }], take: 500 });
     const today = startOfDay(new Date());
     return rows.map(t => shape(t, today));

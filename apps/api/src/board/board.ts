@@ -11,7 +11,7 @@ import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { CalendarCoreModule, CalendarService, DayCell, iso, addDays } from '../calendar/calendar.service';
 import { viewerFor } from '../calendar/calendar';
-import { parseDate } from '../common/validate';
+import { parseDate, strings } from '../common/validate';
 import { computeUnitStatus } from '../domain/derived';
 import { crewEnough, seniorityAtLeast } from '../domain/rules';
 import { Seniority, startOfDay } from '../domain/status';
@@ -142,7 +142,7 @@ class BoardController {
       if (!p) return null;
       return {
         id: p.id, name: `${p.firstName} ${p.lastName}`, employeeNo: p.employeeNo, position: p.position.name, base: p.homeBase.code,
-        seniority: sen.get(p.id)?.seniority ?? 'JUNIOR', tags: p.qualifications.map(x => SHORT_QUAL[x.qualification.name] ?? x.qualification.name), rank: p.tags[0] ?? null,
+        seniority: sen.get(p.id)?.seniority ?? 'JUNIOR', tags: p.qualifications.map(x => SHORT_QUAL[x.qualification.name] ?? x.qualification.name), rank: strings(p.tags)[0] ?? null,
         restrictions: cell(id)?.restrictions ?? [],
       };
     };

@@ -87,8 +87,9 @@ export class NotificationsService {
     let created = 0;
     for (const userId of userIds) {
       if (input.key) {
-        const dup = await this.prisma.notification.findFirst({ where: { userId, type: input.type, payload: { path: ['_key'], equals: input.key } }, select: { id: true } });
-        if (dup) continue;
+        // SQLite cannot filter on a JSON path, so the key is matched here.
+        const sent = await this.prisma.notification.findMany({ where: { userId, type: input.type }, select: { payload: true } });
+        if (sent.some(n => (n.payload as { _key?: string } | null)?._key === input.key)) continue;
       }
       const prefs = await this.prefsOf(userId);
       // Acknowledgement-required notices cannot be muted: the plan says the employee must see them.
