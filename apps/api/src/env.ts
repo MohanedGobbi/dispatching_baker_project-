@@ -3,5 +3,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const file = join(__dirname, '..', '.env');
-if (existsSync(file)) process.loadEnvFile(file);
+// src/env.ts under tsx, dist/src/env.js once built: apps/api/.env is one or two folders up.
+const file = [join(__dirname, '..', '.env'), join(__dirname, '..', '..', '.env')].find(existsSync);
+if (file) process.loadEnvFile(file);

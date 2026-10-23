@@ -48,6 +48,12 @@ Installer 133 MB, per-user, publisher "Mohaned Gobbi"; uninstalling keeps the da
 - `tsx watch` and the Vite dev server leave the normal start (they stay as `npm run dev:*` for development).
 - Docker is still needed until Step 2.
 
+**Result (2026-10-23): done.** `start-crewboard.cmd` builds when the code is newer than the build, then runs
+`node apps/api/dist/src/main.js` hidden, with logs in `logs/`. The API serves `apps/web/dist` and strips `/api` from API
+requests (as the Vite proxy does), listening on 127.0.0.1 only. The API build now runs `prisma generate` first: the
+generated client was out of date (`openEnded`), which `tsx` never noticed because it does not type-check. Measured:
+the app process uses about 100 MB; Docker Desktop and its Linux VM about 2.5 GB, which Step 2 removes.
+
 ## Step 2: Postgres to SQLite
 
 - Schema:

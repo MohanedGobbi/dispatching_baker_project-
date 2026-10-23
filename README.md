@@ -17,7 +17,12 @@ npm run seed                        # catalogs, 4 bases, 16 units, ~150 people, 
 npm run start:dev                   # API on http://localhost:3000
 ```
 
-In a second terminal: `npm run dev:web` (http://localhost:5173, proxies `/api` to the API).
+In a second terminal: `npm run dev:web` (http://localhost:5173, proxies `/api` to the API). Those two are for
+working on the code.
+
+**Everyday use:** `start-crewboard.cmd` (Windows). It starts the database, builds the app if the code changed since
+the last build, then runs one hidden process that serves the whole app on http://127.0.0.1:3000 (API under `/api`)
+and opens the browser. Logs go to `logs/`. `stop-crewboard.cmd` stops it. By hand: `npm run build` then `npm start`.
 
 To fill the board with something to look at (8 units on jobs, a published four-week plan and some open replacement tasks), with the API running:
 

@@ -2,7 +2,7 @@
 import '../src/env';
 import { PrismaClient } from '@prisma/client';
 
-export const API = process.env.API ?? 'http://localhost:3000';
+export const API = process.env.API ?? 'http://127.0.0.1:3000';
 export const prisma = new PrismaClient();
 export const DAY = 86_400_000;
 export const today = new Date(); today.setUTCHours(0, 0, 0, 0);

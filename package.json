@@ -5,6 +5,7 @@
     "apps/*"
   ],
   "scripts": {
+    "start": "npm start -w @crewboard/api",
     "dev:api": "npm run start:dev -w @crewboard/api",
     "dev:web": "npm run dev -w @crewboard/web",
     "build": "npm run build -w @crewboard/api && npm run build -w @crewboard/web",

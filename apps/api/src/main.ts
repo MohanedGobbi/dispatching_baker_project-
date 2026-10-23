@@ -1,7 +1,9 @@
 import 'reflect-metadata';
 import './env';
 import { NestFactory } from '@nestjs/core';
-import { json } from 'express';
+import express, { json, NextFunction, Request, Response } from 'express';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Controller, Get, Module } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.service';
 import { AuthModule, Public } from './auth/auth.module';
@@ -43,11 +45,31 @@ class HealthController {
 })
 class AppModule {}
 
+/**
+ * The built web app (apps/web/dist), when it exists, is served from the same port: requests under /api go to the API
+ * with the prefix removed (what the Vite proxy does in development), everything else is a web file or index.html.
+ */
+function serveWeb(app: { use: (...a: unknown[]) => unknown }) {
+  // Built code runs from apps/api/dist/src; under tsx (development) this path does not exist and Vite serves the web.
+  const dir = process.env.WEB_DIST ?? join(__dirname, '..', '..', '..', 'web', 'dist');
+  if (!existsSync(join(dir, 'index.html'))) return false;
+  const files = express.static(dir, { index: false });
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.url === '/api' || req.url.startsWith('/api/')) { req.url = req.url.slice(4) || '/'; return next(); }
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    files(req, res, () => res.sendFile(join(dir, 'index.html')));
+  });
+  return true;
+}
+
 async function bootstrap() {
   // Uploads arrive as base64 in JSON, so the body limit is raised above the 100 kB default.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.use(json({ limit: "12mb" }));
-  app.enableCors();
-  await app.listen(process.env.PORT ?? 3000);
+  const web = serveWeb(app);
+  if (!web) app.enableCors(); // development: the Vite dev server calls the API from another port
+  const port = Number(process.env.PORT ?? 3000), host = process.env.HOST ?? '127.0.0.1';
+  await app.listen(port, host);
+  console.log(`CrewBoard ${web ? 'app' : 'API'} on http://${host}:${port}`);
 }
 bootstrap();

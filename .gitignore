@@ -17,3 +17,6 @@ apps/api/prisma/real/
 
 # Step 0 throwaway test (Electron + Prisma + SQLite packaging)
 spike/
+
+# CrewBoard app logs (start-crewboard)
+logs/

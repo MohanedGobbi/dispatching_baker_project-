@@ -1,9 +1,11 @@
-# Starts CrewBoard: database (Docker), API (:3000) and web app (:5173), then opens the browser.
+# Starts CrewBoard: database (Docker), then one hidden process that serves the app on http://127.0.0.1:3000,
+# then opens the browser. Builds first when the code is newer than the last build.
 # Safe to run twice: anything already running is left alone.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $Host.UI.RawUI.WindowTitle = 'CrewBoard launcher'
+$url = 'http://127.0.0.1:3000'
 
 function Listening($port) { [bool](Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) }
 function WaitFor($port, $name, $seconds) {
@@ -15,6 +17,7 @@ function WaitFor($port, $name, $seconds) {
   Write-Host ' not answering' -ForegroundColor Red; return $false
 }
 function Fail($msg) { Write-Host "`n$msg" -ForegroundColor Red; Read-Host 'Press Enter to close'; exit 1 }
+function Newest($paths) { (Get-ChildItem $paths -Recurse -File -ErrorAction SilentlyContinue | Measure-Object LastWriteTime -Maximum).Maximum }
 
 Write-Host 'CrewBoard' -ForegroundColor Cyan
 
@@ -33,22 +36,25 @@ if (-not (Listening 5440)) {
   Start-Sleep 2
 } else { Write-Host 'Database already running' -ForegroundColor Green }
 
-# 2. API (applies any new migrations first)
+# 2. The app (API + web on one port)
 if (-not (Listening 3000)) {
+  $built = @('apps\api\dist\src\main.js', 'apps\web\dist\index.html') | ForEach-Object { Get-Item $_ -ErrorAction SilentlyContinue }
+  $source = Newest @('apps\api\src', 'apps\web\src', 'apps\web\public', 'apps\web\index.html')
+  if ($built.Count -lt 2 -or ($built | Where-Object { $_.LastWriteTime -lt $source })) {
+    Write-Host 'Building (the code changed since the last build)...'
+    npm run build | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail 'The build failed. Run "npm run build" in this folder to see the error.' }
+  }
   Push-Location apps\api
   npx prisma migrate deploy | Out-Null
   Pop-Location
-  Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='CrewBoard API'; Set-Location '$root\apps\api'; npm run start:dev"
-  if (-not (WaitFor 3000 'API' 90)) { Fail 'The API did not start. Look at the "CrewBoard API" window for the error.' }
-} else { Write-Host 'API already running' -ForegroundColor Green }
+  New-Item -ItemType Directory -Force logs | Out-Null
+  Start-Process node -ArgumentList 'dist\src\main.js' -WorkingDirectory "$root\apps\api" -WindowStyle Hidden `
+    -RedirectStandardOutput "$root\logs\crewboard.log" -RedirectStandardError "$root\logs\crewboard-error.log"
+  if (-not (WaitFor 3000 'CrewBoard' 60)) { Fail "CrewBoard did not start. See logs\crewboard-error.log." }
+} else { Write-Host 'CrewBoard already running' -ForegroundColor Green }
 
-# 3. Web app
-if (-not (Listening 5173)) {
-  Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle='CrewBoard Web'; Set-Location '$root'; npm run dev:web"
-  if (-not (WaitFor 5173 'web app' 60)) { Fail 'The web app did not start. Look at the "CrewBoard Web" window for the error.' }
-} else { Write-Host 'Web app already running' -ForegroundColor Green }
-
-Start-Process 'http://localhost:5173'
-Write-Host "`nCrewBoard is running at http://localhost:5173 (logins: see DEMO.md, password demo1234)." -ForegroundColor Cyan
-Write-Host 'Close the "CrewBoard API" and "CrewBoard Web" windows, or run stop-crewboard, to stop it.'
-Start-Sleep 4
+Start-Process $url
+Write-Host "`nCrewBoard is running at $url (sign in as admin)." -ForegroundColor Cyan
+Write-Host 'Run stop-crewboard to stop it.'
+Start-Sleep 3
