@@ -5,30 +5,22 @@ Crew rotation and dispatch platform. The full functional plan is in
 
 ## Run it
 
-Needs Node 20+ and Docker.
+Needs Node 20+. No database server: the data is one SQLite file.
 
-```bash
-npm install
-npm run db:up                       # PostgreSQL on port 5440 (Redis on 6380, not used yet)
-cd apps/api
-cp .env.example .env                # DATABASE_URL points at the container
-npx prisma migrate deploy
-npm run seed                        # catalogs, 4 bases, 16 units, ~150 people, demo users
-npm run start:dev                   # API on http://localhost:3000
-```
+**Everyday use:** `start-crewboard.cmd` (Windows). It builds the app if the code changed since the last build, then
+runs one hidden process that serves the whole app on http://127.0.0.1:3000 (API under `/api`) and opens the browser.
+Logs go to `logs/`. `stop-crewboard.cmd` stops it. By hand: `npm install`, `npm run build`, `npm start`.
 
-In a second terminal: `npm run dev:web` (http://localhost:5173, proxies `/api` to the API). Those two are for
-working on the code.
+**Data** lives in `data/` (gitignored): `crewboard.db` (SQLite), `storage/` (uploaded files) and `backups/` (one a
+day, 14 kept then one per month, plus "Back up now" in Settings). The app creates the database and applies new
+migrations (`apps/api/prisma/migrations`) when it starts. Set `DATA_DIR` in `apps/api/.env` to keep it elsewhere.
+`data/` holds the real crew data: never run the seeds, `demo` or the smoke suites against it (they wipe or change
+data); point `DATA_DIR` at a throwaway folder first.
 
-**Everyday use:** `start-crewboard.cmd` (Windows). It starts the database, builds the app if the code changed since
-the last build, then runs one hidden process that serves the whole app on http://127.0.0.1:3000 (API under `/api`)
-and opens the browser. Logs go to `logs/`. `stop-crewboard.cmd` stops it. By hand: `npm run build` then `npm start`.
-
-To fill the board with something to look at (8 units on jobs, a published four-week plan and some open replacement tasks), with the API running:
-
-```bash
-cd apps/api && npm run demo
-```
+**Working on the code:** `npm run start:dev` in `apps/api` (API on 127.0.0.1:3000, reloads on change) and
+`npm run dev:web` (http://localhost:5173, proxies `/api` to the API). With `DATA_DIR` pointing at a test folder,
+`npm run seed` fills it with mock data (catalogs, 4 bases, 16 units, ~150 people) and `npm run demo` (API running)
+puts 8 units on jobs with a published plan and open replacement tasks.
 
 Sign in as the manager: `admin` / `demo1234`. The manager is the only user of the web app. The other seeded accounts (`dispatcher`, `ops`, `hr`, every employee number) exist only for the automated tests; they are told the platform is for the manager only.
 

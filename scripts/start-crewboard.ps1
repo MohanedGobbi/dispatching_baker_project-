@@ -1,4 +1,4 @@
-# Starts CrewBoard: database (Docker), then one hidden process that serves the app on http://127.0.0.1:3000,
+# Starts CrewBoard: one hidden process that serves the app on http://127.0.0.1:3000,
 # then opens the browser. Builds first when the code is newer than the last build.
 # Safe to run twice: anything already running is left alone.
 $ErrorActionPreference = 'Stop'
@@ -21,22 +21,7 @@ function Newest($paths) { (Get-ChildItem $paths -Recurse -File -ErrorAction Sile
 
 Write-Host 'CrewBoard' -ForegroundColor Cyan
 
-# 1. Database
-if (-not (Listening 5440)) {
-  docker info *> $null
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host 'Starting Docker Desktop...'
-    $dd = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
-    if (Test-Path $dd) { Start-Process $dd } else { Fail 'Docker is not running and Docker Desktop was not found. Start Docker, then run this again.' }
-    for ($i = 0; $i -lt 90; $i++) { docker info *> $null; if ($LASTEXITCODE -eq 0) { break }; Start-Sleep 2 }
-    if ($LASTEXITCODE -ne 0) { Fail 'Docker did not start in time.' }
-  }
-  docker compose up -d db | Out-Null
-  if (-not (WaitFor 5440 'database' 60)) { Fail 'The database did not start (docker compose up -d db).' }
-  Start-Sleep 2
-} else { Write-Host 'Database already running' -ForegroundColor Green }
-
-# 2. The app (API + web on one port)
+# The app (API + web on one port). The SQLite database in data\ is created and updated by the app itself.
 if (-not (Listening 3000)) {
   $built = @('apps\api\dist\src\main.js', 'apps\web\dist\index.html') | ForEach-Object { Get-Item $_ -ErrorAction SilentlyContinue }
   $source = Newest @('apps\api\src', 'apps\web\src', 'apps\web\public', 'apps\web\index.html')
