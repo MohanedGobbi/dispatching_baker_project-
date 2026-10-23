@@ -88,7 +88,7 @@ Notes for later work:
   Prisma CLI no longer runs migrations. New migration: `npx prisma migrate diff --from-schema-datasource
   prisma/schema.prisma ...` is not available without a live URL, so diff from the previous schema file and **check
   JSON defaults**: Prisma writes `DEFAULT []` / `DEFAULT {}` unquoted for SQLite, which SQLite rejects.
-- The seeds (`seed`, `seed:real`) wipe every table. They must never run against the real data.
+- The mock-data seed (`npm run seed`) wipes every table. They must never run against the real data.
 - Still in place until the checkpoint OK: Docker, `docker-compose.yml`, the Postgres schema copy and old migrations
   in `prisma/postgres/`, the `POSTGRES_URL` line in `.env`, and the Docker step in `start-crewboard.ps1`.
 

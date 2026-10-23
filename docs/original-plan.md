@@ -1,3 +1,7 @@
+> **Historical document.** This is the original plan, written when CrewBoard was meant to be a multi-user web platform
+> (several roles, an employee app, notifications, a PostgreSQL server). The product was later narrowed to one manager on
+> one Windows PC: see [desktop-plan.md](desktop-plan.md) and the [README](../README.md) for what exists today.
+
 # CrewBoard — Crew Rotation, Dispatch & Base Staffing Platform
 
 ## Full Functional Work Plan — v3

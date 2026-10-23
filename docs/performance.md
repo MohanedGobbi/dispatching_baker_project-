@@ -1,66 +1,72 @@
-# Performance (plan E28)
+# Performance
 
-Measured on 2026-10-20 in the cloud development container (API under `tsx`, PostgreSQL 16 on the same machine, no
-caching anywhere). Every request was run five times; the table shows the median and the slowest.
+Measured on 2026-10-23 on the development PC (the compiled engine under Node, SQLite in WAL mode, the database on the
+local disk, no caching anywhere). Every request was run five times; the tables show the median and the slowest, in
+milliseconds. The data is the generated demo data (seed), at its normal size and at five times that.
 
-How to repeat it (API running):
+How to repeat it (PowerShell, on a **throwaway** data folder, never the real data):
 
-```bash
-cd apps/api
-SEED_SCALE=5 npm run seed            # 5x mock volume: 955 people, 80 units, same four bases
-npx tsx scripts/perf.ts --deploy=40  # puts 40 units on jobs, publishes a 4-week plan, then times the requests
-npm run seed                         # back to the normal demo data
+```powershell
+$env:DATA_DIR = 'C:\temp\crewboard-perf'; $env:SEED_SCALE = '5'
+cd apps/api; npm run build; npm run seed
+Start-Process node -ArgumentList 'dist\src\main.js' -WindowStyle Hidden     # the app on http://127.0.0.1:3000
+npx tsx scripts/perf.ts --deploy=40                                         # puts 40 units on jobs, then times the requests
 ```
 
-## 1x (the demo volume, 8 units on jobs)
+## Demo size
 
-Data: 191 people, 16 units (8 on jobs), 103 assignments. 5 runs each.
+Data: 140 people, 16 units (8 on jobs), 60 assignments.
 
-| Request | Median ms | Worst ms | Size kB | Status |
-|---|---:|---:|---:|---:|
-| Board (today) | 93 | 96 | 57 | 200 |
-| Units list | 12 | 16 | 8 | 200 |
-| Unit page: detail | 14 | 23 | 7 | 200 |
-| Unit page: 12-month history | 5 | 6 | 1 | 200 |
-| Employees list | 31 | 36 | 203 | 200 |
-| Person calendar (90 days) | 12 | 15 | 5 | 200 |
-| Timeline (5 weeks, everyone) | 49 | 72 | 76 | 200 |
-| Replacement center | 4 | 7 | 0 | 200 |
-| Analytics overview | 102 | 129 | 0 | 200 |
-| Coverage forecast (90 days) | 136 | 145 | 282 | 200 |
-| Work orders | 5 | 9 | 0 | 200 |
-| Tasks | 4 | 4 | 0 | 200 |
-| Audit log (page) | 6 | 7 | 8 | 200 |
-| Excel export: employees | 115 | 128 | 30 | 200 |
-| Planner: 4 weeks, all bases | 106 | 115 | 5 | 201 |
+| Request | Median ms | Worst ms | Size kB |
+|---|---:|---:|---:|
+| Board (today) | 33 | 37 | 43 |
+| Units list | 5 | 6 | 8 |
+| Unit page: detail | 4 | 6 | 2 |
+| Unit page: 12-month history | 2 | 2 | 1 |
+| Employees list | 12 | 13 | 151 |
+| Person calendar (90 days) | 5 | 6 | 2 |
+| Timeline (5 weeks, everyone) | 19 | 21 | 35 |
+| Replacement center | 3 | 4 | 0 |
+| Analytics overview | 31 | 34 | 2 |
+| Coverage forecast (90 days) | 51 | 54 | 129 |
+| Work orders | 1 | 2 | 0 |
+| Tasks | 1 | 1 | 0 |
+| Audit log (page) | 1 | 2 | 7 |
+| Excel export: employees | 57 | 100 | 26 |
+| Planner: 4 weeks, all bases | 123 | 137 | 61 |
 
-## 5x (40 units on jobs)
+## Five times the demo size
 
-Data: 955 people, 80 units (40 on jobs), 363 assignments. 5 runs each.
+Data: 700 people, 80 units (40 on jobs), 322 assignments.
 
-| Request | Median ms | Worst ms | Size kB | Status |
-|---|---:|---:|---:|---:|
-| Board (today) | 317 | 377 | 267 | 200 |
-| Units list | 32 | 32 | 39 | 200 |
-| Unit page: detail | 17 | 24 | 8 | 200 |
-| Unit page: 12-month history | 7 | 16 | 1 | 200 |
-| Employees list | 123 | 169 | 212 | 200 |
-| Person calendar (90 days) | 15 | 19 | 5 | 200 |
-| Timeline (5 weeks, everyone) | 73 | 88 | 114 | 200 |
-| Replacement center | 3 | 6 | 0 | 200 |
-| Analytics overview | 291 | 407 | 0 | 200 |
-| Coverage forecast (90 days) | 511 | 586 | 285 | 200 |
-| Work orders | 5 | 5 | 0 | 200 |
-| Tasks | 4 | 5 | 0 | 200 |
-| Audit log (page) | 7 | 8 | 24 | 200 |
-| Excel export: employees | 261 | 292 | 89 | 200 |
-| Planner: 4 weeks, all bases | 253 | 320 | 1 | 201 |
+| Request | Median ms | Worst ms | Size kB |
+|---|---:|---:|---:|
+| Board (today) | 123 | 141 | 211 |
+| Units list | 12 | 14 | 39 |
+| Unit page: detail | 5 | 5 | 2 |
+| Unit page: 12-month history | 2 | 3 | 1 |
+| Employees list | 46 | 48 | 215 |
+| Person calendar (90 days) | 5 | 6 | 2 |
+| Timeline (5 weeks, everyone) | 40 | 46 | 79 |
+| Replacement center | 3 | 4 | 0 |
+| Analytics overview | 113 | 120 | 7 |
+| Coverage forecast (90 days) | 217 | 360 | 130 |
+| Work orders | 1 | 2 | 0 |
+| Tasks | 1 | 2 | 0 |
+| Audit log (page) | 2 | 3 | 21 |
+| Excel export: employees | 111 | 161 | 70 |
+| Planner: 4 weeks, all bases | 1102 | 1144 | 130 |
 
 ## Reading it
 
-- Nothing reaches a second at 5x. The slowest are the 90-day coverage forecast (about 0.5 s), the board (about 0.3 s)
-  and the analytics overview (about 0.3 s); they grow roughly with the number of people, since each person's
-  calendar is computed on request.
-- The planner plans four weeks for every base in about a quarter of a second at 5x.
-- If the fleet grows well past 5x, cache the per-person calendars for the day (they only change when an assignment,
-  leave or setting changes) before anything else; the forecast, board and overview all build on them.
+- Every screen answers in well under a quarter of a second at five times the demo size, apart from the planner.
+- The board, the screen the manager keeps open, takes about 0.03 s at demo size and 0.12 s at five times.
+- The planner (a new four-week plan for every base, run once per request) is the one slow request: about 0.12 s at demo
+  size and 1.1 s at five times. It runs only when the manager asks for a plan.
+- The 90-day coverage forecast, the board and the analytics overview all build on each person's calendar, which is
+  computed on request. If the fleet grows well past five times, cache the calendars for the day (they only change when
+  an assignment, leave or setting changes) before anything else.
+- An earlier measurement with PostgreSQL (2026-10-20, 191 people at demo size) showed a 0.09 s board and a 0.25 s planner at
+  five times. The screens are faster on SQLite, with no network hop between the engine and the database, and the planner
+  is slower at five times because it reads its data in many small queries. The data sets differ in size, so the two
+  runs are not strictly comparable.

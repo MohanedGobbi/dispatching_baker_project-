@@ -26,8 +26,27 @@ test('staff screens', async ({ page }) => {
 
   await guidesOpen(page)
   for (const s of ALL) { await open(page, s); await snap(page, `10-${s}`, s === 'board') }
+  // the top of the board with its guide open, for the manual's tour of the screen
+  await step('board-top', async () => {
+    await open(page, 'board')
+    await page.waitForTimeout(900)
+    await page.screenshot({ path: `${OUT}/10-board-top.png`, fullPage: true, clip: { x: 0, y: 0, width: 1366, height: 1250 } })
+  })
 
   await foldAll(page)
+  // what the manager sees when CrewBoard opens: one window of the board (used at the top of the README)
+  await step('board-hero', async () => {
+    await open(page, 'board')
+    await page.waitForTimeout(900)
+    await page.screenshot({ path: `${OUT}/10-board-hero.png` })
+  })
+  // unit cards under their base banner (guide folded, so the units sit higher)
+  await step('board-units', async () => {
+    await open(page, 'board')
+    await page.waitForTimeout(900)
+    const y = Math.max(0, Math.round(await page.locator('.base-sec .base-banner').first().evaluate(el => el.getBoundingClientRect().top + window.scrollY)) - 10)
+    await page.screenshot({ path: `${OUT}/10-board-units.png`, fullPage: true, clip: { x: 240, y, width: 1126, height: 520 } })
+  })
   await step('board-assign', async () => {
     await open(page, 'board')
     await page.getByRole('button', { name: /Assign someone/ }).first().click()

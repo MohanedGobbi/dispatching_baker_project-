@@ -4,7 +4,7 @@
 
 ## Platform
 
-web
+desktop (a Windows program built with Electron; the screens are a web app inside it)
 
 ## Users
 One **manager** at an oilfield-services company in Algeria (bases such as In Amenas). They run the whole operation from a desktop: who crews which unit, who covers an absence, which unit is on a job or in the workshop. Their job is monitoring and deciding under time pressure, so what needs action today must be unmistakable.
