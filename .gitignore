@@ -14,3 +14,6 @@ apps/api/prisma/real/
 
 # local preview launcher and generated manual (rebuild with the manual scripts)
 .claude/
+
+# Step 0 throwaway test (Electron + Prisma + SQLite packaging)
+spike/
