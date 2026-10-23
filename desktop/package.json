@@ -9,6 +9,7 @@
     "stage": "node scripts/stage.cjs",
     "start": "electron-dist\\electron.exe build/app",
     "dist": "node scripts/stage.cjs && electron-builder --win nsis",
+    "dist:empty": "node scripts/stage.cjs --no-data && electron-builder --win nsis",
     "dist:only": "electron-builder --win nsis"
   },
   "devDependencies": {
@@ -24,6 +25,7 @@
     "electronDist": "electron-dist",
     "npmRebuild": false,
     "asarUnpack": ["api/prisma/client/*.node"],
+    "extraResources": [{ "from": "build/seed-data", "to": "seed-data" }],
     "win": { "target": "nsis", "icon": "icon.ico" },
     "nsis": {
       "oneClick": false,

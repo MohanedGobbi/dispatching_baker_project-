@@ -37,4 +37,6 @@ run('npm install --omit=dev --prefer-offline --no-audit --no-fund', out, { PRISM
 rmSync(join(out, 'package-lock.json'), { force: true });
 
 if (!existsSync(join(out, 'api', 'prisma', 'client', 'query_engine-windows.dll.node'))) throw new Error('Prisma engine missing from the staged app');
+// The crew data the installer starts a new computer with (--no-data: an empty installer).
+run(`node scripts/snapshot-data.cjs${process.argv.includes('--no-data') ? ' --no-data' : ''}`, desktop);
 console.log(`Staged in ${out}`);

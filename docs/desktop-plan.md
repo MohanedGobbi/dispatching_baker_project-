@@ -159,6 +159,12 @@ by Vite and the main process is plain JavaScript.
 - Checked: unpacked and installed, every screen renders through the key-guarded API on a copy of the real data with
   no failed request; a request without the key gets 403; the daily backup runs at start.
 
+**Addition (2026-10-23): the installer carries the crew data.** `desktop/scripts/snapshot-data.cjs` copies the
+current data (database via VACUUM INTO, plus the uploaded files) into `build/seed-data`, shipped as `resources/seed-data`;
+`main.js` copies it to `%APPDATA%CrewBoarddata` only when no database exists there. Checked with the installed app:
+a new computer starts with 74 people, 70 assignments and 51 files; a computer with its own data keeps it untouched;
+the source data was byte-for-byte unchanged by the build. `npm run dist:empty` builds an installer without data.
+
 ## Step 5: signature
 
 - "Made by Mohaned Gobbi" in small text at the foot of the sidebar, and in an About section in Settings (with the

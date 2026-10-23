@@ -3,7 +3,7 @@
 // Data lives in %APPDATA%\CrewBoard\data. Every request must carry a key made at launch, so no other program on this
 // computer can use the API.
 const { app, BrowserWindow, Menu, dialog, session, shell, utilityProcess } = require('electron');
-const { createWriteStream, existsSync, mkdirSync } = require('node:fs');
+const { copyFileSync, cpSync, createWriteStream, existsSync, mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { randomBytes } = require('node:crypto');
 
@@ -22,11 +22,24 @@ function engine() {
   return existsSync(file) ? { PRISMA_QUERY_ENGINE_LIBRARY: file } : {};
 }
 
+/**
+ * A computer with no CrewBoard data yet starts with the crew data the installer carries (resources/seed-data).
+ * It is copied only when there is no database: existing data is never overwritten, so updating or reinstalling is safe.
+ */
+function firstRun(data) {
+  const db = join(data, 'crewboard.db');
+  const seed = [join(process.resourcesPath ?? '', 'seed-data'), join(__dirname, '..', 'seed-data')].find(d => existsSync(join(d, 'crewboard.db')));
+  if (existsSync(db) || !seed) return;
+  copyFileSync(join(seed, 'crewboard.db'), db);
+  if (existsSync(join(seed, 'storage'))) cpSync(join(seed, 'storage'), join(data, 'storage'), { recursive: true });
+}
+
 function startApi() {
   const data = join(app.getPath('userData'), 'data');
   const logs = join(app.getPath('userData'), 'logs');
   mkdirSync(data, { recursive: true });
   mkdirSync(logs, { recursive: true });
+  firstRun(data);
   return new Promise((resolve, reject) => {
     api = utilityProcess.fork(join(__dirname, 'api', 'src', 'main.js'), [], {
       stdio: 'pipe',

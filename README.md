@@ -24,7 +24,14 @@ cd desktop
 npm install                 # with ELECTRON_SKIP_BINARY_DOWNLOAD=1 if GitHub downloads are unreliable
 # then unzip electron-v45.0.0-win32-x64.zip (from the Electron GitHub release) into desktop/electron-dist
 npm run dist                # builds API and web, stages build/app, writes dist/CrewBoard Setup <version>.exe
+npm run dist:empty          # the same, without crew data
 ```
+
+**The installer carries the crew data.** `npm run dist` takes a snapshot of `%APPDATA%CrewBoarddata` (or the folder in
+`CREWBOARD_SEED_FROM`) at build time. On a computer that has no CrewBoard data yet, the first launch copies it into
+`%APPDATA%CrewBoarddata`; a computer that already has data keeps it (nothing is ever overwritten, so reinstalling or
+updating is safe). The snapshot is read-only on the source, and contains real names: the installer is git-ignored and
+should be handled like the data itself. Rebuild the installer to pick up newer data.
 
 `npm run stage` then `npm start` runs the staged app without installing it. `scripts/make-icon.cjs` redraws
 `icon.ico` from the web logo.
