@@ -2,7 +2,7 @@
 // Stage A scope: catalogs, bases, sites, units, seats, employees, certifications, demo users.
 // Jobs / assignments / leave history and the 14 planted scenarios are added with E9-E16.
 import '../src/env';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '../src/db';
 import { faker } from '@faker-js/faker/locale/fr';
 import { singleConnectionUrl, wipeDatabase } from '../src/prisma/migrate';
 

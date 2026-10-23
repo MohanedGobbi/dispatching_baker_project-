@@ -23,3 +23,12 @@ logs/
 
 # CrewBoard data: SQLite database, uploaded files and backups (real data, never commit)
 data/
+
+# Prisma client generated from apps/api/prisma/schema.prisma (npx prisma generate)
+apps/api/prisma/client/
+
+# Desktop app: staged app, Electron binaries and installers (npm run dist in desktop/)
+desktop/build/
+desktop/electron-dist/
+# the old data folder, kept after the move to %APPDATA%\CrewBoard\data (2026-10-23)
+data.*/

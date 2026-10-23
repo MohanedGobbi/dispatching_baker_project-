@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "client" // prisma/client, not node_modules/.prisma: an installer drops hidden folders (see src/db.ts)
 }
 
 datasource db {

@@ -1,7 +1,7 @@
 // Live smoke test for E9 (seats & assignments + rule validator). Mutates data: run `npm run seed` afterwards.
 // Usage: API=http://localhost:3000 tsx scripts/smoke-assignments.ts
 import '../src/env';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/db';
 
 const API = process.env.API ?? 'http://localhost:3000';
 const prisma = new PrismaClient();

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Module } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../db';
 import { PrismaService } from '../prisma/prisma.service';
 import { carveAssignment, Span, Trigger, urgencyFor } from '../domain/absence';
 import { subtractSpans } from '../domain/spans';

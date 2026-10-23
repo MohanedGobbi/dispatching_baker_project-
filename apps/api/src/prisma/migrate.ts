@@ -2,7 +2,7 @@
 // Applied names are kept in _migrations; each migration runs in one transaction.
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../db';
 
 /** prisma/migrations next to the code: src/prisma under tsx, dist/src/prisma once built. MIGRATIONS_DIR wins. */
 function migrationsDir() {

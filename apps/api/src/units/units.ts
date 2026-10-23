@@ -1,7 +1,7 @@
 import {
   BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Query,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../db';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';

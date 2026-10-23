@@ -5,17 +5,29 @@ Crew rotation and dispatch platform. The full functional plan is in
 
 ## Run it
 
-Needs Node 20+. No database server: the data is one SQLite file.
+**Everyday use:** the CrewBoard desktop app. Install it with `desktop\dist\CrewBoard Setup 1.0.0.exe`; it adds
+CrewBoard to the Start menu and the desktop, and opens in its own window. No Node, browser or database server needed.
+`start-crewboard.cmd` still works (needs Node 20+): it builds if the code changed, runs one hidden process on
+http://127.0.0.1:3000 and opens the browser; `stop-crewboard.cmd` stops it.
 
-**Everyday use:** `start-crewboard.cmd` (Windows). It builds the app if the code changed since the last build, then
-runs one hidden process that serves the whole app on http://127.0.0.1:3000 (API under `/api`) and opens the browser.
-Logs go to `logs/`. `stop-crewboard.cmd` stops it. By hand: `npm install`, `npm run build`, `npm start`.
+**Data** lives in `%APPDATA%\CrewBoard\data`, for the desktop app and `start-crewboard.cmd` alike: `crewboard.db`
+(SQLite), `storage\` (uploaded files) and `backups\` (one a day, 14 kept then one per month, plus "Back up now" in
+Settings). The app creates the database and applies new migrations (`apps/api/prisma/migrations`) when it starts.
+The desktop app's engine log is `%APPDATA%\CrewBoard\logs\api.log`. Uninstalling keeps the data.
+It holds the real crew data: never run the seeds, `demo` or the smoke suites against it (they wipe or change
+data); set `DATA_DIR` to a throwaway folder first.
 
-**Data** lives in `data/` (gitignored): `crewboard.db` (SQLite), `storage/` (uploaded files) and `backups/` (one a
-day, 14 kept then one per month, plus "Back up now" in Settings). The app creates the database and applies new
-migrations (`apps/api/prisma/migrations`) when it starts. Set `DATA_DIR` in `apps/api/.env` to keep it elsewhere.
-`data/` holds the real crew data: never run the seeds, `demo` or the smoke suites against it (they wipe or change
-data); point `DATA_DIR` at a throwaway folder first.
+**Building the installer** (`desktop/`, outside the npm workspaces so the normal install stays small):
+
+```bash
+cd desktop
+npm install                 # with ELECTRON_SKIP_BINARY_DOWNLOAD=1 if GitHub downloads are unreliable
+# then unzip electron-v45.0.0-win32-x64.zip (from the Electron GitHub release) into desktop/electron-dist
+npm run dist                # builds API and web, stages build/app, writes dist/CrewBoard Setup <version>.exe
+```
+
+`npm run stage` then `npm start` runs the staged app without installing it. `scripts/make-icon.cjs` redraws
+`icon.ico` from the web logo.
 
 **Working on the code:** `npm run start:dev` in `apps/api` (API on 127.0.0.1:3000, reloads on change) and
 `npm run dev:web` (http://localhost:5173, proxies `/api` to the API). With `DATA_DIR` pointing at a test folder,

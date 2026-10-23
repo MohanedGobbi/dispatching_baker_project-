@@ -1,0 +1,40 @@
+{
+  "name": "crewboard-desktop",
+  "productName": "CrewBoard",
+  "version": "1.0.0",
+  "description": "Crew rotation and dispatch",
+  "author": "Mohaned Gobbi",
+  "private": true,
+  "scripts": {
+    "stage": "node scripts/stage.cjs",
+    "start": "electron-dist\\electron.exe build/app",
+    "dist": "node scripts/stage.cjs && electron-builder --win nsis",
+    "dist:only": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.mohanedgobbi.crewboard",
+    "productName": "CrewBoard",
+    "copyright": "© 2026 Mohaned Gobbi",
+    "directories": { "app": "build/app", "output": "dist" },
+    "electronVersion": "45.0.0",
+    "electronDist": "electron-dist",
+    "npmRebuild": false,
+    "asarUnpack": ["api/prisma/client/*.node"],
+    "win": { "target": "nsis", "icon": "icon.ico" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CrewBoard",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

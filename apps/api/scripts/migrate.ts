@@ -1,6 +1,6 @@
 // Creates the SQLite database if needed and applies new migrations (the API also does this when it starts).
 import '../src/env';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/db';
 import { prepareDatabase, singleConnectionUrl } from '../src/prisma/migrate';
 
 const prisma = new PrismaClient({ datasourceUrl: singleConnectionUrl() });

@@ -5,7 +5,7 @@ import express, { json, NextFunction, Request, Response } from 'express';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Controller, Get, Module } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './db';
 import { PrismaModule } from './prisma/prisma.service';
 import { prepareDatabase, singleConnectionUrl } from './prisma/migrate';
 import { SettingsModule } from './settings/settings';
@@ -66,11 +66,18 @@ async function bootstrap() {
   await db.$disconnect();
   // Uploads arrive as base64 in JSON, so the body limit is raised above the 100 kB default.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  // In the desktop app every request must carry the key the window was given at launch, so no other program on this
+  // computer can use the API.
+  const key = process.env.CB_KEY;
+  if (key) app.use((req: Request, res: Response, next: NextFunction) => { if (req.headers['x-crewboard-key'] === key) next(); else res.status(403).end(); });
   app.use(json({ limit: "12mb" }));
   const web = serveWeb(app);
   if (!web) app.enableCors(); // development: the Vite dev server calls the API from another port
   const port = Number(process.env.PORT ?? 3000), host = process.env.HOST ?? '127.0.0.1';
   await app.listen(port, host);
-  console.log(`CrewBoard ${web ? 'app' : 'API'} on http://${host}:${port}`);
+  const actual = (app.getHttpServer().address() as { port: number }).port; // PORT=0 picks a free one
+  console.log(`CrewBoard ${web ? 'app' : 'API'} on http://${host}:${actual}`);
+  // Started by the desktop app (an Electron utility process): tell it where to point the window.
+  (process as unknown as { parentPort?: { postMessage: (m: unknown) => void } }).parentPort?.postMessage({ port: actual });
 }
-bootstrap();
+bootstrap().catch(e => { console.error(e); process.exit(1); });

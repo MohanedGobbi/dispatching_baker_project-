@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../db';
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'date' | 'string[]';
 export type Spec = Record<string, FieldType>;

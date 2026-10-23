@@ -5,7 +5,7 @@
 import '../src/env';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/db';
 import { prepareDatabase, singleConnectionUrl, wipeDatabase } from '../src/prisma/migrate';
 import { RANKS, RankCode } from '../src/employees/ranks';
 

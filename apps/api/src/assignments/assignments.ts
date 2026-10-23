@@ -2,7 +2,7 @@ import {
   BadRequestException, Body, ConflictException, Controller, Get, HttpException, HttpStatus,
   Inject, Injectable, Module, NotFoundException, Param, Post, Put, Query,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../db';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';

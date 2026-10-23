@@ -1,6 +1,6 @@
 // Read-only: every table with its row count, then any broken references. Uses DATA_DIR / DATABASE_URL like the app.
 import '../src/env';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/db';
 
 const prisma = new PrismaClient();
 

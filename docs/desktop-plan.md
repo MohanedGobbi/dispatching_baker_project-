@@ -144,6 +144,21 @@ Notes for later work:
 - Delivery: configuration written and tested here, the app run unpacked, then `npm run dist` builds the `.exe`
   installer on this PC.
 
+**Result (2026-10-23): done.** `desktop/` (outside the npm workspaces): `main.js` (Electron main process),
+`scripts/stage.cjs` (builds API and web, assembles `build/app` with the API's runtime packages at their tested
+versions), `scripts/make-icon.cjs` (256 px icon from the web logo; the old 64 px `.ico` was refused by the
+installer). Electron 45.0.0, electron-builder 26.15.3, assisted NSIS installer (138 MB, per user, choice of folder,
+Start menu and desktop shortcuts, data kept on uninstall). electron-vite was not needed: the web app is already built
+by Vite and the main process is plain JavaScript.
+- The Prisma client is generated into `apps/api/prisma/client` and imported through `src/db.ts`; the API build copies
+  it and the migrations to `dist/prisma`, so nothing depends on `node_modules/.prisma`.
+- The API listens on a free port (`PORT=0`), reports it to the main process, and refuses requests without the launch
+  key (`CB_KEY`). Engine log: `%APPDATA%\CrewBoard\logs\api.log`.
+- Data moved from `<repo>/data` to `%APPDATA%\CrewBoard\data` (copied, compared table by table and byte by byte, then
+  the old folder renamed to `data.moved-to-appdata-2026-10-23`). `start-crewboard.cmd` uses the same folder.
+- Checked: unpacked and installed, every screen renders through the key-guarded API on a copy of the real data with
+  no failed request; a request without the key gets 403; the daily backup runs at start.
+
 ## Step 5: signature
 
 - "Made by Mohaned Gobbi" in small text at the foot of the sidebar, and in an About section in Settings (with the

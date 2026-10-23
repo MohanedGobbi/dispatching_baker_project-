@@ -1,6 +1,6 @@
 // Shared helpers for the live smoke scripts. They mutate the database: run `npm run seed` afterwards.
 import '../src/env';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/db';
 
 export const API = process.env.API ?? 'http://127.0.0.1:3000';
 export const prisma = new PrismaClient();

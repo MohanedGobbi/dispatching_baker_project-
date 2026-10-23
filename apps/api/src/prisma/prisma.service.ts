@@ -1,5 +1,5 @@
 import { Global, Injectable, Module, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../db';
 
 // The database is prepared (WAL, migrations) in main.ts before Nest starts; see prisma/migrate.ts.
 @Injectable()
