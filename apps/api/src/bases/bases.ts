@@ -1,8 +1,7 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Query, Req,
+  BadRequestException, Body, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
 import { audit, mapDbError, parseDate, pickFields, Spec } from '../common/validate';
 import { computeUnitStatus } from '../domain/derived';
 
@@ -18,8 +17,7 @@ const SITE_SPEC: Spec = {
 class BasesController {
   constructor(@Inject(PrismaService) private prisma: PrismaService) {}
 
-  @Get('bases') @Require('bases', 'view')
-  list(@Query('includeArchived') includeArchived?: string) {
+  @Get('bases') list(@Query('includeArchived') includeArchived?: string) {
     return this.prisma.base.findMany({
       where: includeArchived === 'true' ? {} : { active: true },
       orderBy: { name: 'asc' },
@@ -28,8 +26,7 @@ class BasesController {
   }
 
   /** Base page (5.4): units here, staff, posts filled vs required, jobs served. */
-  @Get('bases/:id') @Require('bases', 'view')
-  async detail(@Param('id') id: string, @Query('date') dateStr?: string) {
+  @Get('bases/:id') async detail(@Param('id') id: string, @Query('date') dateStr?: string) {
     const date = parseDate(dateStr);
     const base = await this.prisma.base.findUnique({ where: { id }, include: { region: true, sites: true, staffing: { include: { position: true } } } });
     if (!base) throw new NotFoundException('Base not found');
@@ -60,41 +57,37 @@ class BasesController {
     return { ...base, units: unitCards, staffCount, staffing, jobsServed };
   }
 
-  @Post('bases') @Require('bases', 'edit')
-  async create(@Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post('bases') async create(@Body() body: Record<string, unknown>) {
     const data = pickFields(BASE_SPEC, body, ['code', 'name']);
     const base = await this.prisma.base.create({ data: data as never }).catch(e => { throw mapDbError(e, 'Base code'); });
-    await audit(this.prisma, req.user?.sub, 'Base', base.id, 'create', null, base);
+    await audit(this.prisma, 'Base', base.id, 'create', null, base);
     return base;
   }
 
-  @Put('bases/:id') @Require('bases', 'edit')
-  async update(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Put('bases/:id') async update(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const before = await this.prisma.base.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Base not found');
     const after = await this.prisma.base.update({ where: { id }, data: pickFields(BASE_SPEC, body) as never }).catch(e => { throw mapDbError(e, 'Base'); });
-    await audit(this.prisma, req.user?.sub, 'Base', id, 'update', before, after);
+    await audit(this.prisma, 'Base', id, 'update', before, after);
     return after;
   }
 
   /** Archive rather than delete: a base has history. Refused while it still has active units or staff. */
-  @Delete('bases/:id') @Require('bases', 'edit')
-  async archive(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Delete('bases/:id') async archive(@Param('id') id: string) {
     const [units, staff] = await Promise.all([
       this.prisma.unit.count({ where: { homeBaseId: id } }),
       this.prisma.employee.count({ where: { homeBaseId: id, active: true } }),
     ]);
     if (units || staff) throw new BadRequestException(`Base still has ${units} unit(s) and ${staff} active employee(s); transfer them first`);
     const after = await this.prisma.base.update({ where: { id }, data: { active: false } });
-    await audit(this.prisma, req.user?.sub, 'Base', id, 'archive');
+    await audit(this.prisma, 'Base', id, 'archive');
     return after;
   }
 
   /** Staffing template (6.3): set min/target for a position at a base and regenerate base post seats. */
-  @Put('bases/:id/staffing/:positionId') @Require('bases', 'edit')
-  async setStaffing(
+  @Put('bases/:id/staffing/:positionId') async setStaffing(
     @Param('id') baseId: string, @Param('positionId') positionId: string,
-    @Body() body: { minCount?: number; targetCount?: number; scheduleWindow?: string }, @Req() req: AuthedRequest,
+    @Body() body: { minCount?: number; targetCount?: number; scheduleWindow?: string },
   ) {
     const { minCount, targetCount } = body ?? {};
     if (body?.scheduleWindow != null && body.scheduleWindow !== 'working_days') throw new BadRequestException('scheduleWindow must be working_days or empty');
@@ -107,7 +100,7 @@ class BasesController {
       update: { minCount: minCount!, targetCount: targetCount!, scheduleWindow: body.scheduleWindow },
     });
     await this.syncBaseSeats(baseId, positionId, minCount!, targetCount!);
-    await audit(this.prisma, req.user?.sub, 'BaseStaffingRule', rule.id, 'upsert', null, rule);
+    await audit(this.prisma, 'BaseStaffingRule', rule.id, 'upsert', null, rule);
     return rule;
   }
 
@@ -130,32 +123,28 @@ class BasesController {
   }
 
   // ----- Sites (5.3)
-  @Get('sites') @Require('bases', 'view')
-  sites(@Query('baseId') baseId?: string) {
+  @Get('sites') sites(@Query('baseId') baseId?: string) {
     return this.prisma.site.findMany({ where: baseId ? { baseId } : {}, orderBy: { name: 'asc' }, include: { base: { select: { code: true, name: true } } } });
   }
 
-  @Post('sites') @Require('bases', 'edit')
-  async createSite(@Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post('sites') async createSite(@Body() body: Record<string, unknown>) {
     const site = await this.prisma.site.create({ data: pickFields(SITE_SPEC, body, ['name', 'baseId']) as never }).catch(e => { throw mapDbError(e, 'Site'); });
-    await audit(this.prisma, req.user?.sub, 'Site', site.id, 'create', null, site);
+    await audit(this.prisma, 'Site', site.id, 'create', null, site);
     return site;
   }
 
-  @Put('sites/:id') @Require('bases', 'edit')
-  async updateSite(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Put('sites/:id') async updateSite(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const before = await this.prisma.site.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Site not found');
     const after = await this.prisma.site.update({ where: { id }, data: pickFields(SITE_SPEC, body) as never }).catch(e => { throw mapDbError(e, 'Site'); });
-    await audit(this.prisma, req.user?.sub, 'Site', id, 'update', before, after);
+    await audit(this.prisma, 'Site', id, 'update', before, after);
     return after;
   }
 
-  @Delete('sites/:id') @Require('bases', 'edit')
-  async deleteSite(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Delete('sites/:id') async deleteSite(@Param('id') id: string) {
     if (await this.prisma.job.count({ where: { siteId: id } })) throw new BadRequestException('Site has jobs and cannot be deleted');
     await this.prisma.site.delete({ where: { id } });
-    await audit(this.prisma, req.user?.sub, 'Site', id, 'delete');
+    await audit(this.prisma, 'Site', id, 'delete');
     return { deleted: id };
   }
 }

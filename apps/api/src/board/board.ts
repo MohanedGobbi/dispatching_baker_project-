@@ -1,16 +1,11 @@
 import {
-  CallHandler, Controller, ExecutionContext, ForbiddenException, Get, Inject, Injectable, MessageEvent, Module, NestInterceptor,
-  Query, Req, Sse,
+  Controller, Get, Inject, Module, Query,
 } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { interval, map, merge, Observable, Subject, tap } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { fitTasksToJobs } from '../absence/absence.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
-import { CalendarCoreModule, CalendarService, DayCell, iso, addDays } from '../calendar/calendar.service';
-import { viewerFor } from '../calendar/calendar';
+import { addDays, CalendarCoreModule, CalendarService, DayCell, iso, MANAGER_VIEW } from '../calendar/calendar.service';
 import { parseDate, strings } from '../common/validate';
 import { computeUnitStatus } from '../domain/derived';
 import { crewEnough, seniorityAtLeast } from '../domain/rules';
@@ -30,25 +25,6 @@ type Severity = 'ok' | 'info' | 'warn' | 'bad';
 const RANK: Record<Severity, number> = { ok: 0, info: 1, warn: 2, bad: 3 };
 const worst = (xs: Severity[]): Severity => xs.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'ok' as Severity);
 
-// ---------------------------------------------------------------- live updates
-
-/** Every successful change request tells the open boards to refresh (plan 14.3, 29 "Realtime"). */
-@Injectable()
-export class BoardEvents {
-  readonly changes = new Subject<{ type: 'changed'; path: string; at: string }>();
-}
-
-@Injectable()
-class ChangeNotifier implements NestInterceptor {
-  constructor(@Inject(BoardEvents) private events: BoardEvents) {}
-  intercept(ctx: ExecutionContext, next: CallHandler) {
-    const req = ctx.switchToHttp().getRequest<{ method: string; url: string }>();
-    return next.handle().pipe(tap(() => {
-      if (req.method !== 'GET' && !req.url.startsWith('/auth')) this.events.changes.next({ type: 'changed', path: req.url.split('?')[0], at: new Date().toISOString() });
-    }));
-  }
-}
-
 // ---------------------------------------------------------------- board
 
 @Controller('board')
@@ -58,25 +34,11 @@ class BoardController {
     @Inject(SettingsService) private settings: SettingsService,
     @Inject(EmployeeInsightsService) private insights: EmployeeInsightsService,
     @Inject(CalendarService) private cal: CalendarService,
-    @Inject(BoardEvents) private events: BoardEvents,
   ) {}
 
-  /** Server-sent events: the client reconnects with its token in the Authorization header. */
-  @Sse('events') @Require('assignments', 'view')
-  stream(): Observable<MessageEvent> {
-    return merge(
-      this.events.changes.pipe(map(e => ({ data: e }) as MessageEvent)),
-      interval(25_000).pipe(map(() => ({ data: { type: 'ping' } }) as MessageEvent)),
-    );
-  }
-
-  @Get() @Require('assignments', 'view')
-  async board(
-    @Req() req: AuthedRequest,
+  @Get() async board(
     @Query() q: { date?: string; baseId?: string; typeId?: string; view?: string; problemsOnly?: string; planId?: string; q?: string },
   ) {
-    const roles = (req.user?.roles ?? []).map(r => r.role);
-    if (roles.every(r => r === 'EMPLOYEE')) throw new ForbiddenException('The board is not available to employees');
     const D = startOfDay(q.date ? parseDate(q.date) : new Date());
     const today = startOfDay(new Date());
     const past = D < today;                      // the "time machine": the same view for any earlier date
@@ -133,7 +95,7 @@ class BoardController {
     });
     const byId = new Map(people.map(p => [p.id, p]));
     const [days, sen] = await Promise.all([
-      this.cal.buildDays(people.map(p => p.id), D, D, viewerFor(req)),
+      this.cal.buildDays(people.map(p => p.id), D, D, MANAGER_VIEW),
       this.insights.enrich(people.map(p => ({ ...p })), today),
     ]);
     const cell = (id: string): DayCell | undefined => days.get(id)?.[0];
@@ -286,6 +248,5 @@ class BoardController {
 @Module({
   imports: [SettingsModule, InsightsModule, CalendarCoreModule],
   controllers: [BoardController],
-  providers: [BoardEvents, { provide: APP_INTERCEPTOR, useClass: ChangeNotifier }],
 })
 export class BoardModule {}

@@ -1,25 +1,14 @@
 import {
-  BadRequestException, Controller, ForbiddenException, Get, Inject, Module, NotFoundException, Param, Query, Req,
+  BadRequestException, Controller, Get, Inject, Module, NotFoundException, Param, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
-import { can } from '../auth/permissions';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { parseDate } from '../common/validate';
 import { startOfDay } from '../domain/status';
-import { addDays, CalendarCoreModule, CalendarService, DayCell, iso, toBlocks, Viewer } from './calendar.service';
+import { addDays, CalendarCoreModule, CalendarService, DayCell, iso, MANAGER_VIEW, toBlocks } from './calendar.service';
 
 const DAY = 86_400_000;
 const LIVE = ['CONFIRMED', 'ACTIVE'] as const;
-const rolesOf = (req: AuthedRequest) => (req.user?.roles ?? []).map(r => r.role);
-const employeeOnly = (roles: string[]) => roles.length > 0 && roles.every(r => r === 'EMPLOYEE');
-
-/** Staff with medical access (HR, Ops, Admin) and the person themself may see why someone is unavailable. */
-export function viewerFor(req: AuthedRequest): Viewer {
-  const staff = can(rolesOf(req).filter(r => r !== 'EMPLOYEE'), 'medical', 'view');
-  return { canSeeMedical: id => staff || req.user?.employeeId === id };
-}
-
 function range(q: { from?: string; to?: string }, defaultDays: number, maxDays: number) {
   const from = startOfDay(q.from ? parseDate(q.from) : new Date());
   const to = startOfDay(q.to ? parseDate(q.to) : addDays(from, defaultDays - 1));
@@ -37,9 +26,7 @@ class CalendarController {
   ) {}
 
   /** Personal calendar (11.3): every day of the range with its status, plus what the person asks first. */
-  @Get('employees/:id') @Require('assignments', 'view')
-  async personal(@Param('id') id: string, @Req() req: AuthedRequest, @Query() q: { from?: string; to?: string; month?: string }) {
-    if (employeeOnly(rolesOf(req)) && req.user?.employeeId !== id) throw new ForbiddenException('Employees can only see their own calendar');
+  @Get('employees/:id') async personal(@Param('id') id: string, @Query() q: { from?: string; to?: string; month?: string }) {
     let r: { from: Date; to: Date };
     if (q.month) {
       const m = /^(\d{4})-(\d{2})$/.exec(q.month);
@@ -49,7 +36,7 @@ class CalendarController {
     const emp = await this.prisma.employee.findUnique({ where: { id }, select: { id: true, firstName: true, lastName: true, employeeNo: true, homeBase: { select: { code: true } } } });
     if (!emp) throw new NotFoundException('Employee not found');
 
-    const viewer = viewerFor(req);
+    const viewer = MANAGER_VIEW;
     const days = (await this.cal.buildDays([id], r.from, r.to, viewer)).get(id) ?? [];
 
     // "Today", the next crew change and the next days off, looked up over the next ~6 months.
@@ -66,12 +53,9 @@ class CalendarController {
   }
 
   /** Team timeline / Gantt (11.3): rows are people, blocks are status stretches. */
-  @Get('timeline') @Require('assignments', 'view')
-  async timeline(
-    @Req() req: AuthedRequest,
+  @Get('timeline') async timeline(
     @Query() q: { from?: string; to?: string; baseId?: string; positionId?: string; unitId?: string; q?: string; groupBy?: string; status?: string },
   ) {
-    if (employeeOnly(rolesOf(req))) throw new ForbiddenException('Not available to employees');
     const { from, to } = range(q, 28, 120);
     const groupBy = q.groupBy ?? 'base';
     if (!['base', 'position', 'unit'].includes(groupBy)) throw new BadRequestException('groupBy must be base, position or unit');
@@ -85,7 +69,7 @@ class CalendarController {
       where: where as never, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }], take: 300,
       select: { id: true, firstName: true, lastName: true, employeeNo: true, homeBase: { select: { code: true } }, position: { select: { name: true } } },
     });
-    const days = await this.cal.buildDays(emps.map(e => e.id), from, to, viewerFor(req));
+    const days = await this.cal.buildDays(emps.map(e => e.id), from, to, MANAGER_VIEW);
     const rows = emps.map(e => {
       const cells = days.get(e.id) ?? [];
       return {
@@ -98,9 +82,7 @@ class CalendarController {
   }
 
   /** Crew-change list (11.3): who leaves which seat, who arrives, and whether that is settled. */
-  @Get('crew-changes') @Require('assignments', 'view')
-  async crewChanges(@Req() req: AuthedRequest, @Query() q: { days?: string; baseId?: string; from?: string }) {
-    if (employeeOnly(rolesOf(req))) throw new ForbiddenException('Not available to employees');
+  @Get('crew-changes') async crewChanges(@Query() q: { days?: string; baseId?: string; from?: string }) {
     const horizonDays = [7, 14, 30].includes(parseInt(q.days ?? '', 10)) ? parseInt(q.days!, 10) : 14;
     const today = startOfDay(q.from ? parseDate(q.from) : new Date());
     const horizon = addDays(today, horizonDays);
@@ -159,9 +141,7 @@ class CalendarController {
   }
 
   /** Base roster (11.3): each post, each day, and how many are present against the minimum. */
-  @Get('base-roster') @Require('assignments', 'view')
-  async baseRoster(@Req() req: AuthedRequest, @Query() q: { baseId?: string; from?: string; to?: string }) {
-    if (employeeOnly(rolesOf(req))) throw new ForbiddenException('Not available to employees');
+  @Get('base-roster') async baseRoster(@Query() q: { baseId?: string; from?: string; to?: string }) {
     if (!q.baseId) throw new BadRequestException('baseId is required');
     const { from, to } = range(q, 14, 62);
     const [base, seats, rules] = await Promise.all([
@@ -175,7 +155,7 @@ class CalendarController {
     if (!base) throw new NotFoundException('Base not found');
 
     const people = [...new Set(seats.flatMap(s => s.assignments.map(a => a.employee.id)))];
-    const days = await this.cal.buildDays(people, from, to, viewerFor(req));
+    const days = await this.cal.buildDays(people, from, to, MANAGER_VIEW);
     const present = (employeeId: string, date: string) => days.get(employeeId)?.find(c => c.date === date)?.status === 'ON_BASE_POST';
 
     const dates: string[] = [];

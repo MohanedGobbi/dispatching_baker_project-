@@ -1,9 +1,8 @@
 import {
   BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, Module, NotFoundException,
-  Param, Post, Put, Query, Req,
+  Param, Post, Put, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
 import { startOfDay } from '../domain/status';
 
@@ -28,7 +27,7 @@ class JobsController {
     }
   }
 
-  @Get() @Require('jobs', 'view')
+  @Get()
   async list(@Query() q: { status?: string; siteId?: string; baseId?: string; serviceType?: string; from?: string; to?: string; limit?: string; offset?: string }) {
     const where: Record<string, unknown> = {};
     if (q.status) where.status = q.status;
@@ -49,7 +48,7 @@ class JobsController {
     return { total, items };
   }
 
-  @Get(':id') @Require('jobs', 'view')
+  @Get(':id')
   async detail(@Param('id') id: string) {
     const job = await this.prisma.job.findUnique({
       where: { id }, include: { site: { include: { base: { select: { code: true, name: true } } } }, deployments: { include: { unit: { include: { unitType: true } } }, orderBy: { start: 'asc' } } },
@@ -58,8 +57,8 @@ class JobsController {
     return job;
   }
 
-  @Post() @Require('jobs', 'edit')
-  async create(@Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post()
+  async create(@Body() body: Record<string, unknown>) {
     const data = pickFields(JOB_SPEC, body, ['siteId', 'serviceType', 'plannedStart']);
     await this.assertServiceType(data.serviceType);
     // The job is named after its site unless a well name is given (older jobs carry their own).
@@ -78,7 +77,7 @@ class JobsController {
       const ref = `JOB-${year}-${String(count + 1 + attempt).padStart(4, '0')}`;
       try {
         const job = await this.prisma.job.create({ data: { ...data, ref } as never });
-        await audit(this.prisma, req.user?.sub, 'Job', job.id, 'create', null, job);
+        await audit(this.prisma, 'Job', job.id, 'create', null, job);
         return job;
       } catch (err) {
         const code = (err as { code?: string }).code;
@@ -89,8 +88,8 @@ class JobsController {
     throw new ConflictException('Could not allocate a job reference, try again');
   }
 
-  @Put(':id') @Require('jobs', 'edit')
-  async update(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const before = await this.prisma.job.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Job not found');
     if (['COMPLETED', 'CANCELLED'].includes(before.status)) throw new BadRequestException(`A ${before.status.toLowerCase()} job cannot be edited`);
@@ -126,7 +125,7 @@ class JobsController {
       for (const m of moved) await tx.unitDeployment.update({ where: { id: m.id }, data: { start: m.start, end: m.end } });
       return tx.job.update({ where: { id }, data: data as never });
     });
-    await audit(this.prisma, req.user?.sub, 'Job', id, 'update', before, { ...after, unitsMoved: moved.length });
+    await audit(this.prisma, 'Job', id, 'update', before, { ...after, unitsMoved: moved.length });
     return { ...after, unitsMoved: moved.length };
   }
 
@@ -134,8 +133,8 @@ class JobsController {
    * Deploy a unit to a job (9). The unit's crew seats become required for these dates (status is derived from
    * deployments). Blocks double-booking and maintenance clashes; a service-type mismatch is a warning only.
    */
-  @Post(':id/deploy') @Require('jobs', 'edit')
-  async deploy(@Param('id') id: string, @Body() body: { unitId?: string; start?: string; end?: string }, @Req() req: AuthedRequest) {
+  @Post(':id/deploy')
+  async deploy(@Param('id') id: string, @Body() body: { unitId?: string; start?: string; end?: string }) {
     if (!body?.unitId) throw new BadRequestException('unitId is required');
     const job = await this.prisma.job.findUnique({ where: { id } });
     if (!job) throw new NotFoundException('Job not found');
@@ -162,31 +161,31 @@ class JobsController {
       warnings.push(`${job.serviceType} job on a ${unit.unitType.name} unit (${unit.code})`);
     }
     const deployment = await this.prisma.unitDeployment.create({ data: { unitId: unit.id, jobId: id, start, end } });
-    await audit(this.prisma, req.user?.sub, 'Job', id, 'deploy', null, deployment);
+    await audit(this.prisma, 'Job', id, 'deploy', null, deployment);
     return { deployment, warnings };
   }
 
-  @Delete(':id/deployments/:deploymentId') @Require('jobs', 'edit')
-  async undeploy(@Param('id') id: string, @Param('deploymentId') deploymentId: string, @Req() req: AuthedRequest) {
+  @Delete(':id/deployments/:deploymentId')
+  async undeploy(@Param('id') id: string, @Param('deploymentId') deploymentId: string) {
     const { count } = await this.prisma.unitDeployment.deleteMany({ where: { id: deploymentId, jobId: id } });
     if (!count) throw new NotFoundException('Deployment not found');
-    await audit(this.prisma, req.user?.sub, 'Job', id, 'undeploy', { deploymentId });
+    await audit(this.prisma, 'Job', id, 'undeploy', { deploymentId });
     return { removed: deploymentId };
   }
 
-  @Post(':id/start') @Require('jobs', 'edit')
-  async start(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Post(':id/start')
+  async start(@Param('id') id: string) {
     const job = await this.prisma.job.findUnique({ where: { id } });
     if (!job) throw new NotFoundException('Job not found');
     if (job.status !== 'PLANNED') throw new BadRequestException(`Only planned jobs can start (this one is ${job.status.toLowerCase()})`);
     const after = await this.prisma.job.update({ where: { id }, data: { status: 'ACTIVE', actualStart: startOfDay(new Date()) } });
-    await audit(this.prisma, req.user?.sub, 'Job', id, 'start', { status: job.status }, { status: after.status });
+    await audit(this.prisma, 'Job', id, 'start', { status: job.status }, { status: after.status });
     return after;
   }
 
   /** Ending a job sends its units back to Available: deployments are cut at the end date and status follows. */
-  @Post(':id/end') @Require('jobs', 'edit')
-  async end(@Param('id') id: string, @Body() body: { date?: string; cancel?: boolean }, @Req() req: AuthedRequest) {
+  @Post(':id/end')
+  async end(@Param('id') id: string, @Body() body: { date?: string; cancel?: boolean }) {
     const job = await this.prisma.job.findUnique({ where: { id } });
     if (!job) throw new NotFoundException('Job not found');
     if (['COMPLETED', 'CANCELLED'].includes(job.status)) throw new BadRequestException(`Job is already ${job.status.toLowerCase()}`);
@@ -204,7 +203,7 @@ class JobsController {
         data: cancelling ? { status: 'CANCELLED' } : { status: 'COMPLETED', actualEnd: endDate, actualStart: job.actualStart ?? job.plannedStart },
       });
     });
-    await audit(this.prisma, req.user?.sub, 'Job', id, cancelling ? 'cancel' : 'complete', { status: job.status }, { status: after.status });
+    await audit(this.prisma, 'Job', id, cancelling ? 'cancel' : 'complete', { status: job.status }, { status: after.status });
     return after;
   }
 }

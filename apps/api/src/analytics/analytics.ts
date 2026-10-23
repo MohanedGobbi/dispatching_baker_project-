@@ -1,11 +1,9 @@
 import {
-  BadRequestException, Body, Controller, ForbiddenException, Get, Inject, Injectable, Module, NotFoundException, Param, Post, Query, Req,
+  BadRequestException, Body, Controller, Get, Inject, Injectable, Module, NotFoundException, Param, Post, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
-import { can } from '../auth/permissions';
 import { SettingsModule, SettingsService } from '../settings/settings';
-import { audit, parseDate } from '../common/validate';
+import { audit, parseDate, MANAGER } from '../common/validate';
 import { addDays, iso } from '../calendar/calendar.service';
 import { overlapDays } from '../domain/absence';
 import { profileLabel } from '../domain/forecast';
@@ -211,14 +209,12 @@ export class RecommendationsService {
     const stale = await this.prisma.recommendation.findMany({ where: { status: { in: ['OPEN', 'SNOOZED'] }, key: { not: null } } });
     let resolved = 0;
     for (const s of stale) if (s.key && !keys.has(s.key)) { await this.prisma.recommendation.update({ where: { id: s.id }, data: { status: 'RESOLVED' } }); resolved++; }
-    await audit(this.prisma, userId, 'Recommendation', 'run', 'run', null, { created, updated, resolved });
+    await audit(this.prisma, 'Recommendation', 'run', 'run', null, { created, updated, resolved });
     return { created, updated, resolved, total: found.length };
   }
 }
 
 // ---------------------------------------------------------------- API
-
-const rolesOf = (req: AuthedRequest) => (req.user?.roles ?? []);
 
 @Controller('analytics')
 class AnalyticsController {
@@ -228,61 +224,37 @@ class AnalyticsController {
     @Inject(RecommendationsService) private recs: RecommendationsService,
   ) {}
 
-  /** Admin, Ops, Dispatcher and HR see everything; a Base Manager only their own base. Everyone else is refused. */
-  private async scope(req: AuthedRequest, requested?: string): Promise<string | undefined> {
-    const roles = rolesOf(req);
-    if (roles.some(r => ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR'].includes(r.role))) return requested || undefined;
-    const own = roles.filter(r => r.role === 'BASE_MANAGER' && r.baseScope);
-    if (!own.length) throw new ForbiddenException('Analytics are not available to your role');
-    const bases = await this.prisma.base.findMany({ where: { OR: [{ id: { in: own.map(r => r.baseScope!) } }, { code: { in: own.map(r => r.baseScope!) } }] }, select: { id: true } });
-    const ids = bases.map(b => b.id);
-    if (requested && !ids.includes(requested)) throw new ForbiddenException('Base managers see their own base only');
-    return requested || ids[0];
+  @Get('overview') async overview(@Query('baseId') baseId?: string) { return this.svc.overview((baseId || undefined)); }
+
+  @Get('forecast') async forecast(@Query() q: { baseId?: string; days?: string }) {
+    return this.svc.forecast({ baseId: (q.baseId || undefined), days: q.days ? parseInt(q.days, 10) : 90 });
   }
 
-  private medical(req: AuthedRequest) { return can(rolesOf(req).map(r => r.role).filter(r => r !== 'EMPLOYEE'), 'medical', 'view'); }
-
-  @Get('overview') @Require('analytics', 'view')
-  async overview(@Req() req: AuthedRequest, @Query('baseId') baseId?: string) { return this.svc.overview(await this.scope(req, baseId)); }
-
-  @Get('forecast') @Require('analytics', 'view')
-  async forecast(@Req() req: AuthedRequest, @Query() q: { baseId?: string; days?: string }) {
-    return this.svc.forecast({ baseId: await this.scope(req, q.baseId), days: q.days ? parseInt(q.days, 10) : 90 });
+  @Get('kpis') async kpis(@Query() q: { baseId?: string; from?: string; to?: string }) {
+    return this.svc.kpis({ baseId: (q.baseId || undefined), from: q.from ? parseDate(q.from) : undefined, to: q.to ? parseDate(q.to) : undefined, includeMedical: true });
   }
 
-  @Get('kpis') @Require('analytics', 'view')
-  async kpis(@Req() req: AuthedRequest, @Query() q: { baseId?: string; from?: string; to?: string }) {
-    return this.svc.kpis({ baseId: await this.scope(req, q.baseId), from: q.from ? parseDate(q.from) : undefined, to: q.to ? parseDate(q.to) : undefined, includeMedical: this.medical(req) });
-  }
-
-  @Get('people') @Require('analytics', 'view')
-  async people(@Req() req: AuthedRequest, @Query() q: { baseId?: string; from?: string; to?: string }) {
-    return this.svc.peoplePage({ baseId: await this.scope(req, q.baseId), from: q.from ? parseDate(q.from) : undefined, to: q.to ? parseDate(q.to) : undefined });
+  @Get('people') async people(@Query() q: { baseId?: string; from?: string; to?: string }) {
+    return this.svc.peoplePage({ baseId: (q.baseId || undefined), from: q.from ? parseDate(q.from) : undefined, to: q.to ? parseDate(q.to) : undefined });
   }
 
   /** HR statistics: the dispatcher's analytics are operational only (plan section 3). */
-  @Get('leave') @Require('analytics', 'view')
-  async leave(@Req() req: AuthedRequest, @Query() q: { baseId?: string; months?: string }) {
-    if (!rolesOf(req).some(r => ['SUPER_ADMIN', 'OPS_MANAGER', 'HR', 'BASE_MANAGER'].includes(r.role))) throw new ForbiddenException('Leave statistics are for HR and managers');
-    return this.svc.leavePage({ baseId: await this.scope(req, q.baseId), months: q.months ? parseInt(q.months, 10) : 6, includeMedical: this.medical(req) });
+  @Get('leave') async leave(@Query() q: { baseId?: string; months?: string }) {
+    return this.svc.leavePage({ baseId: (q.baseId || undefined), months: q.months ? parseInt(q.months, 10) : 6, includeMedical: true });
   }
 
-  @Get('units') @Require('analytics', 'view')
-  async units(@Req() req: AuthedRequest, @Query() q: { baseId?: string; days?: string }) {
-    return this.svc.unitsPage({ baseId: await this.scope(req, q.baseId), days: q.days ? parseInt(q.days, 10) : 90 });
+  @Get('units') async units(@Query() q: { baseId?: string; days?: string }) {
+    return this.svc.unitsPage({ baseId: (q.baseId || undefined), days: q.days ? parseInt(q.days, 10) : 90 });
   }
 
-  @Get('base-staffing') @Require('analytics', 'view')
-  async baseStaffing(@Req() req: AuthedRequest, @Query('baseId') baseId?: string) { return this.svc.baseStaffingPage({ baseId: await this.scope(req, baseId) }); }
+  @Get('base-staffing') async baseStaffing(@Query('baseId') baseId?: string) { return this.svc.baseStaffingPage({ baseId: (baseId || undefined) }); }
 
 
-  @Get('map') @Require('analytics', 'view')
-  async map(@Req() req: AuthedRequest) { await this.scope(req); return this.svc.map(); }
+  @Get('map') async map() { return this.svc.map(); }
 
   // ----- recommendations
-  @Get('recommendations') @Require('analytics', 'view')
-  async list(@Req() req: AuthedRequest, @Query() q: { status?: string; baseId?: string }) {
-    const baseId = await this.scope(req, q.baseId);
+  @Get('recommendations') async list(@Query() q: { status?: string; baseId?: string }) {
+    const baseId = (q.baseId || undefined);
     const status = q.status ?? 'OPEN';
     const rows = await this.prisma.recommendation.findMany({
       where: { ...(status === 'all' ? {} : { status }), ...(baseId ? { OR: [{ baseId }, { baseId: null }] } : {}) },
@@ -295,12 +267,10 @@ class AnalyticsController {
     }));
   }
 
-  @Post('recommendations/run') @Require('planning', 'edit')
-  run(@Req() req: AuthedRequest) { return this.recs.run(req.user?.sub); }
+  @Post('recommendations/run') run() { return this.recs.run(MANAGER); }
 
   /** Accept, dismiss or snooze a finding; every decision is logged (plan 21). */
-  @Post('recommendations/:id/status') @Require('planning', 'edit')
-  async setStatus(@Param('id') id: string, @Body() body: { status?: string; days?: number; note?: string }, @Req() req: AuthedRequest) {
+  @Post('recommendations/:id/status') async setStatus(@Param('id') id: string, @Body() body: { status?: string; days?: number; note?: string }) {
     const r = await this.prisma.recommendation.findUnique({ where: { id } });
     if (!r) throw new NotFoundException('Recommendation not found');
     const status = body?.status;
@@ -312,7 +282,7 @@ class AnalyticsController {
       snoozedUntil = new Date(Date.now() + days * DAY);
     }
     const after = await this.prisma.recommendation.update({ where: { id }, data: { status, snoozedUntil } });
-    await audit(this.prisma, req.user?.sub, 'Recommendation', id, `recommendation_${status.toLowerCase()}`, { status: r.status }, { status, snoozedUntil }, body?.note);
+    await audit(this.prisma, 'Recommendation', id, `recommendation_${status.toLowerCase()}`, { status: r.status }, { status, snoozedUntil }, body?.note);
     return { id, status: after.status, snoozedUntil: after.snoozedUntil };
   }
 }

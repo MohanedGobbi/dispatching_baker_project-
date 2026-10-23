@@ -5,7 +5,6 @@ import { Controller, Get, Inject, Injectable, Module, OnModuleDestroy, OnModuleI
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require } from '../auth/auth.module';
 
 const KEEP_RECENT = 14;
 const NAME = /^crewboard-(\d{4}-\d{2}-\d{2})-(\d{4})$/; // crewboard-2026-10-23-1405
@@ -69,11 +68,9 @@ export class BackupService {
 class BackupController {
   constructor(@Inject(BackupService) private svc: BackupService) {}
 
-  @Get() @Require('settings', 'view')
-  list() { return { dir: this.svc.dir, backups: this.svc.list() }; }
+  @Get() list() { return { dir: this.svc.dir, backups: this.svc.list() }; }
 
-  @Post() @Require('settings', 'edit')
-  create() { return this.svc.create(); }
+  @Post() create() { return this.svc.create(); }
 }
 
 @Module({ controllers: [BackupController], providers: [BackupService] })

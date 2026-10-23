@@ -1,16 +1,13 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, HttpException, HttpStatus,
-  Inject, Injectable, Module, NotFoundException, Param, Post, Put, Query, Req,
+  BadRequestException, Body, ConflictException, Controller, Get, HttpException, HttpStatus,
+  Inject, Injectable, Module, NotFoundException, Param, Post, Put, Query,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
-import { can } from '../auth/permissions';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { audit, mapDbError, page, parseDate } from '../common/validate';
 import { AbsenceModule, AbsenceService } from '../absence/absence.service';
-import { NotificationsService } from '../notifications/notifications';
 import { Seniority, startOfDay } from '../domain/status';
 import { buildCandidate, buildSeatFacts } from './facts';
 import {
@@ -230,17 +227,6 @@ async function releaseAssignment(
   return { upd, task };
 }
 
-/** Base Managers may only touch base posts at their own base (plan section 3). Everyone else with edit access is unscoped. */
-export async function assertSeatScope(prisma: PrismaService, req: AuthedRequest, seatIds: string[]) {
-  const roles = req.user?.roles ?? [];
-  if (roles.some(r => can([r.role], 'assignments', 'full'))) return;
-  const scoped = roles.filter(r => r.role === 'BASE_MANAGER');
-  if (!scoped.length) throw new ForbiddenException('No permission to change assignments');
-  const seats = await prisma.seat.findMany({ where: { id: { in: seatIds } }, include: { base: true } });
-  const ok = seats.every(s => s.holderType === 'BASE' && scoped.some(r => r.baseScope && (r.baseScope === s.baseId || r.baseScope === s.base?.code)));
-  if (!ok) throw new ForbiddenException('Base managers can only change base posts at their own base');
-}
-
 /** start and end, or `openEnded: true` instead of an end: no crew change date yet. */
 function parseRange(body: { start?: string; end?: string; openEnded?: boolean }, fallbackStart?: Date, fallbackEnd?: Date) {
   const start = body.start ? parseDate(body.start) : fallbackStart;
@@ -257,18 +243,7 @@ class AssignmentsController {
     @Inject(PrismaService) private prisma: PrismaService,
     @Inject(AssignmentsService) private svc: AssignmentsService,
     @Inject(AbsenceService) private absence: AbsenceService,
-    @Inject(NotificationsService) private notifier: NotificationsService,
   ) {}
-
-  /** Tell the person their assignment changed; they must acknowledge (plan 19). The person who made the change is not told. */
-  private async tell(employeeId: string, seatId: string, from: Date, to: Date, action: 'assigned' | 'moved' | 'released' | 'swapped', actor?: string) {
-    await this.notifier.notify({
-      type: 'assignment_changed', to: [{ employeeId }], except: actor,
-      payload: { seat: await this.notifier.seatLabel(seatId), from: iso(from), to: iso(to), action },
-    });
-  }
-
-  private assertScope(req: AuthedRequest, seatIds: string[]) { return assertSeatScope(this.prisma, req, seatIds); }
 
   private async load(id: string) {
     const a = await this.prisma.assignment.findUnique({ where: { id }, include: { seat: true } });
@@ -276,14 +251,9 @@ class AssignmentsController {
     return a;
   }
 
-  @Get('assignments') @Require('assignments', 'view')
-  async list(@Req() req: AuthedRequest, @Query() q: { employeeId?: string; seatId?: string; unitId?: string; baseId?: string; status?: string; from?: string; to?: string; limit?: string; offset?: string }) {
+  @Get('assignments')
+  async list(@Query() q: { employeeId?: string; seatId?: string; unitId?: string; baseId?: string; status?: string; from?: string; to?: string; limit?: string; offset?: string }) {
     const where: Record<string, unknown> = {};
-    // An employee only ever sees their own assignments (plan section 3: "Own"); an account with no employee sees none.
-    if ((req.user?.roles ?? []).every(r => r.role === 'EMPLOYEE')) {
-      if (!req.user?.employeeId) return { total: 0, items: [] };
-      q = { ...q, employeeId: req.user.employeeId, seatId: undefined, unitId: undefined, baseId: undefined };
-    }
     if (q.employeeId) where.employeeId = q.employeeId;
     if (q.seatId) where.seatId = q.seatId;
     if (q.status) where.status = q.status;
@@ -306,9 +276,8 @@ class AssignmentsController {
   }
 
   /** Seats of a unit or base with who holds each on a date. */
-  @Get('seats') @Require('assignments', 'view')
-  async seats(@Req() req: AuthedRequest, @Query() q: { unitId?: string; baseId?: string; date?: string }) {
-    if ((req.user?.roles ?? []).every(r => r.role === 'EMPLOYEE')) throw new ForbiddenException('Employees see their own crew in the portal');
+  @Get('seats')
+  async seats(@Query() q: { unitId?: string; baseId?: string; date?: string }) {
     if (!q.unitId && !q.baseId) throw new BadRequestException('unitId or baseId is required');
     const date = parseDate(q.date);
     const seats = await this.prisma.seat.findMany({
@@ -329,7 +298,7 @@ class AssignmentsController {
   }
 
   /** Impact preview (10): what would break if this person took this seat? Writes nothing. */
-  @Post('assignments/preview') @Require('assignments', 'view')
+  @Post('assignments/preview')
   async preview(@Body() body: { employeeId?: string; seatId?: string; start?: string; end?: string; openEnded?: boolean; replacesId?: string; ignoreAssignmentId?: string }) {
     if (!body?.employeeId || !body?.seatId) throw new BadRequestException('employeeId and seatId are required');
     const r = parseRange(body);
@@ -345,13 +314,11 @@ class AssignmentsController {
     return { ...ev, seatTaken, freeUntil, needsOverride: ev.hard > 0, allowed: !seatTaken };
   }
 
-  @Post('assignments') @Require('assignments', 'edit')
+  @Post('assignments')
   async create(
     @Body() body: { employeeId?: string; seatId?: string; start?: string; end?: string; openEnded?: boolean; type?: string; replacesId?: string; overrideReason?: string },
-    @Req() req: AuthedRequest,
   ) {
     if (!body?.employeeId || !body?.seatId) throw new BadRequestException('employeeId and seatId are required');
-    await this.assertScope(req, [body.seatId]);
     const r = parseRange(body);
     const type = body.type ?? 'NORMAL';
     if (!['NORMAL', 'REPLACEMENT', 'EXTENSION_COVER', 'TEMPORARY_COVER'].includes(type)) throw new BadRequestException('Invalid assignment type');
@@ -369,23 +336,20 @@ class AssignmentsController {
     }).catch(e => { throw mapDbError(e, 'Assignment'); });
     // Filling days that an open replacement task was waiting for finishes (or shrinks) that task.
     await this.absence.coverTasks(this.prisma, a.seatId, { start: r.start, end: r.end }, a.employeeId, a.id);
-    await audit(this.prisma, req.user?.sub, 'Assignment', a.id, 'assign', null, { ...a, overridden: ev.violations.filter(v => v.severity === 'hard') }, body.overrideReason);
-    await this.tell(a.employeeId, a.seatId, a.start, a.plannedEnd, 'assigned', req.user?.sub);
+    await audit(this.prisma, 'Assignment', a.id, 'assign', null, { ...a, overridden: ev.violations.filter(v => v.severity === 'hard') }, body.overrideReason);
     return { assignment: a, violations: ev.violations, crews: ev.crews };
   }
 
-  @Put('assignments/:id/move') @Require('assignments', 'edit')
+  @Put('assignments/:id/move')
   async move(
     @Param('id') id: string,
     @Body() body: { seatId?: string; start?: string; end?: string; openEnded?: boolean; overrideReason?: string },
-    @Req() req: AuthedRequest,
   ) {
     const a = await this.load(id);
     if (!['CONFIRMED', 'ACTIVE', 'DRAFT'].includes(a.status)) throw new BadRequestException(`A ${a.status.toLowerCase()} assignment cannot be moved`);
     // Giving an end date sets the crew change; openEnded takes it away again; otherwise the stay keeps what it had.
     const open = body.openEnded === true || (body.openEnded === undefined && !body.end && a.openEnded);
     const seatId = body.seatId ?? a.seatId;
-    await this.assertScope(req, [a.seatId, seatId]);
     const r = parseRange(body, a.start, a.plannedEnd);
     const today = startOfDay(new Date());
     if ((seatId !== a.seatId || r.start.getTime() !== startOfDay(a.start).getTime()) && a.start <= today) {
@@ -396,15 +360,14 @@ class AssignmentsController {
     const ev = await this.svc.evaluate([{ employeeId: a.employeeId, seatId, ...r, open }], [id]);
     await this.svc.requireOverride(ev, body.overrideReason);
     const after = await this.prisma.assignment.update({ where: { id }, data: { seatId, start: r.start, plannedEnd: r.end, openEnded: open } });
-    await audit(this.prisma, req.user?.sub, 'Assignment', id, 'move', a, after, body.overrideReason);
+    await audit(this.prisma, 'Assignment', id, 'move', a, after, body.overrideReason);
     return { assignment: after, violations: ev.violations, crews: ev.crews };
   }
 
   /** End an assignment from a date. The vacated days of a required seat become a replacement task. */
-  @Post('assignments/:id/unassign') @Require('assignments', 'edit')
-  async unassign(@Param('id') id: string, @Body() body: { from?: string; reason?: string }, @Req() req: AuthedRequest) {
+  @Post('assignments/:id/unassign')
+  async unassign(@Param('id') id: string, @Body() body: { from?: string; reason?: string }) {
     const a = await this.load(id);
-    await this.assertScope(req, [a.seatId]);
     if (!['CONFIRMED', 'ACTIVE', 'DRAFT'].includes(a.status)) throw new BadRequestException(`A ${a.status.toLowerCase()} assignment cannot be unassigned`);
     const today = startOfDay(new Date());
     const from = startOfDay(body?.from ? parseDate(body.from) : today);
@@ -412,8 +375,7 @@ class AssignmentsController {
 
     const cancelled = from <= startOfDay(a.start);
     const result = await this.prisma.$transaction(tx => releaseAssignment(tx, a, from, today));
-    await audit(this.prisma, req.user?.sub, 'Assignment', id, 'unassign', a, result.upd, body?.reason);
-    await this.tell(a.employeeId, a.seatId, cancelled ? a.start : from, a.plannedEnd, 'released', req.user?.sub);
+    await audit(this.prisma, 'Assignment', id, 'unassign', a, result.upd, body?.reason);
     return { assignment: result.upd, gap: { seatId: a.seatId, from: iso(cancelled ? a.start : from), to: iso(a.plannedEnd) }, replacementTask: result.task };
   }
 
@@ -422,16 +384,14 @@ class AssignmentsController {
    * new person holds it until the holder's planned end, or nothing changes. No replacement task is opened, since
    * the seat never stands empty. `reason` (optional) is kept in the audit log.
    */
-  @Post('assignments/:id/replace') @Require('assignments', 'edit')
+  @Post('assignments/:id/replace')
   async replace(
     @Param('id') id: string,
     @Body() body: { employeeId?: string; from?: string; reason?: string; overrideReason?: string },
-    @Req() req: AuthedRequest,
   ) {
     const a = await this.load(id);
     if (!body?.employeeId) throw new BadRequestException('employeeId is required');
     if (body.employeeId === a.employeeId) throw new BadRequestException('That person already holds this seat');
-    await this.assertScope(req, [a.seatId]);
     if (!['CONFIRMED', 'ACTIVE'].includes(a.status)) throw new BadRequestException(`A ${a.status.toLowerCase()} assignment cannot be replaced`);
     const today = startOfDay(new Date());
     const asked = startOfDay(body.from ? parseDate(body.from) : today);
@@ -457,9 +417,7 @@ class AssignmentsController {
       return { old, created };
     });
     const why = [body.reason?.trim(), ev.hard > 0 && body.overrideReason?.trim() ? `override: ${body.overrideReason.trim()}` : ''].filter(Boolean).join(' · ') || undefined;
-    await audit(this.prisma, req.user?.sub, 'Assignment', id, 'replace', a, { by: body.employeeId, from: iso(start), assignment: out.created.id, previous: out.old }, why);
-    await this.tell(a.employeeId, a.seatId, start, end, 'released', req.user?.sub);
-    await this.tell(body.employeeId, a.seatId, start, end, 'assigned', req.user?.sub);
+    await audit(this.prisma, 'Assignment', id, 'replace', a, { by: body.employeeId, from: iso(start), assignment: out.created.id, previous: out.old }, why);
     return { assignment: out.created, released: out.old, violations: ev.violations, crews: ev.crews };
   }
 
@@ -467,16 +425,14 @@ class AssignmentsController {
    * Move a person to a different seat in one step: the old assignment ends and the new one starts together, or
    * nothing changes. (Two separate calls could leave the person released from the old seat but not placed.)
    */
-  @Post('assignments/:id/transfer') @Require('assignments', 'edit')
+  @Post('assignments/:id/transfer')
   async transfer(
     @Param('id') id: string,
     @Body() body: { seatId?: string; start?: string; end?: string; openEnded?: boolean; overrideReason?: string },
-    @Req() req: AuthedRequest,
   ) {
     const a = await this.load(id);
     if (!body?.seatId) throw new BadRequestException('seatId is required');
     if (body.seatId === a.seatId) throw new BadRequestException('That is the seat the person is already on');
-    await this.assertScope(req, [a.seatId, body.seatId]);
     if (!['CONFIRMED', 'ACTIVE'].includes(a.status)) throw new BadRequestException(`A ${a.status.toLowerCase()} assignment cannot be moved`);
     const r = parseRange(body);
     if (r.start > startOfDay(a.plannedEnd)) throw new BadRequestException('The person is no longer on the old seat on that date');
@@ -494,19 +450,17 @@ class AssignmentsController {
       await this.absence.coverTasks(tx, created.seatId, { start: r.start, end: r.end }, created.employeeId, created.id);
       return { released, created };
     });
-    await audit(this.prisma, req.user?.sub, 'Assignment', id, 'transfer', a, { to: body.seatId, assignment: out.created.id }, body.overrideReason);
-    await this.tell(a.employeeId, body.seatId, r.start, r.end, 'moved', req.user?.sub);
+    await audit(this.prisma, 'Assignment', id, 'transfer', a, { to: body.seatId, assignment: out.created.id }, body.overrideReason);
     return { assignment: out.created, released: out.released.upd, replacementTask: out.released.task, violations: ev.violations, crews: ev.crews };
   }
 
   /** Swap two people between their two assignments. Both new placements are checked together. */
-  @Post('assignments/swap') @Require('assignments', 'edit')
-  async swap(@Body() body: { firstId?: string; secondId?: string; overrideReason?: string }, @Req() req: AuthedRequest) {
+  @Post('assignments/swap')
+  async swap(@Body() body: { firstId?: string; secondId?: string; overrideReason?: string }) {
     if (!body?.firstId || !body?.secondId || body.firstId === body.secondId) throw new BadRequestException('firstId and secondId must be two different assignments');
     const [a, b] = await Promise.all([this.load(body.firstId), this.load(body.secondId)]);
     for (const x of [a, b]) if (!['CONFIRMED', 'ACTIVE'].includes(x.status)) throw new BadRequestException('Only confirmed or active assignments can be swapped');
     if (a.employeeId === b.employeeId) throw new BadRequestException('Both assignments belong to the same person');
-    await this.assertScope(req, [a.seatId, b.seatId]);
     const ev = await this.svc.evaluate([
       { employeeId: b.employeeId, seatId: a.seatId, start: a.start, end: a.plannedEnd, replacesId: a.id },
       { employeeId: a.employeeId, seatId: b.seatId, start: b.start, end: b.plannedEnd, replacesId: b.id },
@@ -516,10 +470,8 @@ class AssignmentsController {
       this.prisma.assignment.update({ where: { id: a.id }, data: { employeeId: b.employeeId } }),
       this.prisma.assignment.update({ where: { id: b.id }, data: { employeeId: a.employeeId } }),
     ]);
-    await audit(this.prisma, req.user?.sub, 'Assignment', `${a.id},${b.id}`, 'swap', { a: a.employeeId, b: b.employeeId }, { a: b.employeeId, b: a.employeeId }, body.overrideReason);
+    await audit(this.prisma, 'Assignment', `${a.id},${b.id}`, 'swap', { a: a.employeeId, b: b.employeeId }, { a: b.employeeId, b: a.employeeId }, body.overrideReason);
     // After the swap each person holds the other's seat.
-    await this.tell(b.employeeId, a.seatId, a.start, a.plannedEnd, 'swapped', req.user?.sub);
-    await this.tell(a.employeeId, b.seatId, b.start, b.plannedEnd, 'swapped', req.user?.sub);
     return { swapped: [a.id, b.id], violations: ev.violations, crews: ev.crews };
   }
 
@@ -527,10 +479,9 @@ class AssignmentsController {
    * Split at a date (someone leaves mid-rotation). The first part keeps the person; the tail goes to
    * `employeeId` as a replacement, or becomes a replacement task when nobody is given.
    */
-  @Post('assignments/:id/split') @Require('assignments', 'edit')
-  async split(@Param('id') id: string, @Body() body: { at?: string; employeeId?: string; overrideReason?: string }, @Req() req: AuthedRequest) {
+  @Post('assignments/:id/split')
+  async split(@Param('id') id: string, @Body() body: { at?: string; employeeId?: string; overrideReason?: string }) {
     const a = await this.load(id);
-    await this.assertScope(req, [a.seatId]);
     if (!body?.at) throw new BadRequestException('at is required');
     const at = startOfDay(parseDate(body.at));
     if (!['CONFIRMED', 'ACTIVE'].includes(a.status)) throw new BadRequestException('Only confirmed or active assignments can be split');
@@ -559,8 +510,7 @@ class AssignmentsController {
       }) : null;
       return { head, tail: null, task };
     });
-    await audit(this.prisma, req.user?.sub, 'Assignment', id, 'split', a, result, body.overrideReason);
-    if (result.tail) await this.tell(result.tail.employeeId, a.seatId, result.tail.start, result.tail.plannedEnd, 'assigned', req.user?.sub);
+    await audit(this.prisma, 'Assignment', id, 'split', a, result, body.overrideReason);
     return { ...result, violations: ev?.violations ?? [], crews: ev?.crews ?? [] };
   }
 
@@ -569,12 +519,11 @@ class AssignmentsController {
    * On each seat the person leaving on `from` now leaves on `to` and the person arriving on `from` now arrives on
    * `to`; nobody else changes. Without anyone arriving, the open replacement task for that day moves with it.
    */
-  @Post('assignments/crew-change') @Require('assignments', 'edit')
-  async moveCrewChange(@Body() body: { seatIds?: string[]; from?: string; to?: string; overrideReason?: string }, @Req() req: AuthedRequest) {
+  @Post('assignments/crew-change')
+  async moveCrewChange(@Body() body: { seatIds?: string[]; from?: string; to?: string; overrideReason?: string }) {
     if (!body?.seatIds?.length || !body.from || !body.to) throw new BadRequestException('seatIds, from and to are required');
     const from = startOfDay(parseDate(body.from)), to = startOfDay(parseDate(body.to));
     if (from.getTime() === to.getTime()) throw new BadRequestException('The new date is the same as the current one');
-    await this.assertScope(req, body.seatIds);
     const today = startOfDay(new Date());
     const dayBefore = (d: Date) => new Date(d.getTime() - DAY);
 
@@ -618,8 +567,7 @@ class AssignmentsController {
         await tx.replacementTask.update({ where: { id: t.id }, data: to > t.toDate ? { status: 'CLOSED', closedAt: new Date() } : { fromDate: to, deadline: to } });
       }
     });
-    await audit(this.prisma, req.user?.sub, 'Assignment', ids.join(','), 'crew_change_moved', { from: iso(from) }, { to: iso(to), seats: body.seatIds }, body.overrideReason);
-    for (const m of moves) await this.tell(m.a.employeeId, m.a.seatId, m.start, m.end, 'moved', req.user?.sub);
+    await audit(this.prisma, 'Assignment', ids.join(','), 'crew_change_moved', { from: iso(from) }, { to: iso(to), seats: body.seatIds }, body.overrideReason);
     return { moved: moves.length, seats: new Set(moves.map(m => m.a.seatId)).size, from: iso(from), to: iso(to), violations: ev.violations, crews: ev.crews };
   }
 }

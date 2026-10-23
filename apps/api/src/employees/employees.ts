@@ -1,10 +1,8 @@
 import {
-  BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Inject, Module, NotFoundException,
-  Param, Post, Put, Query, Req,
+  BadRequestException, Body, Controller, Delete, Get, Inject, Module, NotFoundException,
+  Param, Post, Put, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
-import { can } from '../auth/permissions';
 import { EmployeeInsightsService, InsightsModule } from './insights';
 import { audit, page, parseDate, pickFields, Spec, strings } from '../common/validate';
 import { startOfDay, Seniority } from '../domain/status';
@@ -19,12 +17,8 @@ const FULL_SPEC: Spec = {
 /** Starting the platform: what someone is doing right now, until their rotation has a first day of work. */
 const START_STATES = ['STANDBY', 'DAYS_OFF'];
 // Dispatchers get "view + limited edit" (plan section 3).
-const LIMITED_FIELDS = new Set(['phone', 'email', 'emergencyContact', 'tags', 'backToBackId']);
 const WORK_MODES = ['FIELD', 'BASE', 'FLEXIBLE'];
 const SENIORITY = ['NEW_RECRUIT', 'JUNIOR', 'EXPERIENCED', 'SENIOR'];
-
-const rolesOf = (req: AuthedRequest) => (req.user?.roles ?? []).map(r => r.role);
-const employeeOnly = (roles: string[]) => roles.length > 0 && roles.every(r => r === 'EMPLOYEE');
 
 @Controller('employees')
 class EmployeesController {
@@ -34,13 +28,10 @@ class EmployeesController {
     @Inject(SettingsService) private settings: SettingsService,
   ) {}
 
-  @Get() @Require('employees', 'view')
-  async list(
-    @Req() req: AuthedRequest,
+  @Get() async list(
     @Query() q: { baseId?: string; positionId?: string; q?: string; active?: string; seniority?: string; qualificationId?: string;
       status?: string; date?: string; limit?: string; offset?: string },
   ) {
-    if (employeeOnly(rolesOf(req))) throw new ForbiddenException('Employees can only view their own profile');
     const asOf = parseDate(q.date);
     const where: Record<string, unknown> = { active: q.active === 'false' ? false : q.active === 'all' ? undefined : true };
     if (q.baseId) where.homeBaseId = q.baseId;
@@ -62,10 +53,7 @@ class EmployeesController {
     return { total: rows.length, items: rows.slice(skip, skip + take) };
   }
 
-  @Get(':id') @Require('employees', 'view')
-  async detail(@Param('id') id: string, @Req() req: AuthedRequest, @Query('date') dateStr?: string) {
-    const roles = rolesOf(req);
-    if (employeeOnly(roles) && req.user?.employeeId !== id) throw new ForbiddenException('Employees can only view their own profile');
+  @Get(':id') async detail(@Param('id') id: string, @Query('date') dateStr?: string) {
     const asOf = parseDate(dateStr);
     const e = await this.prisma.employee.findUnique({
       where: { id },
@@ -85,64 +73,43 @@ class EmployeesController {
     if (!e) throw new NotFoundException('Employee not found');
     const computed = (await this.insights.enrich([e], asOf)).get(id)!;
 
-    // Medical privacy (plan 12.3): only HR, Ops and the employee see the reason, certificate or notes.
-    // The EMPLOYEE role's medical access covers their own records only, so it never opens someone else's.
-    const staffMedicalAccess = can(roles.filter(r => r !== 'EMPLOYEE'), 'medical', 'view');
-    const medicalAccess = staffMedicalAccess || req.user?.employeeId === id;
-    const leaves = e.leaves.map(l => l.type.category !== 'medical' || medicalAccess
-      ? l
-      : { id: l.id, start: l.start, end: l.end, status: l.status, type: { id: l.type.id, name: 'Unavailable', category: 'unavailable' } });
-
-    // Manager-only notes: HR/Ops/Admin (full access) and base managers; not dispatchers or crew.
-    const canSeeNotes = can(roles, 'employees', 'full') || roles.includes('BASE_MANAGER');
     return {
-      ...e, managerNotes: canSeeNotes ? e.managerNotes : undefined, leaves,
+      ...e,
       certifications: e.certifications.map(c => ({ id: c.id, typeId: c.typeId, type: c.type, issuedAt: c.issuedAt, documentUrl: c.documentUrl })),
       extensionDays: e.extensions.filter(x => x.status === 'APPROVED').reduce((n, x) => n + x.days, 0),
       ...computed,
-      // others only ever see "Unavailable", never that it is medical
-      status: !medicalAccess && computed.status === 'MEDICAL_LEAVE' ? 'UNAVAILABLE' : computed.status,
       daysOffBalance: (await this.prisma.daysOffLedger.aggregate({ where: { employeeId: id }, _sum: { days: true } }))._sum.days ?? 0,
     };
   }
 
-  @Post() @Require('employees', 'full')
-  async create(@Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post() async create(@Body() body: Record<string, unknown>) {
     const data = pickFields(FULL_SPEC, body, ['employeeNo', 'firstName', 'lastName', 'positionId', 'homeBaseId', 'hireDate']);
     if (body.workMode !== undefined) data.workMode = this.workMode(body.workMode);
     try {
       const e = await this.prisma.employee.create({ data: data as never });
-      await audit(this.prisma, req.user?.sub, 'Employee', e.id, 'create', null, e);
+      await audit(this.prisma, 'Employee', e.id, 'create', null, e);
       return e;
     } catch (err) { throw this.mapError(err); }
   }
 
-  @Put(':id') @Require('employees', 'edit')
-  async update(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
-    const roles = rolesOf(req);
-    const full = can(roles, 'employees', 'full');
+  @Put(':id') async update(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const data = pickFields(FULL_SPEC, body);
     if (body.workMode !== undefined) data.workMode = this.workMode(body.workMode);
     if (data.startState != null && !START_STATES.includes(data.startState as string)) throw new BadRequestException(`startState must be one of ${START_STATES.join(', ')} or null`);
     // A first day of work means the calendar knows where they are: the hand-set mark is not needed any more.
     if (data.rotationAnchorDate) data.startState = null;
-    if (!full) {
-      const denied = Object.keys(data).filter(k => !LIMITED_FIELDS.has(k));
-      if (denied.length) throw new ForbiddenException(`Limited edit: cannot change ${denied.join(', ')}`);
-    }
     const before = await this.prisma.employee.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Employee not found');
     try {
       const after = await this.prisma.employee.update({ where: { id }, data: data as never });
       // Changing pattern/anchor/base is what regenerates calendars and flags assignments; keep it traceable.
-      await audit(this.prisma, req.user?.sub, 'Employee', id, 'update', before, after);
+      await audit(this.prisma, 'Employee', id, 'update', before, after);
       return after;
     } catch (err) { throw this.mapError(err); }
   }
 
   /** Manager override of the computed level, with a mandatory reason (7.2). Send level: null to clear. */
-  @Put(':id/seniority') @Require('employees', 'full')
-  async overrideSeniority(@Param('id') id: string, @Body() body: { level?: string | null; reason?: string }, @Req() req: AuthedRequest) {
+  @Put(':id/seniority') async overrideSeniority(@Param('id') id: string, @Body() body: { level?: string | null; reason?: string }) {
     const level = body?.level ?? null;
     if (level !== null && !SENIORITY.includes(level)) throw new BadRequestException(`level must be one of ${SENIORITY.join(', ')} or null`);
     if (level !== null && !body.reason?.trim()) throw new BadRequestException('A reason is required to override seniority');
@@ -152,46 +119,42 @@ class EmployeesController {
       where: { id }, data: { seniorityOverride: level as Seniority | null, seniorityReason: level ? body.reason!.trim() : null },
       select: { seniorityOverride: true, seniorityReason: true },
     });
-    await audit(this.prisma, req.user?.sub, 'Employee', id, 'seniority_override', before, after, body?.reason);
+    await audit(this.prisma, 'Employee', id, 'seniority_override', before, after, body?.reason);
     return after;
   }
 
-  @Post(':id/qualifications') @Require('employees', 'full')
-  async addQualification(@Param('id') id: string, @Body() body: { qualificationId?: string; obtainedAt?: string; validatedBy?: string }, @Req() req: AuthedRequest) {
+  @Post(':id/qualifications') async addQualification(@Param('id') id: string, @Body() body: { qualificationId?: string; obtainedAt?: string; validatedBy?: string }) {
     if (!body?.qualificationId) throw new BadRequestException('qualificationId is required');
     const data = { employeeId: id, qualificationId: body.qualificationId, obtainedAt: parseDate(body.obtainedAt), validatedBy: body.validatedBy };
     try {
       const row = await this.prisma.employeeQualification.upsert({
         where: { employeeId_qualificationId: { employeeId: id, qualificationId: body.qualificationId } }, create: data, update: data,
       });
-      await audit(this.prisma, req.user?.sub, 'Employee', id, 'qualification_add', null, row);
+      await audit(this.prisma, 'Employee', id, 'qualification_add', null, row);
       return row;
     } catch (err) { throw this.mapError(err); }
   }
 
-  @Delete(':id/qualifications/:qualificationId') @Require('employees', 'full')
-  async removeQualification(@Param('id') id: string, @Param('qualificationId') qualificationId: string, @Req() req: AuthedRequest) {
+  @Delete(':id/qualifications/:qualificationId') async removeQualification(@Param('id') id: string, @Param('qualificationId') qualificationId: string) {
     try { await this.prisma.employeeQualification.delete({ where: { employeeId_qualificationId: { employeeId: id, qualificationId } } }); }
     catch (err) { throw this.mapError(err); }
-    await audit(this.prisma, req.user?.sub, 'Employee', id, 'qualification_remove', { qualificationId });
+    await audit(this.prisma, 'Employee', id, 'qualification_remove', { qualificationId });
     return { removed: qualificationId };
   }
 
-  @Post(':id/certifications') @Require('employees', 'full')
-  async addCertification(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post(':id/certifications') async addCertification(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const data = pickFields({ typeId: 'string', issuedAt: 'date', documentUrl: 'string' }, body, ['typeId', 'issuedAt']);
     try {
       const cert = await this.prisma.certification.create({ data: { ...data, employeeId: id } as never });
-      await audit(this.prisma, req.user?.sub, 'Employee', id, 'certification_add', null, cert);
+      await audit(this.prisma, 'Employee', id, 'certification_add', null, cert);
       return cert;
     } catch (err) { throw this.mapError(err); }
   }
 
-  @Delete(':id/certifications/:certId') @Require('employees', 'full')
-  async removeCertification(@Param('id') id: string, @Param('certId') certId: string, @Req() req: AuthedRequest) {
+  @Delete(':id/certifications/:certId') async removeCertification(@Param('id') id: string, @Param('certId') certId: string) {
     const { count } = await this.prisma.certification.deleteMany({ where: { id: certId, employeeId: id } });
     if (!count) throw new NotFoundException('Certification not found');
-    await audit(this.prisma, req.user?.sub, 'Employee', id, 'certification_remove', { certId });
+    await audit(this.prisma, 'Employee', id, 'certification_remove', { certId });
     return { removed: certId };
   }
 
@@ -199,8 +162,7 @@ class EmployeesController {
    * Archive (7.3): the person leaves. Current assignments end today, future ones are cancelled, and every released
    * seat gets a replacement task (critical if they were on it today).
    */
-  @Post(':id/archive') @Require('employees', 'full')
-  async archive(@Param('id') id: string, @Body() body: { reason?: string }, @Req() req: AuthedRequest) {
+  @Post(':id/archive') async archive(@Param('id') id: string, @Body() body: { reason?: string }) {
     const today = startOfDay(new Date());
     const emp = await this.prisma.employee.findUnique({ where: { id } });
     if (!emp) throw new NotFoundException('Employee not found');
@@ -231,7 +193,7 @@ class EmployeesController {
       await tx.employee.update({ where: { id }, data: { active: false } });
       return { releasedAssignments: open.length, replacementTasks: tasks };
     });
-    await audit(this.prisma, req.user?.sub, 'Employee', id, 'archive', { active: true }, { active: false, ...result }, body?.reason);
+    await audit(this.prisma, 'Employee', id, 'archive', { active: true }, { active: false, ...result }, body?.reason);
     return result;
   }
 
@@ -240,8 +202,7 @@ class EmployeesController {
    * the rank name, the level, the rotation pattern id or the first day of a work stretch; an empty value clears
    * the ones that can be cleared (level back to computed, no first day).
    */
-  @Post('bulk') @Require('employees', 'full')
-  async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }, @Req() req: AuthedRequest) {
+  @Post('bulk') async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }) {
     const { ids, action } = body ?? {};
     const value = body?.value ?? '';
     const CLEARABLE = ['seniority', 'rotationAnchor', 'startState'];
@@ -293,7 +254,7 @@ class EmployeesController {
       await this.prisma.$transaction(rows.filter(r => !strings(r.tags).includes(value)).map(r =>
         this.prisma.employee.update({ where: { id: r.id }, data: { tags: [...strings(r.tags), value] } })));
     } else throw new BadRequestException('action must be rank, seniority, homeBase, rotation, rotationAnchor, startState or addTag');
-    await audit(this.prisma, req.user?.sub, 'Employee', ids.join(','), `bulk_${action}`, null, { value, count: ids.length });
+    await audit(this.prisma, 'Employee', ids.join(','), `bulk_${action}`, null, { value, count: ids.length });
     return { updated: ids.length };
   }
 
@@ -319,8 +280,7 @@ class EmployeesController {
 class RanksController {
   constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(SettingsService) private settings: SettingsService) {}
 
-  @Put() @Require('employees', 'full')
-  async save(@Body() body: { ranks?: { label?: string; position?: string; seniority?: string; was?: string }[] }, @Req() req: AuthedRequest) {
+  @Put() async save(@Body() body: { ranks?: { label?: string; position?: string; seniority?: string; was?: string }[] }) {
     const list = body?.ranks;
     if (!Array.isArray(list) || list.length === 0) throw new BadRequestException('ranks must be a non-empty list');
     const positions = await this.prisma.position.findMany({ where: { name: { in: ['Chief of Unit', 'Field Operator'] } } });
@@ -355,7 +315,7 @@ class RanksController {
     });
     const saved = ranks.map(({ was: _was, ...r }) => r);
     await this.settings.set('people.ranks', saved);
-    await audit(this.prisma, req.user?.sub, 'Setting', 'people.ranks', 'update', before, saved);
+    await audit(this.prisma, 'Setting', 'people.ranks', 'update', before, saved);
     return saved;
   }
 }

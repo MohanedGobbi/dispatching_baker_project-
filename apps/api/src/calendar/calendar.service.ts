@@ -17,6 +17,8 @@ export interface DayCell {
 }
 
 export interface Viewer { canSeeMedical: (employeeId: string) => boolean }
+/** The manager, the only user, sees medical reasons (analytics passes a viewer that does not). */
+export const MANAGER_VIEW: Viewer = { canSeeMedical: () => true };
 
 @Injectable()
 export class CalendarService {
@@ -29,7 +31,6 @@ export class CalendarService {
   async buildDays(employeeIds: string[], from: Date, to: Date, viewer: Viewer): Promise<Map<string, DayCell[]>> {
     const settings = await this.settings.all();
     const clearanceAfter = settings['rules.clearanceRequiredAfterDays'] as number;
-    const showReason = settings['org.showLeaveReasonToDispatcher'] === true;
     const start = startOfDay(from), end = startOfDay(to);
 
     const [employees, leaves, assignments] = await Promise.all([
@@ -91,8 +92,7 @@ export class CalendarService {
         }
         // Medical detail stays private (12.3): others see only that the person is unavailable.
         if ((status === 'MEDICAL_LEAVE' || status === 'AWAITING_CLEARANCE') && !privileged) {
-          if (showReason && status === 'MEDICAL_LEAVE') cell.label = 'Medical leave';
-          else { cell.status = 'UNAVAILABLE'; cell.label = 'Unavailable'; }
+          cell.status = 'UNAVAILABLE'; cell.label = 'Unavailable';
         } else if (status === 'MEDICAL_LEAVE') cell.label = 'Medical leave';
         else if (status === 'AWAITING_CLEARANCE') cell.label = 'Awaiting clearance';
         cells.push(cell);

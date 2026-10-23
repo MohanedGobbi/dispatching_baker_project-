@@ -1,12 +1,10 @@
 import {
-  BadRequestException, Body, Controller, Get, Inject, Module, NotFoundException, Param, Post, Query, Req,
+  BadRequestException, Body, Controller, Get, Inject, Module, NotFoundException, Param, Post, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { fitTasksToJobs } from '../absence/absence.service';
-import { NotificationsService } from '../notifications/notifications';
-import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
-import { AssignmentsModule, AssignmentsService, assertSeatScope } from '../assignments/assignments';
+import { AssignmentsModule, AssignmentsService } from '../assignments/assignments';
 import { PlanningModule, PlanningService } from '../planning/planning';
 import { audit, parseDate } from '../common/validate';
 import { subtractSpans } from '../domain/spans';
@@ -26,8 +24,18 @@ class ReplacementsController {
     @Inject(SettingsService) private settings: SettingsService,
     @Inject(AssignmentsService) private assignments: AssignmentsService,
     @Inject(PlanningService) private planning: PlanningService,
-    @Inject(NotificationsService) private notifier: NotificationsService,
   ) {}
+
+  /**
+   * Tasks whose first uncovered day is close (setting replacements.escalateWithinDays) become escalated. Runs whenever
+   * the list is read, so no background job is needed.
+   */
+  private async escalateDue() {
+    const within = (await this.settings.all())['replacements.escalateWithinDays'] as number;
+    const due = await this.prisma.replacementTask.findMany({ where: { status: { in: ['OPEN', 'CANDIDATE_PROPOSED'] }, deadline: { lte: addDays(new Date(), within) } }, select: { id: true } });
+    if (due.length) await this.prisma.replacementTask.updateMany({ where: { id: { in: due.map(d => d.id) } }, data: { status: 'ESCALATED', escalatedAt: new Date() } });
+    return { escalated: due.length, within };
+  }
 
   private async mustLoad(id: string) {
     const t = await this.prisma.replacementTask.findUnique({
@@ -51,10 +59,11 @@ class ReplacementsController {
 
   // ---------- reads
 
-  @Get() @Require('planning', 'view')
-  async list(@Req() req: AuthedRequest, @Query() q: { status?: string; urgency?: string; baseId?: string; all?: string; recent?: string }) {
-    const scope = await this.planning.scopeFor(req, q.baseId ? [q.baseId] : undefined);
+  @Get()
+  async list(@Query() q: { status?: string; urgency?: string; baseId?: string; all?: string; recent?: string }) {
+    const scope = q.baseId ? [q.baseId] : undefined;
     await fitTasksToJobs(this.prisma); // no warnings for units that are not on a job
+    await this.escalateDue();
     // Open tasks only, unless `recent=true`: then also the ones fixed in the last week (a person was placed), so the screen can show the problem is solved.
     const weekAgo = new Date(Date.now() - 7 * DAY);
     const where: Record<string, unknown> = q.status ? { status: q.status } : q.all === 'true' ? {} : q.recent !== 'true' ? { status: { in: OPEN_TASK } } : { OR: [{ status: { in: OPEN_TASK } }, { status: 'CLOSED', assignmentId: { not: null }, closedAt: { gte: weekAgo } }] };
@@ -68,11 +77,11 @@ class ReplacementsController {
     return rows.sort((a, b) => URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency] || a.fromDate.getTime() - b.fromDate.getTime()).map(t => this.shape(t, today));
   }
 
-  @Get(':id') @Require('planning', 'view')
+  @Get(':id')
   async detail(@Param('id') id: string) { return this.shape(await this.mustLoad(id), startOfDay(new Date())); }
 
   /** One click to the best people for this task, with the reasons (16). */
-  @Get(':id/candidates') @Require('planning', 'view')
+  @Get(':id/candidates')
   async candidates(@Param('id') id: string, @Query('top') top?: string) {
     const t = await this.mustLoad(id);
     const maxConsec = (await this.settings.all())['rules.maxConsecutiveDays'] as number;
@@ -83,15 +92,14 @@ class ReplacementsController {
 
   // ---------- workflow: Open -> Candidate proposed -> Candidate confirmed (closed) / Escalated
 
-  @Post(':id/propose') @Require('planning', 'edit')
-  async propose(@Param('id') id: string, @Body() body: { employeeId?: string }, @Req() req: AuthedRequest) {
+  @Post(':id/propose')
+  async propose(@Param('id') id: string, @Body() body: { employeeId?: string }) {
     const t = await this.mustLoad(id);
     if (!OPEN_TASK.includes(t.status)) throw new BadRequestException(`A ${t.status.toLowerCase()} task cannot take a proposal`);
     if (!body?.employeeId) throw new BadRequestException('employeeId is required');
-    await assertSeatScope(this.prisma, req, [t.seatId]);
     if (!(await this.prisma.employee.findFirst({ where: { id: body.employeeId, active: true }, select: { id: true } }))) throw new BadRequestException('Employee does not exist or is archived');
     await this.prisma.replacementTask.update({ where: { id }, data: { status: 'CANDIDATE_PROPOSED', candidateId: body.employeeId } });
-    await audit(this.prisma, req.user?.sub, 'ReplacementTask', id, 'propose', null, { employeeId: body.employeeId });
+    await audit(this.prisma, 'ReplacementTask', id, 'propose', null, { employeeId: body.employeeId });
     return { status: 'CANDIDATE_PROPOSED' };
   }
 
@@ -99,17 +107,15 @@ class ReplacementsController {
    * Confirm: the person is placed on the seat for the chosen days (all of the rules apply, a hard breach needs an
    * override reason). Days not covered stay as an open task.
    */
-  @Post(':id/confirm') @Require('assignments', 'edit')
+  @Post(':id/confirm')
   async confirm(
     @Param('id') id: string,
     @Body() body: { employeeId?: string; start?: string; end?: string; overrideReason?: string },
-    @Req() req: AuthedRequest,
   ) {
     const t = await this.mustLoad(id);
     if (!OPEN_TASK.includes(t.status)) throw new BadRequestException(`A ${t.status.toLowerCase()} task cannot be confirmed`);
     const employeeId = body?.employeeId ?? t.candidateId;
     if (!employeeId) throw new BadRequestException('employeeId is required (or propose someone first)');
-    await assertSeatScope(this.prisma, req, [t.seatId]);
 
     const maxConsec = (await this.settings.all())['rules.maxConsecutiveDays'] as number;
     const start = startOfDay(body.start ? parseDate(body.start) : t.fromDate);
@@ -139,60 +145,38 @@ class ReplacementsController {
       }
       return { a, rest };
     });
-    await audit(this.prisma, req.user?.sub, 'ReplacementTask', id, 'confirm', null, { assignmentId: out.a.id, employeeId }, body?.overrideReason);
-    // Incoming (must acknowledge), outgoing, the base manager and the dispatchers (plan 19 "Replacement confirmed").
-    const seat = `${t.seat.unit?.code ?? `${t.seat.base?.code} base`} · ${t.seat.position.name} #${t.seat.index}`;
-    const payload = { seat, from: iso(start), to: iso(end), incoming: await this.notifier.personName(employeeId), outgoing: await this.notifier.personName(prev?.employeeId) };
-    const baseId = t.seat.unit?.homeBaseId ?? t.seat.baseId ?? undefined;
-    await this.notifier.notify({ type: 'replacement_confirmed', to: [{ employeeId }], payload, ack: true, except: req.user?.sub });
-    await this.notifier.notify({
-      type: 'replacement_confirmed', except: req.user?.sub, payload,
-      to: [...(prev ? [{ employeeId: prev.employeeId }] : []), { role: 'DISPATCHER' }, ...(baseId ? [{ role: 'BASE_MANAGER', baseId }] : [])],
-    });
+    await audit(this.prisma, 'ReplacementTask', id, 'confirm', null, { assignmentId: out.a.id, employeeId }, body?.overrideReason);
     return {
       assignment: out.a, closed: out.rest.length === 0,
       remaining: out.rest.map(r => ({ from: iso(r.start), to: iso(r.end) })), violations: ev.violations,
     };
   }
 
-  @Post(':id/escalate') @Require('planning', 'edit')
-  async escalate(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Post(':id/escalate')
+  async escalate(@Param('id') id: string) {
     const t = await this.mustLoad(id);
     if (!OPEN_TASK.includes(t.status) || t.status === 'ESCALATED') throw new BadRequestException(`A ${t.status.toLowerCase()} task cannot be escalated`);
     await this.prisma.replacementTask.update({ where: { id }, data: { status: 'ESCALATED', escalatedAt: new Date() } });
-    await audit(this.prisma, req.user?.sub, 'ReplacementTask', id, 'escalate');
-    await this.notifier.notify({
-      type: 'task_escalated', except: req.user?.sub, to: [{ role: 'OPS_MANAGER' }, { role: 'DISPATCHER' }], key: `esc:${id}`,
-      payload: { seat: await this.notifier.seatLabel(t.seatId), from: iso(t.fromDate), to: iso(t.toDate) },
-    });
+    await audit(this.prisma, 'ReplacementTask', id, 'escalate');
     return { status: 'ESCALATED' };
   }
 
   /** Escalate everything still unanswered whose first uncovered day is close (setting: replacements.escalateWithinDays). */
-  @Post('escalate-due') @Require('planning', 'edit')
-  async escalateDue(@Req() req: AuthedRequest) {
-    const within = (await this.settings.all())['replacements.escalateWithinDays'] as number;
-    const horizon = addDays(new Date(), within);
-    const due = await this.prisma.replacementTask.findMany({ where: { status: { in: ['OPEN', 'CANDIDATE_PROPOSED'] }, deadline: { lte: horizon } } });
-    if (due.length) await this.prisma.replacementTask.updateMany({ where: { id: { in: due.map(d => d.id) } }, data: { status: 'ESCALATED', escalatedAt: new Date() } });
-    for (const d of due) {
-      await this.notifier.notify({
-        type: 'task_escalated', except: req.user?.sub, to: [{ role: 'OPS_MANAGER' }, { role: 'DISPATCHER' }], key: `esc:${d.id}`,
-        payload: { seat: await this.notifier.seatLabel(d.seatId), from: iso(d.fromDate), to: iso(d.toDate) },
-      });
-    }
-    await audit(this.prisma, req.user?.sub, 'ReplacementTask', 'batch', 'escalate_due', null, { count: due.length });
-    return { escalated: due.length, within };
+  @Post('escalate-due')
+  async escalateNow() {
+    const result = await this.escalateDue();
+    await audit(this.prisma, 'ReplacementTask', 'batch', 'escalate_due', null, { count: result.escalated });
+    return result;
   }
 
   /** The task is no longer needed (unit stood down, job cancelled...). */
-  @Post(':id/close') @Require('planning', 'edit')
-  async close(@Param('id') id: string, @Body() body: { reason?: string }, @Req() req: AuthedRequest) {
+  @Post(':id/close')
+  async close(@Param('id') id: string, @Body() body: { reason?: string }) {
     const t = await this.mustLoad(id);
     if (!OPEN_TASK.includes(t.status)) throw new BadRequestException(`A ${t.status.toLowerCase()} task is already finished`);
     if (!body?.reason?.trim()) throw new BadRequestException('A reason is required to close a task without a replacement');
     await this.prisma.replacementTask.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } });
-    await audit(this.prisma, req.user?.sub, 'ReplacementTask', id, 'close', null, null, body.reason);
+    await audit(this.prisma, 'ReplacementTask', id, 'close', null, null, body.reason);
     return { status: 'CLOSED' };
   }
 
@@ -200,11 +184,11 @@ class ReplacementsController {
    * Find seats that will be uncovered (new job, crew change with nobody incoming) and open tasks for them.
    * Safe to repeat: spans that already have an open task are skipped.
    */
-  @Post('scan') @Require('planning', 'edit')
-  async scan(@Body() body: { start?: string; end?: string; baseIds?: string[] }, @Req() req: AuthedRequest) {
+  @Post('scan')
+  async scan(@Body() body: { start?: string; end?: string; baseIds?: string[] }) {
     const start = body?.start ? parseDate(body.start) : new Date();
     const end = body?.end ? parseDate(body.end) : addDays(start, 27);
-    const world = await this.planning.loadWorld({ baseIds: await this.planning.scopeFor(req, body?.baseIds), start, end, mode: 'full' });
+    const world = await this.planning.loadWorld({ baseIds: await this.planning.scopeFor(body?.baseIds), start, end, mode: 'full' });
     const today = startOfDay(new Date());
     let created = 0, skipped = 0;
     for (const s of world.input.slots.filter(x => x.required)) {
@@ -219,7 +203,7 @@ class ReplacementsController {
       }
       if (open.length) skipped++;
     }
-    await audit(this.prisma, req.user?.sub, 'ReplacementTask', 'scan', 'scan', null, { created, skipped, start: iso(start), end: iso(end) });
+    await audit(this.prisma, 'ReplacementTask', 'scan', 'scan', null, { created, skipped, start: iso(start), end: iso(end) });
     return { created, alreadyOpen: skipped };
   }
 }

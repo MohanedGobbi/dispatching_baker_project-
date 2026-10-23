@@ -11,22 +11,34 @@ function migrationsDir() {
   return dir;
 }
 
+/**
+ * Prisma's SQLite migrations rebuild tables with foreign keys switched off, which SQLite ignores inside a transaction.
+ * So they are switched off on the connection first (the client must use singleConnectionUrl()), each migration runs in
+ * a transaction, and every reference is checked before it commits: a broken one rolls the migration back.
+ */
 export async function migrate(prisma: PrismaClient): Promise<string[]> {
   await prisma.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "_migrations" ("name" TEXT PRIMARY KEY, "appliedAt" DATETIME NOT NULL)');
   const done = new Set((await prisma.$queryRawUnsafe<{ name: string }[]>('SELECT "name" FROM "_migrations"')).map(r => r.name));
   const dir = migrationsDir();
-  const applied: string[] = [];
-  for (const name of readdirSync(dir).filter(n => existsSync(join(dir, n, 'migration.sql'))).sort()) {
-    if (done.has(name)) continue;
-    const statements = readFileSync(join(dir, name, 'migration.sql'), 'utf8')
-      .split(/;\s*(?:\r?\n|$)/).map(s => s.replace(/^\s*--.*$/gm, '').trim()).filter(Boolean);
-    await prisma.$transaction([
-      ...statements.map(s => prisma.$executeRawUnsafe(s)),
-      prisma.$executeRawUnsafe('INSERT INTO "_migrations" ("name", "appliedAt") VALUES (?, ?)', name, new Date().toISOString()),
-    ]);
-    applied.push(name);
+  const pending = readdirSync(dir).filter(n => existsSync(join(dir, n, 'migration.sql')) && !done.has(n)).sort();
+  if (!pending.length) return [];
+  await prisma.$executeRawUnsafe('PRAGMA foreign_keys=OFF');
+  try {
+    for (const name of pending) {
+      const statements = readFileSync(join(dir, name, 'migration.sql'), 'utf8')
+        .split(/;\s*(?:\r?\n|$)/).map(s => s.replace(/^\s*--.*$/gm, '').trim()).filter(Boolean)
+        .filter(s => !/^PRAGMA foreign_keys\s*=/i.test(s)); // handled around the transaction
+      await prisma.$transaction(async tx => {
+        for (const s of statements) await tx.$executeRawUnsafe(s);
+        const broken = await tx.$queryRawUnsafe<unknown[]>('PRAGMA foreign_key_check');
+        if (broken.length) throw new Error(`Migration ${name} would leave ${broken.length} broken references; nothing was changed`);
+        await tx.$executeRawUnsafe('INSERT INTO "_migrations" ("name", "appliedAt") VALUES (?, ?)', name, new Date().toISOString());
+      }, { timeout: 120_000 });
+    }
+  } finally {
+    await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON');
   }
-  return applied;
+  return pending;
 }
 
 /**
@@ -47,7 +59,10 @@ export async function wipeDatabase(prisma: PrismaClient) {
   finally { await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON'); }
 }
 
-/** Everything a fresh or existing database needs before use: its folder, WAL mode, a busy timeout, the migrations. */
+/**
+ * Everything a fresh or existing database needs before use: its folder, WAL mode, a busy timeout, the migrations.
+ * Give it a client made with singleConnectionUrl() (see migrate).
+ */
 export async function prepareDatabase(prisma: PrismaClient) {
   const url = process.env.DATABASE_URL ?? '';
   if (url.startsWith('file:')) mkdirSync(dirname(url.slice(5)), { recursive: true });

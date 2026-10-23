@@ -1,23 +1,15 @@
 import {
-  BadRequestException, Body, Controller, ForbiddenException, Get, Inject, Module, NotFoundException, Param, Post, Req, Res, UnprocessableEntityException,
+  BadRequestException, Body, Controller, Get, Inject, Module, NotFoundException, Param, Post, Res, UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsModule, SettingsService } from '../settings/settings';
-import { AuthedRequest } from '../auth/auth.module';
-import { can, Level, Module as Mod } from '../auth/permissions';
 import { audit } from '../common/validate';
 import { startOfDay } from '../domain/status';
 import { createUnitWithSeats } from '../units/units';
 import { Cell, COLUMNS, Existing, Kind, KINDS, KEY_COLUMN, Lookups, mapHeaders, RowResult, SENIORITY, summarize, validateRows, WORK_MODES } from './sheets';
 
-const ACCESS: Record<Kind, { module: Mod; export: Level; import: Level }> = {
-  bases: { module: 'bases', export: 'view', import: 'edit' },
-  units: { module: 'units', export: 'view', import: 'full' },
-  // Contact details are personal data: exporting people needs more than read access.
-  employees: { module: 'employees', export: 'edit', import: 'full' },
-};
 const SHEET: Record<Kind, string> = { bases: 'Bases', units: 'Units', employees: 'Employees' };
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_ROWS = 5000;
@@ -40,23 +32,21 @@ function cellValue(v: ExcelJS.CellValue): Cell {
 class TransferController {
   constructor(@Inject(PrismaService) private prisma: PrismaService, @Inject(SettingsService) private settings: SettingsService) {}
 
-  private kind(k: string, req: AuthedRequest, what: 'export' | 'import'): Kind {
+  private kind(k: string): Kind {
     if (!KINDS.includes(k as Kind)) throw new NotFoundException(`Unknown sheet "${k}". Use one of ${KINDS.join(', ')}`);
-    const a = ACCESS[k as Kind];
-    if (!can((req.user?.roles ?? []).map(r => r.role), a.module, a[what])) throw new ForbiddenException(`Needs ${a[what]} access on ${a.module}`);
     return k as Kind;
   }
 
   @Get(':kind/template')
-  async template(@Param('kind') k: string, @Req() req: AuthedRequest, @Res() res: Response) {
-    const kind = this.kind(k, req, 'import');
+  async template(@Param('kind') k: string, @Res() res: Response) {
+    const kind = this.kind(k);
     await this.send(res, await this.workbook(kind, []), `crewboard-${kind}-template.xlsx`);
   }
 
   /** The same columns as the template, so an export can be edited and imported back. */
   @Get(':kind/export')
-  async export(@Param('kind') k: string, @Req() req: AuthedRequest, @Res() res: Response) {
-    const kind = this.kind(k, req, 'export');
+  async export(@Param('kind') k: string, @Res() res: Response) {
+    const kind = this.kind(k);
     const [rows, names] = await Promise.all([this.existing(kind), this.names()]);
     const display = [...rows.values()].map(({ values: v }) => {
       const out: Record<string, unknown> = {};
@@ -68,34 +58,33 @@ class TransferController {
       }
       return out;
     }).sort((a, b) => String(a[KEY_COLUMN[kind]]).localeCompare(String(b[KEY_COLUMN[kind]])));
-    await audit(this.prisma, req.user?.sub, 'Export', kind, 'export', null, { rows: display.length });
+    await audit(this.prisma, 'Export', kind, 'export', null, { rows: display.length });
     await this.send(res, await this.workbook(kind, display), `crewboard-${kind}-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
   /** Check a filled template. Nothing is written; the answer says, row by row, what commit would do. */
   @Post(':kind/validate')
-  async validate(@Param('kind') k: string, @Req() req: AuthedRequest, @Body() body: { file?: string }) {
-    const kind = this.kind(k, req, 'import');
+  async validate(@Param('kind') k: string, @Body() body: { file?: string }) {
+    const kind = this.kind(k);
     const { report } = await this.check(kind, body?.file);
     return report;
   }
 
   /** Write the valid rows. Refused while any row has an error, unless skipInvalid is set. */
   @Post(':kind/commit')
-  async commit(@Param('kind') k: string, @Req() req: AuthedRequest, @Body() body: { file?: string; skipInvalid?: boolean }) {
-    const kind = this.kind(k, req, 'import');
+  async commit(@Param('kind') k: string, @Body() body: { file?: string; skipInvalid?: boolean }) {
+    const kind = this.kind(k);
     const { report, rows } = await this.check(kind, body?.file);
     if (report.fatal.length) throw new BadRequestException({ message: report.fatal.join('; '), report });
     if (report.summary.errors && body.skipInvalid !== true) throw new UnprocessableEntityException({ message: `${report.summary.errors} row(s) have errors. Fix them or import the others with skipInvalid.`, report });
 
     const todo = rows.filter(r => r.action === 'create' || r.action === 'update');
-    const user = req.user?.sub;
     const written = await this.apply(kind, todo);
     await this.prisma.auditLog.createMany({
-      data: written.map(w => ({ userId: user, entity: SHEET[kind].slice(0, -1), entityId: w.id, action: w.created ? 'import_create' : 'import_update', after: w.after as never })),
+      data: written.map(w => ({ entity: SHEET[kind].slice(0, -1), entityId: w.id, action: w.created ? 'import_create' : 'import_update', after: w.after as never })),
     });
     const summary = { created: written.filter(w => w.created).length, updated: written.filter(w => !w.created).length, skipped: report.summary.errors, unchanged: report.summary.unchanged };
-    await audit(this.prisma, user, 'Import', kind, 'import', null, summary);
+    await audit(this.prisma, 'Import', kind, 'import', null, summary);
     return { ...summary, report };
   }
 

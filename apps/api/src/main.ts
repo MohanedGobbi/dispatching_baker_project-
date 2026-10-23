@@ -7,8 +7,7 @@ import { join } from 'node:path';
 import { Controller, Get, Module } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaModule } from './prisma/prisma.service';
-import { prepareDatabase } from './prisma/migrate';
-import { AuthModule, Public } from './auth/auth.module';
+import { prepareDatabase, singleConnectionUrl } from './prisma/migrate';
 import { SettingsModule } from './settings/settings';
 import { CatalogsModule } from './catalogs/catalogs';
 import { BasesModule } from './bases/bases';
@@ -22,14 +21,9 @@ import { PlanningModule } from './planning/planning';
 import { ReplacementsModule } from './replacements/replacements';
 import { CalendarModule } from './calendar/calendar';
 import { BoardModule } from './board/board';
-import { NotificationsModule } from './notifications/notifications';
 import { FilesModule } from './files/files';
 import { MaintenanceModule } from './maintenance/maintenance';
-import { SwapsModule } from './swaps/swaps';
-import { PortalModule } from './portal/portal';
 import { AnalyticsModule } from './analytics/analytics';
-import { MailModule } from './mail/mailer';
-import { UsersModule } from './users/users';
 import { AuditModule } from './audit/audit';
 import { TransferModule } from './transfer/transfer';
 import { FleetModule } from './fleet/fleet';
@@ -38,12 +32,12 @@ import { BackupModule } from './backup/backup';
 
 @Controller()
 class HealthController {
-  @Public() @Get('health')
+  @Get('health')
   health() { return { ok: true, service: 'crewboard-api' }; }
 }
 
 @Module({
-  imports: [PrismaModule, MailModule, AuthModule, UsersModule, AuditModule, TransferModule, FleetModule, TasksModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, NotificationsModule, FilesModule, MaintenanceModule, SwapsModule, PortalModule, AnalyticsModule, BackupModule],
+  imports: [PrismaModule, AuditModule, TransferModule, FleetModule, TasksModule, SettingsModule, CatalogsModule, BasesModule, EmployeesModule, UnitsModule, JobsModule, AssignmentsModule, LeaveModule, ExtensionsModule, PlanningModule, ReplacementsModule, CalendarModule, BoardModule, FilesModule, MaintenanceModule, AnalyticsModule, BackupModule],
   controllers: [HealthController],
 })
 class AppModule {}
@@ -67,7 +61,7 @@ function serveWeb(app: { use: (...a: unknown[]) => unknown }) {
 
 async function bootstrap() {
   // Create or migrate the database before any module (timers included) can query it.
-  const db = new PrismaClient();
+  const db = new PrismaClient({ datasourceUrl: singleConnectionUrl() });
   await prepareDatabase(db);
   await db.$disconnect();
   // Uploads arrive as base64 in JSON, so the body limit is raised above the 100 kB default.

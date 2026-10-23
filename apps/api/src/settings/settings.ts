@@ -2,7 +2,6 @@ import {
   BadRequestException, Body, Controller, Get, Inject, Injectable, Module, Param, Put, Req,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require } from '../auth/decorators';
 import { audit } from '../common/validate';
 import { DEFAULT_RANKS } from '../employees/ranks';
 
@@ -48,13 +47,10 @@ export const SETTING_DEFAULTS = {
   'org.timezone': 'Africa/Algiers',
   'org.weekStart': 0,
   'org.workingDays': '1111100', // Sunday first; posts with the working_days window are only needed on these days
-  'org.showLeaveReasonToDispatcher': false,
-  // Off: the manager publishes a draft plan directly and extensions apply at once. On: draft -> review -> approve.
-  'workflow.requireApproval': false,
+  // On: plans go draft -> review -> approved -> published, extensions are requested then approved. Off: both apply at once.
+  'workflow.requireApproval': true,
   // The company's ranks, highest first; edited on the People screen (not listed in Settings).
   'people.ranks': DEFAULT_RANKS,
-  'security.passwordMinLength': 8,
-  'security.resetLinkMinutes': 60,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -90,14 +86,14 @@ export class SettingsService {
 class SettingsController {
   constructor(@Inject(SettingsService) private svc: SettingsService, @Inject(PrismaService) private prisma: PrismaService) {}
 
-  @Get() @Require('settings', 'view')
+  @Get()
   list() { return this.svc.all(); }
 
-  @Put(':key') @Require('settings', 'edit')
+  @Put(':key')
   async update(@Req() req: { user?: { sub: string } }, @Param('key') key: string, @Body() body: { value: unknown }) {
     const before = (await this.svc.all())[key];
     const r = await this.svc.set(key, body?.value);
-    await audit(this.prisma, req.user?.sub, 'Setting', key, 'update', { value: before }, { value: r.value });
+    await audit(this.prisma, 'Setting', key, 'update', { value: before }, { value: r.value });
     return r;
   }
 }

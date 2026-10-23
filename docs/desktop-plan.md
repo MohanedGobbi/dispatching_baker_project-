@@ -111,6 +111,24 @@ Notes for later work:
 - Database: a migration drops the unused tables (users, roles, email outbox, notification preferences, notifications,
   acknowledgements, swaps).
 
+**Result (2026-10-23): done.** Docker, Postgres and their leftovers were removed first (a final `pg_dump` is kept in
+`data/backups`). Then:
+- API: the auth, users, mail, notifications, portal and swaps modules are gone; every permission check became the
+  manager's answer (full access, no base scope, medical details visible; analytics still hides medical reasons as it
+  did for everyone). "Done by" columns store `manager`; `audit()` no longer takes a user.
+- Escalation of near-due replacement tasks now runs when the task list is read (`replacements.ts`, `escalateDue`).
+- `workflow.requireApproval` now defaults to on. The same setting also decides whether extensions are requested then
+  approved (on) or applied at once (off); turn it off in Settings if that second step is not wanted.
+- Web: no sign-in, account menu, bell, portal, user admin or swaps tab; the offline service worker is unregistered
+  from browsers that had it. Screens refresh after each change through an in-page signal instead of the server
+  stream.
+- Migration `20261023120000_single_user` drops User, UserRole, PasswordResetToken, Notification, UserPrefs,
+  EmailOutbox and SwapRequest, and the user columns of AuditLog and StoredFile. Applied to the real data after a
+  backup (`data/backups/before-single-user-2026-10-23`); every crew table kept its row count.
+- The migration runner now switches foreign keys off around each migration and checks every reference before it
+  commits (SQLite ignores the switch inside a transaction, which Prisma's table rebuilds rely on).
+- Not yet done (final pass): the smoke suites, `demo` scripts and Playwright tests still sign in as several roles.
+
 ## Step 4: Electron wrapper
 
 - Tools: Electron, electron-vite and electron-builder (NSIS installer for Windows), at the versions the install pulls,

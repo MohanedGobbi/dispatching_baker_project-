@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from './api'
-import { useAuth } from './auth'
 import { errMsg, useApi } from './hooks'
 import { useToast } from './ui'
 
@@ -33,7 +32,7 @@ interface Backups { dir: string; backups: { name: string; at: string; sizeBytes:
 const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`
 
 /** The database and uploaded files are copied once a day on their own; this adds a copy on demand. */
-function BackupPanel({ editor }: { editor: boolean }) {
+function BackupPanel() {
   const { t } = useTranslation()
   const toast = useToast()
   const list = useApi<Backups>('/backups')
@@ -51,7 +50,7 @@ function BackupPanel({ editor }: { editor: boolean }) {
           {latest ? <>{t('backupLatest', 'Last backup')}: <strong>{new Date(latest.at).toLocaleString()}</strong> ({mb(latest.sizeBytes)})</> : t('backupNone', 'No backup yet')}
           <small className="muted"> {t('backupHint', 'A copy of all data and files is made every day. The 14 newest are kept, then one per month. Copy this folder to a USB drive from time to time:')} <code>{list.data?.dir}</code></small>
         </div>
-        {editor && <button type="button" className="primary" disabled={busy} onClick={now}>{busy ? t('backupBusy', 'Backing up…') : t('backupNow', 'Back up now')}</button>}
+        {<button type="button" className="primary" disabled={busy} onClick={now}>{busy ? t('backupBusy', 'Backing up…') : t('backupNow', 'Back up now')}</button>}
       </div>
       {list.error && <div className="banner error" role="alert">{list.error}</div>}
     </section>
@@ -61,11 +60,9 @@ function BackupPanel({ editor }: { editor: boolean }) {
 /** Every number in the product is a setting (plan 22); changes apply to the next calculation and are audited. */
 export default function Settings() {
   const { t } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const all = useApi<Record<string, V>>('/settings')
   const [draft, setDraft] = useState<Record<string, V>>({})
-  const editor = can('SUPER_ADMIN')
   const keys = Object.keys(all.data ?? {})
   const groups = Object.keys(GROUPS).map(g => [g, keys.filter(k => k.split('.')[0] === g)] as const).filter(([, ks]) => ks.length)
   const save = async (k: string) => {
@@ -75,7 +72,7 @@ export default function Settings() {
     <main className="page">
       <header className="page-head"><div><h1>{t('setTitle', 'Settings')}</h1><p className="muted">{t('setIntro', 'The rules and numbers behind every calculation. Nothing is hard-coded.')}</p></div></header>
       {all.error && <div className="banner error" role="alert">{all.error}</div>}
-      <BackupPanel editor={editor} />
+      <BackupPanel />
       {groups.map(([g, ks]) => (
         <section key={g} className="panel">
           <h2>{t(`set_${g}`, GROUPS[g])}</h2>
@@ -85,10 +82,10 @@ export default function Settings() {
             return (
               <div key={k} className="set-row">
                 <div><code>{k.split('.').slice(1).join('.')}</code>{HINTS[k] && <small className="muted"> {HINTS[k]}</small>}</div>
-                {typeof cur === 'boolean' ? <input type="checkbox" disabled={!editor} checked={val as boolean} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} aria-label={k} />
-                  : Array.isArray(cur) ? <input disabled={!editor} value={(val as string[]).join(', ')} onChange={e => setDraft({ ...draft, [k]: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} aria-label={k} />
-                  : typeof cur === 'number' ? <input type="number" disabled={!editor} value={val as number} onChange={e => setDraft({ ...draft, [k]: +e.target.value })} aria-label={k} />
-                  : <input disabled={!editor} value={val as string} onChange={e => setDraft({ ...draft, [k]: e.target.value })} aria-label={k} />}
+                {typeof cur === 'boolean' ? <input type="checkbox" checked={val as boolean} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} aria-label={k} />
+                  : Array.isArray(cur) ? <input value={(val as string[]).join(', ')} onChange={e => setDraft({ ...draft, [k]: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} aria-label={k} />
+                  : typeof cur === 'number' ? <input type="number" value={val as number} onChange={e => setDraft({ ...draft, [k]: +e.target.value })} aria-label={k} />
+                  : <input value={val as string} onChange={e => setDraft({ ...draft, [k]: e.target.value })} aria-label={k} />}
                 {dirty && <button type="button" className="primary" onClick={() => save(k)}>{t('save', 'Save')}</button>}
               </div>
             )

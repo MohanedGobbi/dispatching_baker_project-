@@ -13,7 +13,6 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
-// Offline viewing for the portal. Not registered in development so hot reload is never served from a cache.
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => { void navigator.serviceWorker.register('/sw.js') })
-}
+// The employee portal's offline service worker is gone: remove it, and its cache, from browsers that installed it.
+navigator.serviceWorker?.getRegistrations().then(rs => rs.forEach(r => { void r.unregister() })).catch(() => {})
+if ('caches' in window) void caches.delete('crewboard-api').catch(() => {})

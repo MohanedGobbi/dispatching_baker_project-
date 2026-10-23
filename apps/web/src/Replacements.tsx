@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { AlertOctagon, AlertTriangle, CalendarDays, CheckCircle2, Clock, HeartPulse, Inbox, Radar, Repeat, Siren, Truck, UserMinus, UserX } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api, ApiError } from './api'
-import { useAuth } from './auth'
 import { Modal, RuleDialog } from './dialogs'
 import { errMsg, useApi, useLive } from './hooks'
 import { countdown, fmtDate, plural, RULE_LABEL, TRIGGER_LABEL } from './labels'
@@ -40,7 +39,6 @@ const isFixed = (t: Task) => t.status === 'CLOSED' && !!t.assignmentId
 /** Replacement center (plan 16): every seat that needs someone, most urgent first, with the best people one click away. */
 export default function Replacements() {
   const { t } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const [urgency, setUrgency] = useState('')
   const tasks = useApi<Task[]>('/replacements?recent=true')
@@ -117,7 +115,7 @@ export default function Replacements() {
             ))}
           </section>
           <aside aria-label="Task details">
-            {current ? <TaskDetail key={current.id} task={current} canEdit={can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')} onChanged={() => void tasks.reload()} onNext={() => { const n = all.find(x => isOpen(x) && x.id !== current.id); if (n) setSelected(n.id) }} hasNext={all.some(x => isOpen(x) && x.id !== current.id)} />
+            {current ? <TaskDetail key={current.id} task={current} onChanged={() => void tasks.reload()} onNext={() => { const n = all.find(x => isOpen(x) && x.id !== current.id); if (n) setSelected(n.id) }} hasNext={all.some(x => isOpen(x) && x.id !== current.id)} />
               : <div className="card2 rc-empty"><Inbox size={40} aria-hidden /><p>{t('pickTask', 'Pick a task on the left to see who can take it.')}</p></div>}
           </aside>
         </div>
@@ -183,7 +181,7 @@ function Gantt({ tasks, selected, onPick }: { tasks: Task[]; selected: string | 
   )
 }
 
-function TaskDetail({ task, canEdit, onChanged, onNext, hasNext }: { task: Task; canEdit: boolean; onChanged: () => void; onNext: () => void; hasNext: boolean }) {
+function TaskDetail({ task, onChanged, onNext, hasNext }: { task: Task; onChanged: () => void; onNext: () => void; hasNext: boolean }) {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const open = isOpen(task)
@@ -271,7 +269,7 @@ function TaskDetail({ task, canEdit, onChanged, onNext, hasNext }: { task: Task;
                     <div className="scorebar" style={{ margin: '4px 0' }} title={`${t('fit', 'fit')} ${Math.round(c.score / top * 100)}%`}><i style={{ width: `${Math.max(8, c.score / top * 100)}%` }} /></div>
                     <small className="why">{c.explanation}</small>
                   </div>
-                  {canEdit && (
+                  {(
                     <span className="acts">
                       <button type="button" className={i === 0 ? 'primary' : ''} disabled={busy} onClick={() => void tryConfirm(c.employeeId, c.employee ?? '')}>{t('putOnSeat', 'Put on this seat')}</button>
                     </span>
@@ -287,7 +285,7 @@ function TaskDetail({ task, canEdit, onChanged, onNext, hasNext }: { task: Task;
                 </div>
               </details>
             )}
-            {canEdit && (
+            {(
               <div className="row-actions end">
                 <button type="button" onClick={() => setClosing(true)}>{t('closeNoRepl', 'Close without a replacement')}</button>
               </div>

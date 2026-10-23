@@ -1,16 +1,12 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Req, ForbiddenException,
+  BadRequestException, Body, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AuthedRequest } from '../auth/auth.module';
-import { can } from '../auth/permissions';
-import type { Module as Mod } from '../auth/permissions';
 
 type FieldType = 'string' | 'number' | 'boolean' | 'string[]';
 
 interface CatalogDef {
   model: string;                     // Prisma delegate name
-  module: Mod;                       // permission module guarding writes
   fields: Record<string, FieldType>; // whitelist of writable scalar fields
   required: string[];
   connects?: Record<string, string>; // body key (id list) -> relation field
@@ -20,24 +16,24 @@ interface CatalogDef {
 // Catalogs from plan section 22. Write access follows the matrix in section 3.
 export const CATALOGS: Record<string, CatalogDef> = {
   positions: {
-    model: 'position', module: 'positions',
+    model: 'position',
     fields: { name: 'string', category: 'string', canFillUnitSeat: 'boolean', canFillBasePost: 'boolean', defaultRotationId: 'string' },
     required: ['name', 'category'],
     connects: { requiredQualificationIds: 'requiredQualifications', requiredCertTypeIds: 'requiredCertTypes' },
     include: { requiredQualifications: true, requiredCertTypes: true },
   },
-  qualifications: { model: 'qualification', module: 'positions', fields: { name: 'string' }, required: ['name'] },
-  'certification-types': { model: 'certificationType', module: 'positions', fields: { name: 'string' }, required: ['name'] },
+  qualifications: { model: 'qualification', fields: { name: 'string' }, required: ['name'] },
+  'certification-types': { model: 'certificationType', fields: { name: 'string' }, required: ['name'] },
   'leave-types': {
-    model: 'leaveType', module: 'settings',
+    model: 'leaveType',
     fields: { name: 'string', category: 'string', needsApproval: 'boolean', needsDocument: 'boolean' }, required: ['name', 'category'],
   },
   'unit-types': {
-    model: 'unitType', module: 'settings', fields: { name: 'string', colorKey: 'string' }, required: ['name', 'colorKey'],
+    model: 'unitType', fields: { name: 'string', colorKey: 'string' }, required: ['name', 'colorKey'],
     include: { crewSeats: true },
   },
   'rotation-patterns': {
-    model: 'rotationPattern', module: 'settings',
+    model: 'rotationPattern',
     fields: { name: 'string', type: 'string', daysOn: 'number', daysOff: 'number', weeklyMask: 'string', travelPolicy: 'string' },
     required: ['name', 'type'],
   },
@@ -91,9 +87,8 @@ class CatalogsController {
   }
 
   @Post(':slug')
-  create(@Param('slug') slug: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  create(@Param('slug') slug: string, @Body() body: Record<string, unknown>) {
     const def = this.def(slug);
-    this.assertWrite(def, req);
     return this.repo(def).create({
       data: { ...sanitize(def, body ?? {}, true), ...this.relations(def, body ?? {}, 'create') },
       ...(def.include ? { include: def.include } : {}),
@@ -101,9 +96,8 @@ class CatalogsController {
   }
 
   @Put(':slug/:id')
-  async update(@Param('slug') slug: string, @Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  async update(@Param('slug') slug: string, @Param('id') id: string, @Body() body: Record<string, unknown>) {
     const def = this.def(slug);
-    this.assertWrite(def, req);
     try {
       return await this.repo(def).update({
         where: { id },
@@ -114,18 +108,12 @@ class CatalogsController {
   }
 
   @Delete(':slug/:id')
-  async remove(@Param('slug') slug: string, @Param('id') id: string, @Req() req: AuthedRequest) {
+  async remove(@Param('slug') slug: string, @Param('id') id: string) {
     const def = this.def(slug);
-    this.assertWrite(def, req);
     try { await this.repo(def).delete({ where: { id } }); return { deleted: id }; }
     catch (e: unknown) { throw this.mapError(e); }
   }
 
-  // Write permission depends on the catalog, so it is checked here rather than via one static decorator.
-  private assertWrite(def: CatalogDef, req: AuthedRequest) {
-    const roles = (req.user?.roles ?? []).map(r => r.role);
-    if (!can(roles, def.module, 'edit')) throw new ForbiddenException(`Needs edit access on ${def.module}`);
-  }
 
   private mapError(e: unknown) {
     const code = (e as { code?: string }).code;

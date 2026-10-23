@@ -4,7 +4,6 @@
 import '../src/env';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { faker } from '@faker-js/faker/locale/fr';
-import { hashPassword } from '../src/auth/crypto';
 import { singleConnectionUrl, wipeDatabase } from '../src/prisma/migrate';
 
 const prisma = new PrismaClient({ datasourceUrl: singleConnectionUrl() });
@@ -183,37 +182,6 @@ async function main() {
         await prisma.certification.create({ data: { employeeId: e.id, typeId, issuedAt: daysAgo(400) } });
       }
     }
-  }
-
-  // ---- Demo users. Every demo account uses the password "demo1234" (demo mode only).
-  const roles: [string, string][] = [
-    ['admin', 'SUPER_ADMIN'], ['ops', 'OPS_MANAGER'], ['dispatcher', 'DISPATCHER'], ['hr', 'HR'],
-    ['basemanager', 'BASE_MANAGER'], ['chief', 'CHIEF_OF_UNIT'], ['employee', 'EMPLOYEE'],
-  ];
-  const demoHash = hashPassword('demo1234');
-  const everyone = await prisma.employee.findMany({ select: { id: true, employeeNo: true, position: { select: { name: true } }, homeBase: { select: { code: true } } }, orderBy: { employeeNo: 'asc' } });
-  const firstOperator = everyone.find(e => e.position.name === 'Field Operator');
-  // SEED_STAFF=off creates only the manager (admin) and the employee logins: the setup the product runs with now.
-  // The staff accounts are on by default because the smoke suites sign in with them.
-  const staffOff = process.env.SEED_STAFF === 'off';
-  for (const [login, role] of roles) {
-    if (staffOff && role !== 'SUPER_ADMIN' && role !== 'EMPLOYEE') continue;
-    await prisma.user.create({
-      data: {
-        login, passwordHash: demoHash, employeeId: login === 'employee' ? firstOperator?.id : undefined,
-        // Staff accounts have no employee record, so they get their own address (for password reset emails).
-        email: login === 'employee' ? undefined : `${login}@crewboard.local`,
-        roles: { create: { role, baseScope: role === 'BASE_MANAGER' ? 'HMD' : undefined } },
-      },
-    });
-  }
-  // Each person can sign in to the portal with their employee number, e.g. "e1010".
-  for (const e of everyone) {
-    if (e.id === firstOperator?.id) continue; // already linked to the generic "employee" account
-    const extra: { role: string; baseScope?: string }[] = [{ role: 'EMPLOYEE' }];
-    if (e.position.name === 'Chief of Unit') extra.push({ role: 'CHIEF_OF_UNIT' });
-    if (e.position.name === 'Base Manager') extra.push({ role: 'BASE_MANAGER', baseScope: e.homeBase.code });
-    await prisma.user.create({ data: { login: e.employeeNo.toLowerCase(), passwordHash: demoHash, employeeId: e.id, roles: { create: extra } } });
   }
 
   // ---- Preventive maintenance and unit papers. Spread by unit index (no random draws, so the people stay the same)

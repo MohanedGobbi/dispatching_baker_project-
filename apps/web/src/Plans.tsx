@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Check, Plus, Wand2 } from 'lucide-react'
 import { PageGuide } from './guide'
 import { api, ApiError } from './api'
-import { useAuth } from './auth'
 import { Modal, ViolationList } from './dialogs'
 import { errMsg, go, useApi, useLive, useRequireApproval, useRoute } from './hooks'
 import { fmtDate, FIX_LABEL, PLAN_LABEL, PLAN_STEPS, plural } from './labels'
@@ -45,7 +44,6 @@ export default function Plans() {
 
 function PlanList() {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const approval = useRequireApproval()
   const toast = useToast()
   const plans = useApi<PlanRow[]>('/planning/plans')
@@ -77,7 +75,7 @@ function PlanList() {
           approval ? t('plStep3', 'Change anything by hand, then submit. A manager approves and publishes it.') : t('plStep3direct', 'Change anything by hand, then publish it.'),
           t('plStep4', 'Publishing makes the plan live on the board and notifies everyone concerned. Until then nothing changes.'),
         ]}>
-        {can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER') && <button type="button" className="primary" onClick={() => setOpen(!open)}><Plus size={15} aria-hidden /> {t('newPlan', 'New plan')}</button>}
+        <button type="button" className="primary" onClick={() => setOpen(!open)}><Plus size={15} aria-hidden /> {t('newPlan', 'New plan')}</button>
       </PageGuide>
 
       {open && (
@@ -134,7 +132,6 @@ function PlanList() {
 
 function PlanView({ id }: { id: string }) {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const plan = useApi<PlanDetail>(`/planning/plans/${id}`)
   useLive(plan.reload)
@@ -145,9 +142,7 @@ function PlanView({ id }: { id: string }) {
   const [reason, setReason] = useState('')
 
   const p = plan.data
-  const planner = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
-  const manager = can('SUPER_ADMIN', 'OPS_MANAGER')
-  const editable = p?.status === 'DRAFT' && planner
+  const editable = p?.status === 'DRAFT'
   const approval = useRequireApproval()
   const steps: readonly string[] = approval ? PLAN_STEPS : ['DRAFT', 'PUBLISHED']
 
@@ -212,13 +207,12 @@ function PlanView({ id }: { id: string }) {
           {p.decisionNote && <p className="note">{t('lastNote', 'Last note')}: {p.decisionNote}</p>}
         </div>
         <div className="actions">
-          {p.status === 'DRAFT' && planner && approval && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void act(`/planning/plans/${id}/submit`, {}, t('submitted', 'Sent for review'))}>{t('submit', 'Send for review')}</button>}
-          {p.status !== 'PUBLISHED' && manager && !approval && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
-          {p.status === 'DRAFT' && planner && <button type="button" onClick={async () => { try { await api(`/planning/plans/${id}`, { method: 'DELETE' }); toast(t('discarded', 'Plan discarded')); go('plans') } catch (e) { toast(errMsg(e), 'error') } }}>{t('discard', 'Discard')}</button>}
-          {p.status === 'REVIEW' && manager && approval && <button type="button" className="primary" onClick={() => void act(`/planning/plans/${id}/approve`, {}, t('approved', 'Approved'))}>{t('approve', 'Approve')}</button>}
-          {p.status === 'APPROVED' && manager && approval && <button type="button" className="primary" onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
-          {['REVIEW', 'APPROVED'].includes(p.status) && manager && approval && <button type="button" onClick={() => setReasonFor('reject')}>{t('sendBack', 'Send back…')}</button>}
-          {p.status === 'REVIEW' && !manager && <span className="muted">{t('waitingApproval', 'Waiting for the ops manager')}</span>}
+          {p.status === 'DRAFT' && approval && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void act(`/planning/plans/${id}/submit`, {}, t('submitted', 'Sent for review'))}>{t('submit', 'Send for review')}</button>}
+          {p.status !== 'PUBLISHED' && !approval && <button type="button" className="primary" disabled={!p.assignments.length} onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
+          {p.status === 'DRAFT' && <button type="button" onClick={async () => { try { await api(`/planning/plans/${id}`, { method: 'DELETE' }); toast(t('discarded', 'Plan discarded')); go('plans') } catch (e) { toast(errMsg(e), 'error') } }}>{t('discard', 'Discard')}</button>}
+          {p.status === 'REVIEW' && approval && <button type="button" className="primary" onClick={() => void act(`/planning/plans/${id}/approve`, {}, t('approved', 'Approved'))}>{t('approve', 'Approve')}</button>}
+          {p.status === 'APPROVED' && approval && <button type="button" className="primary" onClick={() => void publish(false)}>{t('publish', 'Publish')}</button>}
+          {['REVIEW', 'APPROVED'].includes(p.status) && approval && <button type="button" onClick={() => setReasonFor('reject')}>{t('sendBack', 'Send back…')}</button>}
         </div>
       </header>
 

@@ -1,15 +1,13 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, HttpException, HttpStatus,
-  Inject, Injectable, Module, NotFoundException, Param, Post, Put, Query, Req,
+  BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpException, HttpStatus,
+  Inject, Injectable, Module, NotFoundException, Param, Post, Put, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications';
-import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { AssignmentsModule, AssignmentsService, Proposal } from '../assignments/assignments';
 import { buildCandidate, buildSeatFacts } from '../assignments/facts';
-import { audit, parseDate, strings } from '../common/validate';
+import { audit, MANAGER, parseDate } from '../common/validate';
 import { createEngine, EngineInput, EngineSlot, FixOption, Weights } from '../domain/engine';
 import { intersect, mergeSpans, Span, subtractSpans } from '../domain/spans';
 import { Seniority, startOfDay } from '../domain/status';
@@ -45,8 +43,6 @@ export interface World {
   seatFacts: Map<string, ReturnType<typeof buildSeatFacts>>;
   unitBySeat: Map<string, string>;
 }
-
-const rolesOf = (req: AuthedRequest) => (req.user?.roles ?? []);
 
 const SEAT_INCLUDE = { position: { include: { requiredQualifications: true, requiredCertTypes: true } }, unit: true, base: true } as const;
 
@@ -193,19 +189,9 @@ export class PlanningService {
     return { input, baseIds, seatLabel, employeeName: new Map(employees.map(e => [e.id, `${e.firstName} ${e.lastName}`])), seatFacts, unitBySeat };
   }
 
-  /** Admin, Ops and Dispatcher plan anywhere; a Base Manager only inside their own base(s) (plan section 3). */
-  async scopeFor(req: AuthedRequest, requested?: string[]): Promise<string[] | null> {
-    const roles = rolesOf(req);
-    if (roles.some(r => ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER'].includes(r.role))) return requested?.length ? await this.resolveBases(requested) : null;
-    const own = roles.filter(r => r.role === 'BASE_MANAGER' && r.baseScope).map(r => r.baseScope!);
-    if (!own.length) throw new ForbiddenException('No planning scope');
-    const ownIds = await this.resolveBases(own);
-    if (requested?.length) {
-      const ids = await this.resolveBases(requested);
-      if (ids.some(i => !ownIds.includes(i))) throw new ForbiddenException('Base managers can only plan their own base');
-      return ids;
-    }
-    return ownIds;
+  /** The bases asked for, as ids (codes are accepted too); null means every base. */
+  async scopeFor(requested?: string[]): Promise<string[] | null> {
+    return requested?.length ? this.resolveBases(requested) : null;
   }
 
   /** Run the engine and store the result as a draft plan (15.6). */
@@ -255,7 +241,7 @@ export class PlanningService {
       });
       return p;
     });
-    await audit(this.prisma, userId, 'Plan', plan.id, 'create', null, { mode: args.mode, stats: result.stats });
+    await audit(this.prisma, 'Plan', plan.id, 'create', null, { mode: args.mode, stats: result.stats });
     return this.planDetail(plan.id);
   }
 
@@ -406,15 +392,7 @@ class PlanningController {
     @Inject(SettingsService) private settings: SettingsService,
     @Inject(PlanningService) private svc: PlanningService,
     @Inject(AssignmentsService) private assignments: AssignmentsService,
-    @Inject(NotificationsService) private notifier: NotificationsService,
   ) {}
-
-  private scopeFor(req: AuthedRequest, requested?: string[]) { return this.svc.scopeFor(req, requested); }
-
-  private async assertPlanScope(req: AuthedRequest, plan: { scope: unknown }) {
-    const allowed = await this.scopeFor(req);
-    if (allowed && strings(plan.scope).some(s => !allowed.includes(s))) throw new ForbiddenException('This plan covers bases outside your scope');
-  }
 
   private async mustPlan(id: string) {
     const p = await this.prisma.plan.findUnique({ where: { id } });
@@ -423,17 +401,14 @@ class PlanningController {
   }
 
   // ----- reads
-  @Get('plans') @Require('planning', 'view')
-  list(@Query('status') status?: string) {
+  @Get('plans') list(@Query('status') status?: string) {
     return this.prisma.plan.findMany({ where: status ? { status } : {}, orderBy: { createdAt: 'desc' }, take: 100 });
   }
 
-  @Get('plans/:id') @Require('planning', 'view')
-  detail(@Param('id') id: string) { return this.svc.planDetail(id); }
+  @Get('plans/:id') detail(@Param('id') id: string) { return this.svc.planDetail(id); }
 
   /** Compare two plans by what each seat gets (15.6). Default: the plan published just before this one. */
-  @Get('plans/:id/diff') @Require('planning', 'view')
-  async diff(@Param('id') id: string, @Query('against') against?: string) {
+  @Get('plans/:id/diff') async diff(@Param('id') id: string, @Query('against') against?: string) {
     const plan = await this.mustPlan(id);
     const other = against
       ? await this.mustPlan(against)
@@ -454,23 +429,19 @@ class PlanningController {
     return { from: { id: other.id, version: other.version }, to: { id: plan.id, version: plan.version }, added, removed, changed, unchanged: [...after].filter(([k, x]) => before.has(k) && before.get(k)!.employeeId === x.employeeId && iso(before.get(k)!.plannedEnd) === iso(x.plannedEnd)).length };
   }
 
-  @Get('what-if/options') @Require('planning', 'view')
-  async whatIfOptions(@Req() req: AuthedRequest) { return this.svc.whatIfOptions(await this.scopeFor(req)); }
+  @Get('what-if/options') async whatIfOptions() { return this.svc.whatIfOptions(await this.svc.scopeFor()); }
 
   /** Simulate changes (deploy idle units, lose people, extra absences) without touching real data. */
-  @Post('what-if') @Require('planning', 'view')
-  async whatIf(@Body() body: WhatIfBody, @Req() req: AuthedRequest) { return this.svc.whatIf(body ?? {}, await this.scopeFor(req)); }
+  @Post('what-if') async whatIf(@Body() body: WhatIfBody) { return this.svc.whatIf(body ?? {}, await this.svc.scopeFor()); }
 
   /** Days of required seats nobody covers yet, without running the engine. */
-  @Get('open-slots') @Require('planning', 'view')
-  async openSlots(@Req() req: AuthedRequest, @Query() q: { start?: string; end?: string; baseIds?: string }) {
+  @Get('open-slots') async openSlots(@Query() q: { start?: string; end?: string; baseIds?: string }) {
     const start = parseDate(q.start), end = q.end ? parseDate(q.end) : addDays(start, 27);
-    const world = await this.svc.loadWorld({ baseIds: await this.scopeFor(req, q.baseIds?.split(',').filter(Boolean)), start, end, mode: 'full' });
+    const world = await this.svc.loadWorld({ baseIds: await this.svc.scopeFor(q.baseIds?.split(',').filter(Boolean)), start, end, mode: 'full' });
     return world.input.slots.map(s => ({ seatId: s.seat.id, seat: world.seatLabel.get(s.seat.id), from: iso(s.from), to: iso(s.to), required: s.required }));
   }
 
-  @Get('seats/:seatId/suggestions') @Require('planning', 'view')
-  suggestions(@Param('seatId') seatId: string, @Query() q: { start?: string; end?: string; top?: string }) {
+  @Get('seats/:seatId/suggestions') suggestions(@Param('seatId') seatId: string, @Query() q: { start?: string; end?: string; top?: string }) {
     if (!q.start || !q.end) throw new BadRequestException('start and end are required');
     const start = parseDate(q.start), end = parseDate(q.end);
     if (end < start) throw new BadRequestException('end must not be before start');
@@ -479,22 +450,19 @@ class PlanningController {
 
   // ----- create
   /** Plan a period (full) or re-plan only what open replacement tasks need (repair). Always a draft; nothing goes live. */
-  @Post('plans') @Require('planning', 'edit')
-  async create(@Body() body: { start?: string; end?: string; baseIds?: string[]; mode?: string }, @Req() req: AuthedRequest) {
+  @Post('plans') async create(@Body() body: { start?: string; end?: string; baseIds?: string[]; mode?: string }) {
     if (!body?.start || !body?.end) throw new BadRequestException('start and end are required');
     const mode = body.mode ?? 'full';
     if (!['full', 'repair'].includes(mode)) throw new BadRequestException('mode must be full or repair');
-    const baseIds = await this.scopeFor(req, body.baseIds);
-    return this.svc.createPlan({ baseIds, start: parseDate(body.start), end: parseDate(body.end), mode: mode as 'full' | 'repair' }, req.user?.sub);
+    const baseIds = await this.svc.scopeFor(body.baseIds);
+    return this.svc.createPlan({ baseIds, start: parseDate(body.start), end: parseDate(body.end), mode: mode as 'full' | 'repair' }, MANAGER);
   }
 
-  @Delete('plans/:id') @Require('planning', 'edit')
-  async discard(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Delete('plans/:id') async discard(@Param('id') id: string) {
     const plan = await this.mustPlan(id);
-    await this.assertPlanScope(req, plan);
     if (!['DRAFT', 'REVIEW'].includes(plan.status)) throw new BadRequestException(`A ${plan.status.toLowerCase()} plan cannot be discarded`);
     await this.prisma.$transaction([this.prisma.assignment.deleteMany({ where: { planId: id, status: 'DRAFT' } }), this.prisma.plan.delete({ where: { id } })]);
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'discard');
+    await audit(this.prisma, 'Plan', id, 'discard');
     return { discarded: id };
   }
 
@@ -510,10 +478,8 @@ class PlanningController {
     return ev;
   }
 
-  @Post('plans/:id/assignments') @Require('planning', 'edit')
-  async addDraft(@Param('id') id: string, @Body() body: { employeeId?: string; seatId?: string; start?: string; end?: string; overrideReason?: string }, @Req() req: AuthedRequest) {
+  @Post('plans/:id/assignments') async addDraft(@Param('id') id: string, @Body() body: { employeeId?: string; seatId?: string; start?: string; end?: string; overrideReason?: string }) {
     const plan = await this.mustPlan(id);
-    await this.assertPlanScope(req, plan);
     if (plan.status !== 'DRAFT') throw new BadRequestException('Only a draft plan can be edited');
     if (!body?.employeeId || !body.seatId || !body.start || !body.end) throw new BadRequestException('employeeId, seatId, start and end are required');
     const draft = { employeeId: body.employeeId, seatId: body.seatId, start: startOfDay(parseDate(body.start)), end: startOfDay(parseDate(body.end)) };
@@ -522,14 +488,12 @@ class PlanningController {
     const a = await this.prisma.assignment.create({
       data: { employeeId: draft.employeeId, seatId: draft.seatId, start: draft.start, plannedEnd: draft.end, status: 'DRAFT', planId: id, explanation: 'Added by hand', overrideReason: body.overrideReason?.trim() || undefined },
     });
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'draft_add', null, a, body.overrideReason);
+    await audit(this.prisma, 'Plan', id, 'draft_add', null, a, body.overrideReason);
     return { assignment: a, violations: ev.violations };
   }
 
-  @Put('plans/:id/assignments/:aid') @Require('planning', 'edit')
-  async editDraft(@Param('id') id: string, @Param('aid') aid: string, @Body() body: { employeeId?: string; start?: string; end?: string; overrideReason?: string }, @Req() req: AuthedRequest) {
+  @Put('plans/:id/assignments/:aid') async editDraft(@Param('id') id: string, @Param('aid') aid: string, @Body() body: { employeeId?: string; start?: string; end?: string; overrideReason?: string }) {
     const plan = await this.mustPlan(id);
-    await this.assertPlanScope(req, plan);
     if (plan.status !== 'DRAFT') throw new BadRequestException('Only a draft plan can be edited');
     const a = await this.prisma.assignment.findFirst({ where: { id: aid, planId: id, status: 'DRAFT' } });
     if (!a) throw new NotFoundException('Draft assignment not found');
@@ -543,54 +507,45 @@ class PlanningController {
       where: { id: aid },
       data: { employeeId: draft.employeeId, start: draft.start, plannedEnd: draft.end, explanation: 'Edited by hand', overrideReason: body.overrideReason?.trim() || null },
     });
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'draft_edit', a, after, body.overrideReason);
+    await audit(this.prisma, 'Plan', id, 'draft_edit', a, after, body.overrideReason);
     return { assignment: after, violations: ev.violations };
   }
 
-  @Delete('plans/:id/assignments/:aid') @Require('planning', 'edit')
-  async removeDraft(@Param('id') id: string, @Param('aid') aid: string, @Req() req: AuthedRequest) {
+  @Delete('plans/:id/assignments/:aid') async removeDraft(@Param('id') id: string, @Param('aid') aid: string) {
     const plan = await this.mustPlan(id);
-    await this.assertPlanScope(req, plan);
     if (plan.status !== 'DRAFT') throw new BadRequestException('Only a draft plan can be edited');
     const { count } = await this.prisma.assignment.deleteMany({ where: { id: aid, planId: id, status: 'DRAFT' } });
     if (!count) throw new NotFoundException('Draft assignment not found');
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'draft_remove', { aid });
+    await audit(this.prisma, 'Plan', id, 'draft_remove', { aid });
     return { removed: aid };
   }
 
   // ----- lifecycle: Draft -> Under review -> Approved -> Published
-  @Post('plans/:id/submit') @Require('planning', 'edit')
-  async submit(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Post('plans/:id/submit') async submit(@Param('id') id: string) {
     const plan = await this.mustPlan(id);
-    await this.assertPlanScope(req, plan);
     if (plan.status !== 'DRAFT') throw new BadRequestException(`Only a draft can be submitted (this one is ${plan.status.toLowerCase()})`);
     const n = await this.prisma.assignment.count({ where: { planId: id, status: 'DRAFT' } });
     if (n === 0) throw new BadRequestException('The plan has no assignments to review');
-    await this.prisma.plan.update({ where: { id }, data: { status: 'REVIEW', submittedBy: req.user?.sub } });
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'submit');
+    await this.prisma.plan.update({ where: { id }, data: { status: 'REVIEW', submittedBy: MANAGER } });
+    await audit(this.prisma, 'Plan', id, 'submit');
     return { status: 'REVIEW' };
   }
 
-  @Post('plans/:id/approve') @Require('planning', 'full')
-  async approve(@Param('id') id: string, @Body() body: { note?: string }, @Req() req: AuthedRequest) {
+  @Post('plans/:id/approve') async approve(@Param('id') id: string, @Body() body: { note?: string }) {
     const plan = await this.mustPlan(id);
     if (plan.status !== 'REVIEW') throw new BadRequestException(`Only a plan under review can be approved (this one is ${plan.status.toLowerCase()})`);
-    if (plan.submittedBy && plan.submittedBy === req.user?.sub && !(req.user?.roles ?? []).some(r => r.role === 'SUPER_ADMIN')) {
-      throw new ForbiddenException('A plan cannot be approved by the person who submitted it');
-    }
-    await this.prisma.plan.update({ where: { id }, data: { status: 'APPROVED', approvedBy: req.user?.sub, decisionNote: body?.note } });
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'approve');
+    await this.prisma.plan.update({ where: { id }, data: { status: 'APPROVED', approvedBy: MANAGER, decisionNote: body?.note } });
+    await audit(this.prisma, 'Plan', id, 'approve');
     return { status: 'APPROVED' };
   }
 
   /** The reviewer sends it back to the dispatcher with a reason. */
-  @Post('plans/:id/reject') @Require('planning', 'full')
-  async reject(@Param('id') id: string, @Body() body: { reason?: string }, @Req() req: AuthedRequest) {
+  @Post('plans/:id/reject') async reject(@Param('id') id: string, @Body() body: { reason?: string }) {
     const plan = await this.mustPlan(id);
     if (!['REVIEW', 'APPROVED'].includes(plan.status)) throw new BadRequestException('Only a plan under review or approved can be sent back');
     if (!body?.reason?.trim()) throw new BadRequestException('A reason is required');
     await this.prisma.plan.update({ where: { id }, data: { status: 'DRAFT', approvedBy: null, decisionNote: body.reason.trim() } });
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'reject', { status: plan.status }, { status: 'DRAFT' }, body.reason);
+    await audit(this.prisma, 'Plan', id, 'reject', { status: plan.status }, { status: 'DRAFT' }, body.reason);
     return { status: 'DRAFT' };
   }
 
@@ -598,8 +553,7 @@ class PlanningController {
    * Publish: every draft is checked again against the live state, because things change between drafting and
    * approval. Valid drafts become confirmed assignments and the replacement tasks they cover are closed.
    */
-  @Post('plans/:id/publish') @Require('planning', 'full')
-  async publish(@Param('id') id: string, @Body() body: { skipInvalid?: boolean }, @Req() req: AuthedRequest) {
+  @Post('plans/:id/publish') async publish(@Param('id') id: string, @Body() body: { skipInvalid?: boolean }) {
     const plan = await this.mustPlan(id);
     // Without the review step (the default: one manager runs everything) a draft is published as it is.
     const all = await this.settings.all();
@@ -665,17 +619,7 @@ class PlanningController {
       await tx.plan.update({ where: { id }, data: { status: 'PUBLISHED', publishedAt: new Date() } });
       return { published: accepted.length, skipped: problems.length };
     });
-    await audit(this.prisma, req.user?.sub, 'Plan', id, 'publish', null, out);
-    // Everyone who got a new stretch is told once, with their first one spelled out, and must acknowledge (plan 19).
-    const byPerson = new Map<string, typeof accepted>();
-    for (const a of accepted) (byPerson.get(a.employeeId) ?? byPerson.set(a.employeeId, []).get(a.employeeId)!).push(a);
-    for (const [employeeId, list] of byPerson) {
-      const first = [...list].sort((x, y) => x.start.getTime() - y.start.getTime())[0];
-      await this.notifier.notify({
-        type: 'plan_published', to: [{ employeeId }], except: req.user?.sub,
-        payload: { version: plan.version, count: list.length, seat: await this.notifier.seatLabel(first.seatId), from: iso(first.start), to: iso(first.plannedEnd) },
-      });
-    }
+    await audit(this.prisma, 'Plan', id, 'publish', null, out);
     return { status: 'PUBLISHED', ...out, problems };
   }
 }

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Timer } from 'lucide-react'
 import { PageGuide } from './guide'
 import { api, ApiError } from './api'
-import { useAuth } from './auth'
 import { Modal } from './dialogs'
 import { errMsg, useApi, useLive, useRequireApproval } from './hooks'
 import { fmtDate } from './labels'
@@ -23,7 +22,6 @@ const SEV = { REQUESTED: 'warn', APPROVED: 'ok', REJECTED: 'bad' } as const
 /** Extensions (plan 13): request, approve with an override reason when limits are exceeded, balances and reports. */
 export default function Extensions() {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const [tab, setTab] = useState<'requests' | 'balances' | 'report'>('requests')
   const [status, setStatus] = useState('')
@@ -35,11 +33,9 @@ export default function Extensions() {
   const balances = useApi<{ id: string; firstName: string; lastName: string; employeeNo: string; homeBase: { code: string }; balance: number }[]>(tab === 'balances' ? '/extensions/balances' : null)
   const report = useApi<{ key: string; count: number; days: number }[]>(tab === 'report' ? `/extensions/report?groupBy=${groupBy}` : null)
   useLive(() => { void list.reload() })
-  const approver = can('SUPER_ADMIN', 'OPS_MANAGER')
-  const requester = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER', 'CHIEF_OF_UNIT')
   // Without the approval step the manager extends in one go: the request is approved straight away.
   const approval = useRequireApproval()
-  const direct = approver && !approval
+  const direct = !approval
 
   const approve = async (ext: Ext, overrideReason?: string, shiftSuccessor?: boolean) => {
     try {
@@ -61,7 +57,7 @@ export default function Extensions() {
           direct ? t('exStep2direct', 'Beyond the limits (days per rotation or quarter, longest stretch) a reason is required.') : t('exStep2', 'The operations manager approves; beyond the limits a reason is required.'),
           t('exStep3', '"Rest balances" shows who is owed the most rest, so their relief comes first.'),
         ]}>
-        {requester && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {direct ? t('extNow', 'Extend') : t('extNew', 'Request extension')}</button>}
+        {<button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {direct ? t('extNow', 'Extend') : t('extNew', 'Request extension')}</button>}
       </PageGuide>
       <div className="subtabs" role="tablist">
         {(['requests', 'balances', 'report'] as const).map(k => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`ext_${k}`, { requests: 'Requests', balances: 'Rest balances', report: 'Report' }[k])}</button>)}
@@ -80,7 +76,7 @@ export default function Extensions() {
                   <td>{x.assignment.seat.unit ? <UnitLink code={x.assignment.seat.unit.code} /> : x.assignment.seat.base?.code}<br /><small className="muted">{fmtDate(x.assignment.start, i18n.language)} – {fmtDate(x.assignment.plannedEnd, i18n.language)}</small></td>
                   <td>+{x.days}</td><td>{reasonLabel(x.reason)}{x.overrideReason && <><br /><small className="muted">{x.overrideReason}</small></>}</td>
                   <td><Pill severity={SEV[x.status as keyof typeof SEV] ?? 'info'}>{x.status.toLowerCase()}</Pill>{x.status === 'APPROVED' && !x.acknowledgedAt && <small className="muted"> · {t('extWaitingAck', 'not yet acknowledged')}</small>}</td>
-                  <td className="row-actions">{approver && x.status === 'REQUESTED' && <><button type="button" onClick={() => approve(x)}>{t('approve', 'Approve')}</button><button type="button" onClick={() => setDeciding({ ext: x, reject: true })}>{t('reject', 'Reject')}</button></>}</td>
+                  <td className="row-actions">{x.status === 'REQUESTED' && <><button type="button" onClick={() => approve(x)}>{t('approve', 'Approve')}</button><button type="button" onClick={() => setDeciding({ ext: x, reject: true })}>{t('reject', 'Reject')}</button></>}</td>
                 </tr>
               ))}
               {list.data?.items.length === 0 && <tr><td colSpan={6} className="muted">{t('extNone', 'No extension requests.')}</td></tr>}
@@ -95,7 +91,7 @@ export default function Extensions() {
           <table className="table"><thead><tr><th>{t('person', 'Person')}</th><th>{t('base', 'Base')}</th><th>{t('extOwed', 'Days owed')}</th><th /></tr></thead>
             <tbody>
               {balances.data?.map(b => <tr key={b.id}><th scope="row"><PersonLink id={b.id}>{b.firstName} {b.lastName}</PersonLink> <small className="muted">{b.employeeNo}</small></th><td>{b.homeBase.code}</td><td><Pill severity={b.balance >= 8 ? 'bad' : b.balance >= 5 ? 'warn' : 'info'}>{b.balance}</Pill></td>
-                <td className="row-actions">{approver && <button type="button" onClick={() => setAdjusting({ id: b.id, name: `${b.firstName} ${b.lastName}` })}>{t('extAdjust', 'Adjust')}</button>}</td></tr>)}
+                <td className="row-actions">{<button type="button" onClick={() => setAdjusting({ id: b.id, name: `${b.firstName} ${b.lastName}` })}>{t('extAdjust', 'Adjust')}</button>}</td></tr>)}
               {balances.data?.length === 0 && <tr><td colSpan={4} className="muted">{t('anNobody', 'Nobody is owed rest days.')}</td></tr>}
             </tbody></table>
         </section>

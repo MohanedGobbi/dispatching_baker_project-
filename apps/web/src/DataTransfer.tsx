@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, FileSpreadsheet, Upload } from 'lucide-react'
 import { api, ApiError, download } from './api'
-import { useAuth } from './auth'
 import { errMsg } from './hooks'
 import { Pill, useToast } from './ui'
 
@@ -14,10 +13,10 @@ interface Report {
 }
 
 // Mirrors the API's access rules so people only see buttons that will work.
-const SHEETS: { kind: Kind; title: string; intro: string; exportRoles: string[]; importRoles: string[] }[] = [
-  { kind: 'employees', title: 'Employees', intro: 'People, positions, home base, rotation pattern and anchor date (the rotation sheet), qualifications.', exportRoles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR'], importRoles: ['SUPER_ADMIN', 'OPS_MANAGER', 'HR'] },
-  { kind: 'units', title: 'Units', intro: 'Logging units with type and home base. New units get the crew seats of their type.', exportRoles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'], importRoles: ['SUPER_ADMIN', 'OPS_MANAGER'] },
-  { kind: 'bases', title: 'Bases', intro: 'Bases with location and capacities.', exportRoles: ['SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'HR', 'BASE_MANAGER'], importRoles: ['SUPER_ADMIN', 'OPS_MANAGER'] },
+const SHEETS: { kind: Kind; title: string; intro: string }[] = [
+  { kind: 'employees', title: 'Employees', intro: 'People, positions, home base, rotation pattern and anchor date (the rotation sheet), qualifications.' },
+  { kind: 'units', title: 'Units', intro: 'Logging units with type and home base. New units get the crew seats of their type.' },
+  { kind: 'bases', title: 'Bases', intro: 'Bases with location and capacities.' },
 ]
 
 const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
@@ -30,17 +29,15 @@ const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
 /** Excel import and export (plan E27, 31): download a template or the current data, upload it back, check, then commit. */
 export default function DataTransfer() {
   const { t } = useTranslation()
-  const { can } = useAuth()
-  const sheets = SHEETS.filter(s => can(...s.exportRoles) || can(...s.importRoles))
   return (
     <main className="page">
       <header className="page-head"><div><h1>{t('dataTitle', 'Import / export')}</h1><p className="muted">{t('dataIntro', 'Excel in and out. An upload is checked first; nothing is written until you confirm.')}</p></div></header>
-      {sheets.map(s => <SheetPanel key={s.kind} {...s} canExport={can(...s.exportRoles)} canImport={can(...s.importRoles)} />)}
+      {SHEETS.map(s => <SheetPanel key={s.kind} {...s} />)}
     </main>
   )
 }
 
-function SheetPanel({ kind, title, intro, canExport, canImport }: { kind: Kind; title: string; intro: string; canExport: boolean; canImport: boolean }) {
+function SheetPanel({ kind, title, intro }: { kind: Kind; title: string; intro: string }) {
   const { t } = useTranslation()
   const toast = useToast()
   const [file, setFile] = useState<{ name: string; data: string } | null>(null)
@@ -82,9 +79,9 @@ function SheetPanel({ kind, title, intro, canExport, canImport }: { kind: Kind; 
       <h2><FileSpreadsheet size={18} aria-hidden /> {t(`data_${kind}`, title)}</h2>
       <p className="muted">{t(`data_${kind}_intro`, intro)}</p>
       <div className="row-actions">
-        {canImport && <button type="button" onClick={() => void get('template')}><Download size={14} aria-hidden /> {t('template', 'Template')}</button>}
-        {canExport && <button type="button" onClick={() => void get('export')}><Download size={14} aria-hidden /> {t('exportData', 'Export current data')}</button>}
-        {canImport && (
+        <button type="button" onClick={() => void get('template')}><Download size={14} aria-hidden /> {t('template', 'Template')}</button>
+        <button type="button" onClick={() => void get('export')}><Download size={14} aria-hidden /> {t('exportData', 'Export current data')}</button>
+        {(
           <label className="upload-btn">
             <Upload size={14} aria-hidden /> {busy ? '…' : t('uploadCheck', 'Upload and check')}
             <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy} onChange={e => { void pick(e.target.files?.[0]); e.target.value = '' }} />

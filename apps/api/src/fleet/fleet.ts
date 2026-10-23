@@ -1,9 +1,8 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, Inject, Injectable, Module, NotFoundException, OnModuleDestroy, OnModuleInit, Param, Post, Put, Query, Req,
+  BadRequestException, Body, Controller, Delete, Get, Inject, Injectable, Module, NotFoundException, OnModuleDestroy, OnModuleInit, Param, Post, Put, Query,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthedRequest, Require } from '../auth/auth.module';
-import { audit, parseDate, pickFields, Spec } from '../common/validate';
+import { audit, parseDate, pickFields, Spec, MANAGER } from '../common/validate';
 import { startOfDay } from '../domain/status';
 import { nextDue, serviceState, workOrderToOpen } from '../domain/preventive';
 
@@ -52,7 +51,7 @@ export class FleetService {
       const row = await this.prisma.workOrder.create({
         data: { unitId: p.unitId, baseId: p.unit.homeBaseId, type: 'preventive', priority: 'normal', description: p.name, maintenancePlanId: p.id, ...wo },
       });
-      await audit(this.prisma, undefined, 'WorkOrder', row.id, 'preventive_scheduled', null, { plan: p.name, plannedStart: iso(wo.plannedStart) });
+      await audit(this.prisma, 'WorkOrder', row.id, 'preventive_scheduled', null, { plan: p.name, plannedStart: iso(wo.plannedStart) });
       created++;
     }
     return { created };
@@ -71,7 +70,7 @@ class FleetController {
   }
 
   /** Month by month: days on a job, days in the workshop, days idle (up to today). */
-  @Get('units/:id/history') @Require('units', 'view')
+  @Get('units/:id/history')
   async history(@Param('id') id: string, @Query('months') monthsQ?: string) {
     await this.mustUnit(id);
     const months = Math.min(Math.max(parseInt(monthsQ ?? '12', 10) || 12, 1), 36);
@@ -100,7 +99,7 @@ class FleetController {
 
   // ---------- preventive maintenance
 
-  @Get('units/:id/maintenance-plans') @Require('units', 'view')
+  @Get('units/:id/maintenance-plans')
   async plans(@Param('id') id: string) {
     await this.mustUnit(id);
     const rows = await this.prisma.maintenancePlan.findMany({ where: { unitId: id }, orderBy: [{ active: 'desc' }, { name: 'asc' }], include: { workOrders: { orderBy: { plannedStart: 'desc' } } } });
@@ -108,52 +107,52 @@ class FleetController {
     return rows.map(p => shapePlan(p, today));
   }
 
-  @Post('units/:id/maintenance-plans') @Require('maintenance', 'edit')
-  async createPlan(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post('units/:id/maintenance-plans')
+  async createPlan(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     await this.mustUnit(id);
     const data = this.planData(body, true);
     const p = await this.prisma.maintenancePlan.create({ data: { unitId: id, ...data } as never, include: { workOrders: true } });
-    await audit(this.prisma, req.user?.sub, 'MaintenancePlan', p.id, 'create', null, p);
+    await audit(this.prisma, 'MaintenancePlan', p.id, 'create', null, p);
     return shapePlan(p, startOfDay(new Date()));
   }
 
-  @Put('maintenance-plans/:id') @Require('maintenance', 'edit')
-  async updatePlan(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Put('maintenance-plans/:id')
+  async updatePlan(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const before = await this.prisma.maintenancePlan.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Maintenance plan not found');
     const p = await this.prisma.maintenancePlan.update({ where: { id }, data: this.planData(body, false) as never, include: { workOrders: true } });
-    await audit(this.prisma, req.user?.sub, 'MaintenancePlan', id, 'update', before, p);
+    await audit(this.prisma, 'MaintenancePlan', id, 'update', before, p);
     return shapePlan(p, startOfDay(new Date()));
   }
 
   /** Delete a plan. Its past work orders stay (unlinked); an open one is left for the workshop to finish or cancel. */
-  @Delete('maintenance-plans/:id') @Require('maintenance', 'edit')
-  async deletePlan(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Delete('maintenance-plans/:id')
+  async deletePlan(@Param('id') id: string) {
     const p = await this.prisma.maintenancePlan.findUnique({ where: { id } });
     if (!p) throw new NotFoundException('Maintenance plan not found');
     await this.prisma.$transaction([
       this.prisma.workOrder.updateMany({ where: { maintenancePlanId: id }, data: { maintenancePlanId: null } }),
       this.prisma.maintenancePlan.delete({ where: { id } }),
     ]);
-    await audit(this.prisma, req.user?.sub, 'MaintenancePlan', id, 'delete', p, null);
+    await audit(this.prisma, 'MaintenancePlan', id, 'delete', p, null);
     return { deleted: true };
   }
 
   /** Record a service done outside a work order (e.g. at a dealer). */
-  @Post('maintenance-plans/:id/done') @Require('maintenance', 'edit')
-  async markDone(@Param('id') id: string, @Body() body: { date?: string }, @Req() req: AuthedRequest) {
+  @Post('maintenance-plans/:id/done')
+  async markDone(@Param('id') id: string, @Body() body: { date?: string }) {
     const p = await this.prisma.maintenancePlan.findUnique({ where: { id } });
     if (!p) throw new NotFoundException('Maintenance plan not found');
     const date = startOfDay(parseDate(body?.date));
     if (date > startOfDay(new Date())) throw new BadRequestException('A service cannot be recorded in the future');
     const after = await this.prisma.maintenancePlan.update({ where: { id }, data: { lastDone: date }, include: { workOrders: true } });
-    await audit(this.prisma, req.user?.sub, 'MaintenancePlan', id, 'done', { lastDone: p.lastDone }, { lastDone: date });
+    await audit(this.prisma, 'MaintenancePlan', id, 'done', { lastDone: p.lastDone }, { lastDone: date });
     return shapePlan(after, startOfDay(new Date()));
   }
 
   /** Book the service now, without waiting for its lead time. */
-  @Post('maintenance-plans/:id/schedule') @Require('maintenance', 'edit')
-  async scheduleNow(@Param('id') id: string, @Body() body: { start?: string }, @Req() req: AuthedRequest) {
+  @Post('maintenance-plans/:id/schedule')
+  async scheduleNow(@Param('id') id: string, @Body() body: { start?: string }) {
     const p = await this.prisma.maintenancePlan.findUnique({ where: { id }, include: { unit: true, workOrders: { where: { status: { in: OPEN_WO } } } } });
     if (!p) throw new NotFoundException('Maintenance plan not found');
     if (p.workOrders.length) throw new BadRequestException('A work order for this service is already open');
@@ -164,12 +163,12 @@ class FleetController {
     const wo = await this.prisma.workOrder.create({
       data: { unitId: p.unitId, baseId: p.unit.homeBaseId, type: 'preventive', description: p.name, maintenancePlanId: p.id, plannedStart: start, expectedReturn: end },
     });
-    await audit(this.prisma, req.user?.sub, 'WorkOrder', wo.id, 'preventive_scheduled', null, { plan: p.name, plannedStart: iso(start) });
+    await audit(this.prisma, 'WorkOrder', wo.id, 'preventive_scheduled', null, { plan: p.name, plannedStart: iso(start) });
     return { workOrderId: wo.id, plannedStart: iso(start) };
   }
 
   /** Run the scheduler now (it also runs every hour inside the API). */
-  @Post('maintenance-plans/run') @Require('maintenance', 'edit')
+  @Post('maintenance-plans/run')
   run() { return this.svc.schedulePreventive(); }
 
   private planData(body: Record<string, unknown>, create: boolean) {
@@ -185,7 +184,7 @@ class FleetController {
 
   // ---------- documents
 
-  @Get('units/:id/documents') @Require('units', 'view')
+  @Get('units/:id/documents')
   async documents(@Param('id') id: string) {
     await this.mustUnit(id);
     const today = startOfDay(new Date());
@@ -197,24 +196,24 @@ class FleetController {
     }));
   }
 
-  @Post('units/:id/documents') @Require('units', 'edit')
-  async addDocument(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post('units/:id/documents')
+  async addDocument(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     await this.mustUnit(id);
     const data = pickFields(DOC_SPEC, body, ['kind', 'title']);
     if (!DOC_KINDS.includes(data.kind as string)) throw new BadRequestException(`kind must be one of ${DOC_KINDS.join(', ')}`);
     data.title = (data.title as string).trim();
     if (data.fileId && !(await this.prisma.storedFile.findFirst({ where: { id: data.fileId as string, kind: 'general' } }))) throw new BadRequestException('Unknown file');
-    const d = await this.prisma.unitDocument.create({ data: { unitId: id, createdBy: req.user?.sub, ...data } as never });
-    await audit(this.prisma, req.user?.sub, 'UnitDocument', d.id, 'create', null, d);
+    const d = await this.prisma.unitDocument.create({ data: { unitId: id, createdBy: MANAGER, ...data } as never });
+    await audit(this.prisma, 'UnitDocument', d.id, 'create', null, d);
     return d;
   }
 
-  @Delete('unit-documents/:id') @Require('units', 'edit')
-  async deleteDocument(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Delete('unit-documents/:id')
+  async deleteDocument(@Param('id') id: string) {
     const d = await this.prisma.unitDocument.findUnique({ where: { id } });
     if (!d) throw new NotFoundException('Document not found');
     await this.prisma.unitDocument.delete({ where: { id } });
-    await audit(this.prisma, req.user?.sub, 'UnitDocument', id, 'delete', d, null);
+    await audit(this.prisma, 'UnitDocument', id, 'delete', d, null);
     return { deleted: true };
   }
 }

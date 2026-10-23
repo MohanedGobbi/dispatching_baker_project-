@@ -1,9 +1,8 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Query, Req,
+  BadRequestException, Body, ConflictException, Controller, Delete, Get, Inject, Module, NotFoundException, Param, Post, Put, Query,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Require, AuthedRequest } from '../auth/auth.module';
 import { SettingsModule, SettingsService } from '../settings/settings';
 import { audit, page, parseDate, pickFields, Spec } from '../common/validate';
 import { computeUnitStatus, countFieldDays, UnitStatusValue } from '../domain/derived';
@@ -41,8 +40,7 @@ class UnitsController {
     @Inject(SettingsService) private settings: SettingsService,
   ) {}
 
-  @Get() @Require('units', 'view')
-  async list(@Query() q: { typeId?: string; baseId?: string; status?: string; q?: string; date?: string; limit?: string; offset?: string }) {
+  @Get() async list(@Query() q: { typeId?: string; baseId?: string; status?: string; q?: string; date?: string; limit?: string; offset?: string }) {
     const date = parseDate(q.date);
     const text = q.q?.trim();
     const minCrew = (await this.settings.all())['rules.minCrewOnUnit'] as number;
@@ -81,8 +79,7 @@ class UnitsController {
     return { total: rows.length, items: rows.slice(skip, skip + take) };
   }
 
-  @Get(':id') @Require('units', 'view')
-  async detail(@Param('id') id: string, @Query('date') dateStr?: string) {
+  @Get(':id') async detail(@Param('id') id: string, @Query('date') dateStr?: string) {
     const date = parseDate(dateStr);
     const u = await this.prisma.unit.findUnique({
       where: { id },
@@ -130,8 +127,7 @@ class UnitsController {
   }
 
   /** Create a unit and generate its crew seats from the unit type's template (8.2). */
-  @Post() @Require('units', 'full')
-  async create(@Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Post() async create(@Body() body: Record<string, unknown>) {
     const data = pickFields(UNIT_SPEC, body, ['code', 'unitTypeId', 'homeBaseId']);
     const type = await this.prisma.unitType.findUnique({
       where: { id: data.unitTypeId as string },
@@ -142,7 +138,7 @@ class UnitsController {
 
     try {
       const unit = await this.prisma.$transaction(tx => createUnitWithSeats(tx, data, type, minExperienced));
-      await audit(this.prisma, req.user?.sub, 'Unit', unit.id, 'create', null, unit);
+      await audit(this.prisma, 'Unit', unit.id, 'create', null, unit);
       return unit;
     } catch (err) {
       if ((err as { code?: string }).code === 'P2002') throw new BadRequestException('Unit code already exists');
@@ -151,8 +147,7 @@ class UnitsController {
     }
   }
 
-  @Put(':id') @Require('units', 'edit')
-  async update(@Param('id') id: string, @Body() body: Record<string, unknown>, @Req() req: AuthedRequest) {
+  @Put(':id') async update(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const data = pickFields(UNIT_SPEC, body);
     delete data.homeBaseId; // use /transfer so the move is recorded
     const before = await this.prisma.unit.findUnique({ where: { id } });
@@ -179,7 +174,7 @@ class UnitsController {
       }
       return tx.unit.update({ where: { id }, data: data as never });
     });
-    await audit(this.prisma, req.user?.sub, 'Unit', id, 'update', before, after);
+    await audit(this.prisma, 'Unit', id, 'update', before, after);
     return after;
   }
 
@@ -187,11 +182,9 @@ class UnitsController {
    * Status change (8.3). Deployed is derived from jobs. Under maintenance is derived from an open work order,
    * so asking for it here opens one.
    */
-  @Put(':id/status') @Require('units', 'edit')
-  async setStatus(
+  @Put(':id/status') async setStatus(
     @Param('id') id: string,
     @Body() body: { status?: string; expectedReturn?: string; description?: string },
-    @Req() req: AuthedRequest,
   ) {
     const unit = await this.prisma.unit.findUnique({ where: { id } });
     if (!unit) throw new NotFoundException('Unit not found');
@@ -202,14 +195,14 @@ class UnitsController {
       const wo = await this.prisma.workOrder.create({
         data: { unitId: id, baseId: unit.homeBaseId, type: 'corrective', description: body.description, plannedStart: startOfDay(new Date()), expectedReturn },
       });
-      await audit(this.prisma, req.user?.sub, 'Unit', id, 'maintenance_opened', null, wo);
+      await audit(this.prisma, 'Unit', id, 'maintenance_opened', null, wo);
       return { workOrder: wo, status: 'UNDER_MAINTENANCE' };
     }
     if (!status || !MANUAL_STATUSES.includes(status)) {
       throw new BadRequestException(`status must be one of ${MANUAL_STATUSES.join(', ')} or UNDER_MAINTENANCE; Deployed comes from jobs`);
     }
     const after = await this.prisma.unit.update({ where: { id }, data: { status: status as UnitStatusValue } });
-    await audit(this.prisma, req.user?.sub, 'Unit', id, 'status', { status: unit.status }, { status: after.status });
+    await audit(this.prisma, 'Unit', id, 'status', { status: unit.status }, { status: after.status });
     return { status: after.status };
   }
 
@@ -217,8 +210,7 @@ class UnitsController {
    * Delete a unit entered by mistake. A unit with any history (crew assignments, jobs, work orders) is refused:
    * take it out of service instead, so reports and the board's time machine keep their past.
    */
-  @Delete(':id') @Require('units', 'full')
-  async remove(@Param('id') id: string, @Req() req: AuthedRequest) {
+  @Delete(':id') async remove(@Param('id') id: string) {
     const unit = await this.prisma.unit.findUnique({
       where: { id },
       include: { _count: { select: { deployments: true, workOrders: true } }, seats: { select: { id: true, _count: { select: { assignments: true } } } } },
@@ -237,7 +229,7 @@ class UnitsController {
       this.prisma.seat.deleteMany({ where: { id: { in: seatIds } } }),
       this.prisma.unit.delete({ where: { id } }),
     ]);
-    await audit(this.prisma, req.user?.sub, 'Unit', id, 'delete', { code: unit.code, unitTypeId: unit.unitTypeId, homeBaseId: unit.homeBaseId }, null);
+    await audit(this.prisma, 'Unit', id, 'delete', { code: unit.code, unitTypeId: unit.unitTypeId, homeBaseId: unit.homeBaseId }, null);
     return { deleted: true };
   }
 
@@ -246,8 +238,7 @@ class UnitsController {
    * base, change their type or set them available / out of service. Each one is checked and audited on its own,
    * and a unit that cannot take the change is reported instead of stopping the rest.
    */
-  @Post('bulk') @Require('units', 'edit')
-  async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }, @Req() req: AuthedRequest) {
+  @Post('bulk') async bulk(@Body() body: { ids?: string[]; action?: string; value?: string }) {
     const { ids, action, value } = body ?? {};
     if (!Array.isArray(ids) || !ids.length || !value) throw new BadRequestException('ids[] and value are required');
     if (!['homeBase', 'unitType', 'status'].includes(action ?? '')) throw new BadRequestException('action must be homeBase, unitType or status');
@@ -258,9 +249,9 @@ class UnitsController {
     let updated = 0;
     for (const u of units) {
       try {
-        if (action === 'homeBase') await this.transfer(u.id, { baseId: value }, req);
-        else if (action === 'unitType') await this.update(u.id, { unitTypeId: value }, req);
-        else await this.setStatus(u.id, { status: value }, req);
+        if (action === 'homeBase') await this.transfer(u.id, { baseId: value });
+        else if (action === 'unitType') await this.update(u.id, { unitTypeId: value });
+        else await this.setStatus(u.id, { status: value });
         updated++;
       } catch (e) {
         failed.push({ code: u.code, reason: (e as { response?: { message?: string } }).response?.message ?? (e as Error).message });
@@ -269,8 +260,7 @@ class UnitsController {
     return { updated, failed };
   }
 
-  @Post(':id/transfer') @Require('units', 'full')
-  async transfer(@Param('id') id: string, @Body() body: { baseId?: string; reason?: string }, @Req() req: AuthedRequest) {
+  @Post(':id/transfer') async transfer(@Param('id') id: string, @Body() body: { baseId?: string; reason?: string }) {
     if (!body?.baseId) throw new BadRequestException('baseId is required');
     const [unit, base] = await Promise.all([
       this.prisma.unit.findUnique({ where: { id } }), this.prisma.base.findUnique({ where: { id: body.baseId } }),
@@ -279,7 +269,7 @@ class UnitsController {
     if (!base || !base.active) throw new BadRequestException('Target base does not exist or is archived');
     if (unit.homeBaseId === base.id) return unit; // already there: nothing to do (bulk moves pass whole selections)
     const after = await this.prisma.unit.update({ where: { id }, data: { homeBaseId: base.id } });
-    await audit(this.prisma, req.user?.sub, 'Unit', id, 'transfer', { homeBaseId: unit.homeBaseId }, { homeBaseId: base.id }, body.reason);
+    await audit(this.prisma, 'Unit', id, 'transfer', { homeBaseId: unit.homeBaseId }, { homeBaseId: base.id }, body.reason);
     return after;
   }
 }

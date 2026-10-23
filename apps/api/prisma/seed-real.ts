@@ -1,12 +1,11 @@
 // Real data (2026-10-21): the operators, their ranks and the trucks from the manager's sheets, kept in
-// prisma/real/crew.json. Replaces everything in the database except the manager's sign-in and the settings.
+// prisma/real/crew.json. Replaces everything in the database except the settings.
 // One base, no sites (the manager adds locations), no jobs, no assignments: the chiefs of each truck are linked as
 // back-to-back partners and named in the truck's notes, nobody is put on a seat yet.
 import '../src/env';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
-import { hashPassword } from '../src/auth/crypto';
 import { prepareDatabase, singleConnectionUrl, wipeDatabase } from '../src/prisma/migrate';
 import { RANKS, RankCode } from '../src/employees/ranks';
 
@@ -21,8 +20,7 @@ const data: Data = JSON.parse(readFileSync(join(__dirname, 'real', 'crew.json'),
 
 async function main() {
   await prepareDatabase(prisma);
-  // Keep the manager accounts (with their password) and the settings across the reset.
-  const managers = await prisma.user.findMany({ where: { employeeId: null, roles: { some: { role: 'SUPER_ADMIN' } } }, include: { roles: true } });
+  // Keep the settings across the reset.
   const settings = await prisma.setting.findMany();
 
   await wipeDatabase(prisma);
@@ -30,16 +28,6 @@ async function main() {
   for (const s of settings) await prisma.setting.create({ data: { key: s.key, value: s.value as never } });
   // Rules warn instead of block: the manager can put anyone on any seat.
   await prisma.setting.upsert({ where: { key: 'rules.overrideReasonRequired' }, create: { key: 'rules.overrideReasonRequired', value: false }, update: { value: false } });
-  if (managers.length) {
-    for (const m of managers) {
-      await prisma.user.create({ data: {
-        login: m.login, passwordHash: m.passwordHash, email: m.email, active: m.active, mustChangePassword: m.mustChangePassword,
-        passwordChangedAt: m.passwordChangedAt, roles: { create: m.roles.map(r => ({ role: r.role, baseScope: r.baseScope })) },
-      } });
-    }
-  } else {
-    await prisma.user.create({ data: { login: 'admin', passwordHash: hashPassword('demo1234'), mustChangePassword: true, roles: { create: { role: 'SUPER_ADMIN' } } } });
-  }
 
   // ---- Catalogs. Crews are a chief and three operators; nothing is required beyond the Open/Cased Hole skill.
   const qOH = await prisma.qualification.create({ data: { name: 'Open Hole' } });
@@ -105,7 +93,7 @@ async function main() {
   }
 
   const byRank = Object.fromEntries(Object.keys(RANKS).map(r => [RANKS[r as RankCode].label, data.people.filter(p => p.rank === r).length]));
-  console.log('Real data loaded:', { base: base.name, units: await prisma.unit.count(), people: await prisma.employee.count(), byRank, managers: await prisma.user.count() });
+  console.log('Real data loaded:', { base: base.name, units: await prisma.unit.count(), people: await prisma.employee.count(), byRank });
 }
 
 main().catch(e => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

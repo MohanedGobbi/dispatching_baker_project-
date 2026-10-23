@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Wrench } from 'lucide-react'
 import { PageGuide } from './guide'
 import { api } from './api'
-import { useAuth } from './auth'
 import { Modal } from './dialogs'
 import { errMsg, useApi, useDebounced, useLive } from './hooks'
 import { fmtDate } from './labels'
@@ -23,14 +22,12 @@ const PRIORITY_SEV = { low: 'info', normal: 'info', high: 'warn', urgent: 'bad' 
 /** Work-order board per base (plan screen 16): open, in progress, waiting for parts, done. */
 export default function WorkOrders() {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const bases = useApi<{ id: string; code: string }[]>('/bases')
   const [baseId, setBaseId] = useState('')
   const orders = useApi<{ items: WO[] }>(`/work-orders?limit=200${baseId ? `&baseId=${baseId}` : ''}`)
   useLive(orders.reload)
   const [creating, setCreating] = useState(false)
-  const editor = can('SUPER_ADMIN', 'OPS_MANAGER', 'BASE_MANAGER', 'CHIEF_OF_UNIT')
 
   const rows = orders.data?.items ?? []
   const move = async (id: string, status: string) => {
@@ -45,7 +42,7 @@ export default function WorkOrders() {
           t('woStep1', 'Open a work order with the expected return date and the mechanics working on it.'),
           t('woStep2', 'Move it across the columns as the work goes on. "Done" makes the unit available again.'),
         ]}>
-        {editor && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newWo', 'New work order')}</button>}
+        {<button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newWo', 'New work order')}</button>}
       </PageGuide>
       <div className="filters">
         <select value={baseId} onChange={e => setBaseId(e.target.value)} aria-label="Base">
@@ -65,7 +62,7 @@ export default function WorkOrders() {
                   <p>{w.type.replace('_', ' ')}{w.description ? ` · ${w.description}` : ''}</p>
                   <small className="muted">{t('backBy', 'back by')} {fmtDate(w.expectedReturn, i18n.language)}</small>
                   <small>{w.assignees.length ? w.assignees.map((a, i) => <span key={a.id}>{i ? ', ' : ''}<PersonLink id={a.id}>{a.name}</PersonLink></span>) : <em className="muted">{t('unassigned', 'Nobody assigned')}</em>}</small>
-                  {editor && (NEXT[w.status] ?? []).length > 0 && <div className="btn-row">{NEXT[w.status].map(n => <button type="button" key={n} onClick={() => void move(w.id, n)}>{t(`wo_${n}`, LABEL[n])}</button>)}</div>}
+                  {(NEXT[w.status] ?? []).length > 0 && <div className="btn-row">{NEXT[w.status].map(n => <button type="button" key={n} onClick={() => void move(w.id, n)}>{t(`wo_${n}`, LABEL[n])}</button>)}</div>}
                 </article>
               ))}
               {col.length === 0 && <p className="empty-note small">—</p>}

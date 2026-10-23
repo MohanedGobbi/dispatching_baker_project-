@@ -29,6 +29,9 @@ export function pickFields(spec: Spec, body: Record<string, unknown> | undefined
   return out;
 }
 
+/** Stored in "done by" columns (createdBy, approvedBy...): the manager is the only user. */
+export const MANAGER = 'manager';
+
 /** A list-of-strings column (Employee.tags, Base.facilities, Plan.scope): stored as JSON since SQLite has no arrays. */
 export function strings(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
@@ -47,13 +50,13 @@ export function parseDate(v: string | undefined, fallback = new Date()): Date {
   return d;
 }
 
-/** Plan section 23: every change stores user, entity, before/after and an optional reason. */
+/** Plan section 23: every change stores entity, before/after and an optional reason (the manager is the only user). */
 export function audit(
-  prisma: PrismaClient, userId: string | undefined, entity: string, entityId: string, action: string,
+  prisma: PrismaClient, entity: string, entityId: string, action: string,
   before?: unknown, after?: unknown, reason?: string,
 ) {
   return prisma.auditLog.create({
-    data: { userId, entity, entityId, action, before: before as never, after: after as never, reason },
+    data: { entity, entityId, action, before: before as never, after: after as never, reason },
   });
 }
 

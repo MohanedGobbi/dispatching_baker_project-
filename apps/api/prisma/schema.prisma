@@ -194,7 +194,6 @@ model Employee {
   extensions     Extension[]
   ledger         DaysOffLedger[]
   workOrderLinks WorkOrderAssignee[]
-  user           User?
   candidateFor   ReplacementTask[]
 }
 
@@ -534,64 +533,6 @@ model WorkOrderAssignee {
   @@id([workOrderId, employeeId])
 }
 
-// ---------- Platform ----------
-model User {
-  id           String    @id @default(cuid())
-  login        String    @unique
-  passwordHash String
-  employeeId   String?   @unique
-  employee     Employee? @relation(fields: [employeeId], references: [id])
-  email        String?   // for staff without an employee record; otherwise the employee's email is used
-  active       Boolean   @default(true)
-  mustChangePassword Boolean @default(false)
-  passwordChangedAt  DateTime? // tokens issued before this are refused
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  roles        UserRole[]
-  notifications Notification[]
-  audits       AuditLog[]
-  prefs        UserPrefs?
-  files        StoredFile[]
-  resetTokens  PasswordResetToken[]
-}
-
-/// Self-service password reset. Only a hash of the token is stored; the token itself goes out by email.
-model PasswordResetToken {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@index([userId])
-}
-
-model UserRole {
-  userId    String
-  user      User   @relation(fields: [userId], references: [id])
-  role      String // SUPER_ADMIN | OPS_MANAGER | DISPATCHER | HR | BASE_MANAGER | CHIEF_OF_UNIT | EMPLOYEE
-  baseScope String?
-
-  @@id([userId, role])
-}
-
-model Notification {
-  id             String    @id @default(cuid())
-  userId         String
-  user           User      @relation(fields: [userId], references: [id])
-  type           String
-  payload        Json
-  channel        String    @default("in_app")
-  readAt         DateTime?
-  acknowledgedAt DateTime?
-  requiresAck    Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-
-  @@index([userId, readAt])
-}
-
 model Recommendation {
   id              String  @id @default(cuid())
   type            String
@@ -615,8 +556,6 @@ model Setting {
 
 model AuditLog {
   id       String   @id @default(cuid())
-  userId   String?
-  user     User?    @relation(fields: [userId], references: [id])
   entity   String
   entityId String
   action   String
@@ -626,32 +565,8 @@ model AuditLog {
   at       DateTime @default(now())
 }
 
-// ---------- notifications, files, swaps
-model UserPrefs {
-  userId String @id
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  inApp  Json   @default("{}")  // type -> false to mute
-  email  Json   @default("{}")  // type -> true/false overrides the default
-}
-
-// Emails are queued here; an SMTP adapter sends them (plan 19: in-app and email first).
-model EmailOutbox {
-  id        String    @id @default(cuid())
-  toEmail   String
-  userId    String?
-  type      String
-  subject   String
-  body      String
-  createdAt DateTime  @default(now())
-  sentAt    DateTime?
-  error     String?
-  attempts  Int       @default(0)
-}
-
 model StoredFile {
   id          String   @id @default(cuid())
-  ownerUserId String
-  owner       User     @relation(fields: [ownerUserId], references: [id])
   kind        String   // medical (restricted bucket) | general
   name        String
   mime        String
@@ -678,15 +593,3 @@ model EmployeeTask {
   @@index([employeeId, status])
 }
 
-model SwapRequest {
-  id               String   @id @default(cuid())
-  requesterId      String   // employee
-  colleagueId      String   // employee
-  requesterAssignmentId String
-  colleagueAssignmentId String
-  status           String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | APPROVED | REJECTED | CANCELLED
-  note             String?
-  decidedBy        String?
-  decisionNote     String?
-  createdAt        DateTime @default(now())
-}

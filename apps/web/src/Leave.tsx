@@ -3,13 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { CalendarDays, Plus } from 'lucide-react'
 import { PageGuide } from './guide'
 import { api } from './api'
-import { useAuth } from './auth'
-import { Modal, RuleDialog } from './dialogs'
+import { Modal } from './dialogs'
 import { errMsg, useApi, useDebounced, useLive } from './hooks'
 import { fmtDate, plural } from './labels'
 import { Pill, useToast } from './ui'
-import type { Violation } from './types'
-import { PersonLink, SeatLabel } from './profiles'
+import { PersonLink } from './profiles'
 
 interface LeaveRow {
   id: string; employeeId: string; start: string; end: string; status: string; longTerm: boolean
@@ -26,46 +24,41 @@ const days = (a: string, b: string) => Math.round((Date.parse(b.slice(0, 10)) - 
 const STATUS_SEV: Record<string, 'ok' | 'warn' | 'info' | 'bad'> = { SUBMITTED: 'warn', APPROVED: 'ok', RECORDED: 'ok', REJECTED: 'bad', CANCELLED: 'info' }
 const STATUS_TEXT: Record<string, string> = { SUBMITTED: 'Waiting', APPROVED: 'Approved', RECORDED: 'Recorded', REJECTED: 'Rejected', CANCELLED: 'Cancelled' }
 
-type Tab = 'requests' | 'all' | 'clearance' | 'overlaps' | 'swaps'
+type Tab = 'requests' | 'all' | 'clearance' | 'overlaps'
 
 export default function Leave() {
   const { t } = useTranslation()
-  const { can } = useAuth()
   const [tab, setTab] = useState<Tab>('requests')
   const [creating, setCreating] = useState(false)
-  const manager = can('SUPER_ADMIN', 'OPS_MANAGER', 'HR', 'BASE_MANAGER')
-  const medical = can('SUPER_ADMIN', 'OPS_MANAGER', 'HR')
 
   return (
     <main className="page">
       <PageGuide id="leave" Icon={CalendarDays} color="var(--pal-purple-600)" title={t('leaveTitle', 'Leave')}
-        purpose={t('leavePurpose', 'Leave requests to decide, who is away, who must be cleared before working again, and swap requests.')}
+        purpose={t('leavePurpose', 'Leave requests to decide, who is away, and who must be cleared before working again.')}
         steps={[
           t('lvStep1', 'Approve or refuse requests. A warning shows when too many people of the same kind would be away at once.'),
           t('lvStep2', 'Approving frees the person\'s seat and opens a replacement task automatically.'),
           t('lvStep3', 'Medical leave is private: everyone else only sees "Unavailable".'),
           t('lvStep4', 'After a long medical leave the person waits here for clearance, possibly with limits such as "base posts only".'),
         ]}>
-        {manager && <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newLeave', 'New leave')}</button>}
+        <button type="button" className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden /> {t('newLeave', 'New leave')}</button>
       </PageGuide>
       <nav className="subtabs" aria-label="Leave sections">
         <button type="button" className={tab === 'requests' ? 'on' : ''} onClick={() => setTab('requests')}>{t('requests', 'Requests')}</button>
         <button type="button" className={tab === 'all' ? 'on' : ''} onClick={() => setTab('all')}>{t('allLeave', 'All leave')}</button>
-        {medical && <button type="button" className={tab === 'clearance' ? 'on' : ''} onClick={() => setTab('clearance')}>{t('clearance', 'Fit-for-duty clearance')}</button>}
+        <button type="button" className={tab === 'clearance' ? 'on' : ''} onClick={() => setTab('clearance')}>{t('clearance', 'Fit-for-duty clearance')}</button>
         <button type="button" className={tab === 'overlaps' ? 'on' : ''} onClick={() => setTab('overlaps')}>{t('overlaps', 'Overlap warnings')}</button>
-        {can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER') && <button type="button" className={tab === 'swaps' ? 'on' : ''} onClick={() => setTab('swaps')}>{t('swapsTab', 'Swap requests')}</button>}
       </nav>
-      {tab === 'requests' && <LeaveTable query="status=SUBMITTED" manager={manager} medicalEdit={can('SUPER_ADMIN', 'HR')} emptyText={t('noRequests', 'No requests are waiting.')} />}
-      {tab === 'all' && <AllLeave manager={manager} medicalEdit={can('SUPER_ADMIN', 'HR')} />}
-      {tab === 'clearance' && medical && <Clearance canClear={can('SUPER_ADMIN', 'HR')} />}
+      {tab === 'requests' && <LeaveTable query="status=SUBMITTED" emptyText={t('noRequests', 'No requests are waiting.')} />}
+      {tab === 'all' && <AllLeave />}
+      {tab === 'clearance' && <Clearance />}
       {tab === 'overlaps' && <Overlaps />}
-      {tab === 'swaps' && <SwapApprovals />}
       {creating && <NewLeave onClose={() => setCreating(false)} />}
     </main>
   )
 }
 
-function AllLeave({ manager, medicalEdit }: { manager: boolean; medicalEdit: boolean }) {
+function AllLeave() {
   const { t } = useTranslation()
   const bases = useApi<{ id: string; code: string }[]>('/bases')
   const [status, setStatus] = useState('')
@@ -84,12 +77,12 @@ function AllLeave({ manager, medicalEdit }: { manager: boolean; medicalEdit: boo
         </select>
         <label>{t('endingAfter', 'Ending after')} <input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
       </div>
-      <LeaveTable query={query} manager={manager} medicalEdit={medicalEdit} emptyText={t('noLeave', 'No leave matches.')} />
+      <LeaveTable query={query} emptyText={t('noLeave', 'No leave matches.')} />
     </>
   )
 }
 
-function LeaveTable({ query, manager, medicalEdit, emptyText }: { query: string; manager: boolean; medicalEdit: boolean; emptyText: string }) {
+function LeaveTable({ query, emptyText }: { query: string; emptyText: string }) {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const list = useApi<Paged>(`/leaves?limit=100${query ? `&${query}` : ''}`)
@@ -116,7 +109,7 @@ function LeaveTable({ query, manager, medicalEdit, emptyText }: { query: string;
           <tbody>
             {rows.map(l => {
               const isMedical = l.type.category === 'medical'
-              const mayDecide = l.status === 'SUBMITTED' && (isMedical ? medicalEdit : manager)
+              const mayDecide = l.status === 'SUBMITTED'
               return (
                 <tr key={l.id}>
                   <td><strong><PersonLink id={l.employee.id}>{l.employee.firstName} {l.employee.lastName}</PersonLink></strong> <span className="muted">{l.employee.homeBase}</span></td>
@@ -126,8 +119,8 @@ function LeaveTable({ query, manager, medicalEdit, emptyText }: { query: string;
                   <td className="row-actions end">
                     {mayDecide && <button type="button" className="primary" onClick={() => void act(`/leaves/${l.id}/approve`, {}, isMedical ? t('validated', 'Certificate validated') : t('approved', 'Approved'))}>{isMedical ? t('validate', 'Validate') : t('approve', 'Approve')}</button>}
                     {mayDecide && <button type="button" onClick={() => { setRejecting(l); setReason('') }}>{t('reject', 'Reject')}</button>}
-                    {!mayDecide && manager && ['APPROVED', 'RECORDED', 'SUBMITTED'].includes(l.status) && (!isMedical || medicalEdit) && <button type="button" onClick={() => void act(`/leaves/${l.id}/cancel`, {}, t('cancelled', 'Cancelled'))}>{t('cancel', 'Cancel')}</button>}
-                    {isMedical && l.type.category === 'medical' && medicalEdit && <button type="button" onClick={() => void openRecord(l.id)}>{t('openRecord', 'Open record')}</button>}
+                    {!mayDecide && ['APPROVED', 'RECORDED', 'SUBMITTED'].includes(l.status) && <button type="button" onClick={() => void act(`/leaves/${l.id}/cancel`, {}, t('cancelled', 'Cancelled'))}>{t('cancel', 'Cancel')}</button>}
+                    {isMedical && <button type="button" onClick={() => void openRecord(l.id)}>{t('openRecord', 'Open record')}</button>}
                   </td>
                 </tr>
               )
@@ -155,7 +148,7 @@ function LeaveTable({ query, manager, medicalEdit, emptyText }: { query: string;
   )
 }
 
-function Clearance({ canClear }: { canClear: boolean }) {
+function Clearance() {
   const { t, i18n } = useTranslation()
   const toast = useToast()
   const queue = useApi<QueueRow[]>('/leaves/clearance/queue')
@@ -187,7 +180,7 @@ function Clearance({ canClear }: { canClear: boolean }) {
                 <td><strong><PersonLink id={r.employee.id}>{r.employee.firstName} {r.employee.lastName}</PersonLink></strong> <span className="muted">{r.employee.employeeNo} · {r.employee.homeBase.code}</span></td>
                 <td>{fmtDate(r.endedOn, i18n.language)} <span className="muted">· {plural(r.leaveDays, 'day')} of leave</span></td>
                 <td>{plural(r.waitingDays, 'day')}</td>
-                <td className="row-actions end">{canClear && <button type="button" className="primary" onClick={() => setRow(r)}>{t('clear', 'Clear for duty')}</button>}</td>
+                <td className="row-actions end"><button type="button" className="primary" onClick={() => setRow(r)}>{t('clear', 'Clear for duty')}</button></td>
               </tr>
             ))}
           </tbody>
@@ -284,60 +277,5 @@ function NewLeave({ onClose }: { onClose: () => void }) {
         <button type="button" className="primary" disabled={busy || !person || !typeId || end < start} onClick={() => void save()}>{t('save', 'Save')}</button>
       </footer>
     </Modal>
-  )
-}
-
-interface SwapRow { id: string; status: string; note: string | null; requester: { name: string }; colleague: { name: string }; a: { seat: string; from: string; to: string }; b: { seat: string; from: string; to: string }; canDecide: boolean }
-
-/** Swaps the colleague already accepted: a manager approves (the rules are checked again) or rejects with a reason. */
-function SwapApprovals() {
-  const { t, i18n } = useTranslation()
-  const toast = useToast()
-  const list = useApi<SwapRow[]>('/swaps?status=ACCEPTED')
-  useLive(list.reload)
-  const [rule, setRule] = useState<{ row: SwapRow; violations: Violation[] } | null>(null)
-  const [rejecting, setRejecting] = useState<SwapRow | null>(null)
-  const [reason, setReason] = useState('')
-  const rows = (list.data ?? []).filter(r => r.canDecide)
-
-  const decide = async (row: SwapRow, body: { approve: boolean; note?: string; overrideReason?: string }) => {
-    await api(`/swaps/${row.id}/decide`, { method: 'POST', body })
-    toast(body.approve ? t('swapApproved', 'Swap approved') : t('swapRejected', 'Swap rejected')); await list.reload()
-  }
-  const approve = async (row: SwapRow) => {
-    try { await decide(row, { approve: true }) } catch (e) {
-      const body = (e as { status?: number; body?: { violations?: Violation[] } })
-      if (body.status === 422) setRule({ row, violations: body.body?.violations ?? [] }); else toast(errMsg(e), 'error')
-    }
-  }
-  return (
-    <>
-      {list.error && <div className='banner error' role='alert'>{list.error}</div>}
-      {!list.loading && rows.length === 0 && <p className='empty-note'>{t('noSwaps', 'No swap is waiting for a decision.')}</p>}
-      {rows.length > 0 && (
-        <table className='table'>
-          <thead><tr><th>{t('person', 'Person')}</th><th>{t('swapping', 'Swapping')}</th><th /></tr></thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.id}>
-                <td><strong>{r.requester.name}</strong> ⇄ <strong>{r.colleague.name}</strong>{r.note && <small className='why'>{r.note}</small>}</td>
-                <td><SeatLabel label={r.a.seat} /> <span className='muted'>({fmtDate(r.a.from, i18n.language)} → {fmtDate(r.a.to, i18n.language)})</span><br /><SeatLabel label={r.b.seat} /> <span className='muted'>({fmtDate(r.b.from, i18n.language)} → {fmtDate(r.b.to, i18n.language)})</span></td>
-                <td className='row-actions end'><button type='button' className='primary' onClick={() => void approve(r)}>{t('approve', 'Approve')}</button><button type='button' onClick={() => { setRejecting(r); setReason('') }}>{t('reject', 'Reject')}</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {rule && <RuleDialog title={t('approveAnyway', 'Approve despite the rules?')} violations={rule.violations} summary={<><strong>{rule.row.requester.name}</strong> ⇄ <strong>{rule.row.colleague.name}</strong></>} onClose={() => setRule(null)} onConfirm={reason2 => decide(rule.row, { approve: true, overrideReason: reason2 })} />}
-      {rejecting && (
-        <Modal title={t('rejectSwap', 'Reject this swap')} onClose={() => setRejecting(null)}>
-          <label className='reason'>{t('reason', 'Reason')}<input value={reason} onChange={e => setReason(e.target.value)} autoFocus /></label>
-          <footer>
-            <button type='button' onClick={() => setRejecting(null)}>{t('cancel', 'Cancel')}</button>
-            <button type='button' className='primary' disabled={!reason.trim()} onClick={() => { const r = rejecting; setRejecting(null); void decide(r, { approve: false, note: reason.trim() }).catch(e => toast(errMsg(e), 'error')) }}>{t('reject', 'Reject')}</button>
-          </footer>
-        </Modal>
-      )}
-    </>
   )
 }

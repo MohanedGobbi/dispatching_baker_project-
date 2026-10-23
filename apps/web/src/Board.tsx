@@ -7,7 +7,6 @@ import {
   Search, Truck, UserPlus, Users, Wrench, X,
 } from 'lucide-react'
 import { api, ApiError, subscribeChanges } from './api'
-import { useAuth } from './auth'
 import type { BoardData, Person, PlanSummary, SeatCard, UnitCardData, Violation } from './types'
 import { PersonChip, SeverityBadge, STATUS_META, useToast } from './ui'
 import { AssignDialog, RuleDialog, addDaysIso } from './dialogs'
@@ -39,9 +38,7 @@ const isIdle = (u: UnitCardData) => u.status !== 'DEPLOYED'
 
 export default function Board() {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
-  const editor = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
 
   const [date, setDate] = useState(todayIso())
   const [baseId, setBaseId] = useState('')
@@ -70,7 +67,7 @@ export default function Board() {
   const searchRef = useRef<HTMLInputElement>(null)
   const lanesRef = useRef<HTMLElement>(null)
 
-  const readOnly = !editor || !!data?.past || data?.layer === 'draft'
+  const readOnly = !!data?.past || data?.layer === 'draft'
 
   // ---- data
   const load = useCallback(async () => {
@@ -88,9 +85,8 @@ export default function Board() {
   }, [load])
   useEffect(() => { const h = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(h) }, [search])
   useEffect(() => {
-    if (!editor) return
     api<PlanSummary[]>('/planning/plans?status=DRAFT').then(setPlans).catch(() => setPlans([]))
-  }, [editor, data?.layer])
+  }, [data?.layer])
   useEffect(() => { try { localStorage.setItem('crewboard.board.overview', overview ? 'shown' : 'hidden') } catch { /* private mode */ } }, [overview])
 
   useEffect(() => {
@@ -207,8 +203,8 @@ export default function Board() {
               t('boardStep4', 'Click a unit\'s coloured header for its details: jobs, crew history, maintenance. From there you can send it to the workshop with a note, or give it a job.'),
               t('boardStep5', '"New job" sends a unit to a well; "Add a unit" registers a new truck. Change the date to look ahead or back in time.'),
             ]}>
-            {editor && <button type="button" className="primary" onClick={() => setCreating('job')}><Plus size={15} aria-hidden /> {t('newJob', 'New job')}</button>}
-            {can('SUPER_ADMIN', 'OPS_MANAGER') && <button type="button" onClick={() => setCreating('unit')}><Truck size={15} aria-hidden /> {t('addUnit', 'Add a unit')}</button>}
+            {<button type="button" className="primary" onClick={() => setCreating('job')}><Plus size={15} aria-hidden /> {t('newJob', 'New job')}</button>}
+            <button type="button" onClick={() => setCreating('unit')}><Truck size={15} aria-hidden /> {t('addUnit', 'Add a unit')}</button>
             <button type="button" onClick={() => setOverview(!overview)}>{overview ? <EyeOff size={15} aria-hidden /> : <Eye size={15} aria-hidden />} {overview ? t('hideOverview', 'Hide overview') : t('showOverview', 'Show overview')}</button>
             <button type="button" title={t('tvMode', 'TV mode')} onClick={() => setTv(true)}><Monitor size={15} aria-hidden /> {t('tvShort', 'TV')}</button>
           </PageGuide>
@@ -390,7 +386,7 @@ export default function Board() {
         {data && !tv && (
           <section ref={lanesRef} aria-label="People not on a seat" className="base-sec">
             <div className="base-banner" style={{ ['--c' as string]: 'var(--pal-slate-700)' }}>
-              <h2><Users size={18} aria-hidden /></h2><span>{t('peopleNotOnSeat', 'People not on a seat today')}{editor ? ` · ${t('dragHint', 'drag someone from standby onto a seat, or use Assign')}` : ''}</span>
+              <h2><Users size={18} aria-hidden /></h2><span>{t('peopleNotOnSeat', 'People not on a seat today')} · {t('dragHint', 'drag someone from standby onto a seat, or use Assign')}</span>
               {lane && <span className="bb-stats"><em style={{ cursor: 'pointer' }} onClick={() => setLane('')}>{t('showAllLanes', 'Show all')} ✕</em></span>}
             </div>
             <div className="lanes">

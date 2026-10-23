@@ -6,7 +6,6 @@ import {
   ArrowLeft, Award, Briefcase, CalendarDays, CheckCircle2, Clock, History, Mail, MapPin, Pencil, Phone, Plus, ShieldAlert, Truck, User, Wrench, X,
 } from 'lucide-react'
 import { api } from './api'
-import { useAuth } from './auth'
 import { errMsg, useApi } from './hooks'
 import { fmtDate } from './labels'
 import type { PersonalCalendar } from './types'
@@ -157,7 +156,6 @@ interface Emp {
 
 function PersonProfile({ id }: { id: string }) {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const [tab, setTab] = useState<'about' | 'schedule' | 'history'>('about')
   const [acting, setActing] = useState<SeatHolderRef | null>(null)
@@ -169,7 +167,6 @@ function PersonProfile({ id }: { id: string }) {
   if (e.error) return <div className="pp-body"><div className="banner error">{e.error}</div></div>
   if (!p) return <div className="pp-body muted">…</div>
   const st = STATUS_META[p.status] ?? STATUS_META.STANDBY
-  const editor = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
   const todayIso = isoD(new Date())
   const seatsNow = p.assignments.filter(a => ['ACTIVE', 'CONFIRMED'].includes(a.status) && a.plannedEnd.slice(0, 10) >= todayIso).sort((a, b) => a.start.localeCompare(b.start))
   const holderRef = (a: Emp['assignments'][number]): SeatHolderRef => ({
@@ -194,7 +191,7 @@ function PersonProfile({ id }: { id: string }) {
           </div>
         </div>
         <div className="pp-quick">
-          {can('SUPER_ADMIN', 'OPS_MANAGER', 'HR') && <button type="button" onClick={() => setEditing(true)} title={t('editPerson', 'Edit')} aria-label={`${t('editPerson', 'Edit')} ${p.firstName} ${p.lastName}`}><Pencil size={16} aria-hidden /></button>}
+          <button type="button" onClick={() => setEditing(true)} title={t('editPerson', 'Edit')} aria-label={`${t('editPerson', 'Edit')} ${p.firstName} ${p.lastName}`}><Pencil size={16} aria-hidden /></button>
           {p.phone && <a href={`tel:${p.phone}`} title={p.phone}><Phone size={16} aria-hidden /></a>}
           {p.email && <a href={`mailto:${p.email}`} title={p.email}><Mail size={16} aria-hidden /></a>}
         </div>
@@ -213,7 +210,7 @@ function PersonProfile({ id }: { id: string }) {
             <ul className="hist">{seatsNow.map(a => (
               <li key={a.id} style={{ ['--c' as string]: a.status === 'ACTIVE' ? 'var(--st-unit)' : 'var(--pal-violet-600)' }}>
                 <span><b>{a.seat.unit ? <UnitLink code={a.seat.unit.code} /> : `${a.seat.base?.code} base`}</b> · {a.seat.position.name} #{a.seat.index}<br /><small>{fmtDate(a.start, i18n.language)} → {a.openEnded ? t('noChangeYet', 'no crew change date yet') : fmtDate(a.plannedEnd, i18n.language)}</small></span>
-                {editor && <SeatActionsButton name={`${p.firstName} ${p.lastName}`} onClick={() => setActing(holderRef(a))} />}
+                {<SeatActionsButton name={`${p.firstName} ${p.lastName}`} onClick={() => setActing(holderRef(a))} />}
               </li>
             ))}</ul>
           </section>}
@@ -320,7 +317,6 @@ const OPEN_WO = ['OPEN', 'IN_PROGRESS', 'WAITING_PARTS']
 
 function UnitProfile({ id }: { id: string }) {
   const { t, i18n } = useTranslation()
-  const { can } = useAuth()
   const toast = useToast()
   const [tab, setTab] = useState<'about' | 'jobs' | 'maintenance' | 'crew'>('about')
   const u = useApi<UnitD>(`/units/${id}`)
@@ -329,7 +325,6 @@ function UnitProfile({ id }: { id: string }) {
   const [notes, setNotes] = useState<string | null>(null)
   const [acting, setActing] = useState<SeatHolderRef | null>(null)
   const [editingJob, setEditingJob] = useState<string | null>(null)
-  const editor = can('SUPER_ADMIN', 'OPS_MANAGER', 'DISPATCHER', 'BASE_MANAGER')
   const x = u.data
   if (u.error) return <div className="pp-body"><div className="banner error">{u.error}</div></div>
   if (!x) return <div className="pp-body muted">…</div>
@@ -362,7 +357,7 @@ function UnitProfile({ id }: { id: string }) {
       </header>
       <Tabs tabs={[['about', t('ppAbout', 'About'), Truck], ['jobs', t('ppJobs', 'Jobs'), Briefcase], ['maintenance', t('ppMaint', 'Maintenance'), Wrench], ['crew', t('ppCrew', 'Crew history'), History]]} tab={tab} setTab={setTab} />
       <div className="pp-body">
-        {editor && (
+        {(
           <div className="pp-actions">
             {x.status !== 'UNDER_MAINTENANCE' && <button type="button" onClick={() => { setTab('maintenance'); setWo({ ...wo, open: true }) }}><Wrench size={14} aria-hidden /> {t('toWorkshop', 'Send to the workshop')}</button>}
             {!current && !['OUT_OF_SERVICE', 'UNDER_MAINTENANCE'].includes(x.status) && <button type="button" onClick={() => setJobOpen(true)}><Plus size={14} aria-hidden /> {t('giveJob', 'Give it a job')}</button>}
@@ -401,7 +396,7 @@ function UnitProfile({ id }: { id: string }) {
             <ul className="hist">{x.seats.map(s => (
               <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required && short ? 'var(--bad)' : 'var(--pal-slate-400)' }}>
                 <span><b>{s.position} #{s.index}</b>{!s.required && <small> · {t('optional', 'optional')}</small>}<br /><small>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : t('emptySeat', 'Nobody')}</small></span>
-                {editor && s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, openEnded: h.openEnded, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
+                {s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, openEnded: h.openEnded, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
               </li>
             ))}</ul>
           </section>
@@ -409,7 +404,7 @@ function UnitProfile({ id }: { id: string }) {
             <h3>{t('notes', 'Notes')}</h3>
             {notes === null ? <>
               <p style={{ margin: 0, whiteSpace: 'pre-wrap' }} className={x.notes ? '' : 'muted'}>{x.notes || t('noNotes', 'No notes yet.')}</p>
-              {editor && <button type="button" className="ghost" onClick={() => setNotes(x.notes ?? '')}>{t('editNotes', 'Edit notes')}</button>}
+              {<button type="button" className="ghost" onClick={() => setNotes(x.notes ?? '')}>{t('editNotes', 'Edit notes')}</button>}
             </> : <>
               <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('notesPh', 'e.g. winch makes noise, tyres due next month')} />
               <div className="pp-actions"><button type="button" onClick={() => setNotes(null)}>{t('cancel', 'Cancel')}</button><button type="button" className="primary" onClick={() => act(async () => { await api(`/units/${id}`, { method: 'PUT', body: { notes } }); setNotes(null) }, t('saved', 'Saved'))}>{t('save', 'Save')}</button></div>
@@ -424,8 +419,8 @@ function UnitProfile({ id }: { id: string }) {
               <ul className="hist">{(list as UnitD['deployments']).map(d => (
                 <li key={d.id} style={{ ['--c' as string]: d === current ? 'var(--pal-blue-600)' : d.end.slice(0, 10) < today ? 'var(--pal-slate-400)' : 'var(--pal-violet-600)' }}>
                   <span><b>{d.job.wellName}</b>{d.job.rigName ? ` · ${d.job.rigName}` : ''} <small className="muted">{d.job.ref}</small><br /><small>{fmtDate(d.start, i18n.language)} → {fmtDate(d.end, i18n.language)}{d.job.client ? ` · ${d.job.client}` : ''}</small></span>
-                  {editor && !['COMPLETED', 'CANCELLED'].includes(d.job.status) && <button type="button" className="ghost" onClick={() => setEditingJob(d.job.id)}>{t('editJob', 'Edit job')}</button>}
-                  {editor && d === current && <button type="button" className="ghost" onClick={() => act(() => api(`/jobs/${d.job.id}/end`, { method: 'POST', body: {} }), t('jobEnded', 'Job ended, unit back at base'))}>{t('endJob', 'End job today')}</button>}
+                  {!['COMPLETED', 'CANCELLED'].includes(d.job.status) && <button type="button" className="ghost" onClick={() => setEditingJob(d.job.id)}>{t('editJob', 'Edit job')}</button>}
+                  {d === current && <button type="button" className="ghost" onClick={() => act(() => api(`/jobs/${d.job.id}/end`, { method: 'POST', body: {} }), t('jobEnded', 'Job ended, unit back at base'))}>{t('endJob', 'End job today')}</button>}
                 </li>
               ))}{!(list as UnitD['deployments']).length && <li className="muted">–</li>}</ul>
             </section>
@@ -433,7 +428,7 @@ function UnitProfile({ id }: { id: string }) {
         </>}
 
         {tab === 'maintenance' && <>
-          {editor && wo.open && (
+          {wo.open && (
             <section className="pp-card accent">
               <h3><Wrench size={14} aria-hidden /> {t('toWorkshop', 'Send to the workshop')}</h3>
               <label className="fld">{t('whatWrong', 'What is the problem?')}<textarea rows={3} value={wo.what} onChange={e => setWo({ ...wo, what: e.target.value })} placeholder={t('whatWrongPh', 'e.g. hydraulic leak on the winch, brakes to check')} autoFocus /></label>
@@ -447,7 +442,7 @@ function UnitProfile({ id }: { id: string }) {
             <ul className="hist">{openWos.map(w => (
               <li key={w.id} style={{ ['--c' as string]: w.priority === 'urgent' || w.priority === 'high' ? 'var(--pal-red-600)' : 'var(--pal-amber-700)' }}>
                 <span><b>{w.description || w.type}</b><br /><small>{w.type} · {w.status.toLowerCase().replace('_', ' ')} · {t('backBy', 'back by')} {fmtDate(w.expectedReturn, i18n.language)}</small></span>
-                {editor && <button type="button" className="ghost" onClick={() => act(() => api(`/work-orders/${w.id}/status`, { method: 'POST', body: { status: 'DONE' } }), t('woDone', 'Repaired: unit available again'))}><CheckCircle2 size={14} aria-hidden /> {t('repaired', 'Repaired')}</button>}
+                {<button type="button" className="ghost" onClick={() => act(() => api(`/work-orders/${w.id}/status`, { method: 'POST', body: { status: 'DONE' } }), t('woDone', 'Repaired: unit available again'))}><CheckCircle2 size={14} aria-hidden /> {t('repaired', 'Repaired')}</button>}
               </li>
             ))}{!openWos.length && <li className="muted">{t('noOpenWo', 'Nothing in the workshop.')}</li>}</ul>
           </section>
