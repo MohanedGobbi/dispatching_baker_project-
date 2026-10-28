@@ -66,7 +66,8 @@ Summary of data tools: `npx tsx scripts/db-summary.ts` (read-only: every table's
 
 - **Status is computed, never stored** (rotation + leave + assignments for that day): `calendar.service.ts`, `domain/status.ts`.
 - **One validator** (`assignments/facts.ts` → `domain/rules.ts`) serves manual assignments, the planner, publishing and replacements. A hard rule needs an override reason (audited); the Settings switch `rules.overrideReasonRequired` turns it into a warning.
-- **Plans** are drafts until published. `workflow.requireApproval` (default **on**) gives draft → review → approved → published; it also makes extensions request-then-approve. Off: plans publish straight from draft and extensions apply at once.
+- **Plans**: the Plans screen was removed (2026-10-28); the planner stays in the engine (`planning.ts`) without a screen. `workflow.requireApproval` (default **on**) still makes extensions request-then-approve.
+- **Nobody leaves a unit on their own** (2026-10-28): a crew stay whose end date passes with nobody lined up is kept on the seat with no date (`holdPassedStays` in `assignments.ts`: at start, hourly, on each board load). `endPassed` keeps the missed date and the board warns until the manager unassigns or sets a date. An unassign (or a leave that ends the stay) sets `actualEnd`, which makes the end final.
 - **Escalation** of near-due replacement tasks happens when the task list is read (`replacements.ts`, `escalateDue`); there is no background job. Only two timers remain: preventive maintenance (hourly, `fleet.ts`) and the daily backup (`backup.ts`); `JOBS=off` disables both (use it in tests).
 - **Backups**: `VACUUM INTO` (consistent while the app runs) + the uploaded files; 14 newest kept, then one per month. A folder named `before-…` is never pruned (names must match `crewboard-YYYY-MM-DD-HHMM`).
 - **Moving a unit to the base it is already at is a deliberate no-op** (bulk moves send whole selections).

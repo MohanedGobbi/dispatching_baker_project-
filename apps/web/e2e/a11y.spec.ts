@@ -6,7 +6,7 @@ import { foldGuides, openApp } from './helpers'
 
 // WCAG 2.1 AA checks with axe-core on every screen, in light and dark (plan E28/E30 accessibility audit).
 const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8')
-const SCREENS = ['board', 'units', 'replacements', 'crew-changes', 'plans', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit', 'notifications']
+const SCREENS = ['board', 'units', 'replacements', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit', 'notifications']
 
 async function violations(page: Page) {
   await page.addScriptTag({ content: AXE })

@@ -74,7 +74,12 @@ export class AbsenceService {
       if (kept.length === 0) {
         await tx.assignment.update({ where: { id: a.id }, data: { status: 'CANCELLED' } });
       } else {
-        await tx.assignment.update({ where: { id: a.id }, data: { start: kept[0].start, plannedEnd: kept[0].end } });
+        // Without a later piece the stay really ends here: actualEnd keeps it from being held on the seat after that day.
+        const ends = kept.length === 1 && kept[0].end.getTime() < startOfDay(a.plannedEnd).getTime();
+        await tx.assignment.update({
+          where: { id: a.id },
+          data: { start: kept[0].start, plannedEnd: kept[0].end, ...(ends ? { actualEnd: kept[0].end, openEnded: false, endPassed: null } : {}) },
+        });
         // The person comes back after the absence: the later piece stays theirs.
         for (const extra of kept.slice(1)) {
           await tx.assignment.create({

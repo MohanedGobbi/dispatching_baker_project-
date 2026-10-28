@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, CalendarClock, Repeat, UserMinus, UserCog } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarClock, Repeat, UserMinus, UserCog } from 'lucide-react'
 import { api, ApiError } from './api'
 import { AssignPicker } from './assign'
 import type { FreePerson, PickSeat, PickUnit } from './assign'
@@ -18,6 +18,8 @@ export interface SeatHolderRef {
   until: string
   /** No crew change date yet: `until` is only a placeholder far ahead. */
   openEnded?: boolean
+  /** The planned end that passed while they were kept on the seat: the manager has to unassign them or set a date. */
+  endPassed?: string | null
 }
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10)
@@ -109,6 +111,7 @@ export function SeatActionsDialog({ target, onClose, onDone }: { target: SeatHol
   return (
     <Modal title={`${t('replaceOrUnassign', 'Replace or unassign')}: ${target.person.name}`} onClose={onClose}>
       <div className="move-line"><strong>{target.person.name}</strong><ArrowRight size={16} aria-hidden /><span>{seatLabel}</span><span className="muted">{untilText}</span></div>
+      {target.endPassed && <p className="note"><AlertTriangle size={14} aria-hidden /> {t('endPassedNote', 'Their stay was planned to end on')} {target.endPassed}. {t('endPassedNote2', 'They stay on the seat until you unassign them or set a new date.')}</p>}
       <div className="cc-set">
         <CalendarClock size={15} aria-hidden />
         <label>{t('crewChange', 'Crew change')}<input type="date" value={change} min={today} onChange={e => e.target.value && setChange(e.target.value)} /></label>

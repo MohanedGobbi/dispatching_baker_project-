@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 import { openApp } from '../e2e/helpers'
 
 const OUT = '../../docs/manual/img'
-const ALL = ['board', 'units', 'replacements', 'crew-changes', 'plans', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']
+const ALL = ['board', 'units', 'replacements', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']
 const GUIDE_IDS = [...ALL, 'changes', 'workorders']
 
 async function snap(page: Page, name: string, fullPage = false) {
@@ -128,7 +128,6 @@ test('staff screens', async ({ page }) => {
     await snap(page, '15-person-profile-panel')
     await page.keyboard.press('Escape')
   })
-  await step('plans-full', async () => { await open(page, 'plans'); await snap(page, '16-plans', true) })
   await step('tv', async () => {
     await open(page, 'board')
     await page.getByRole('button', { name: /TV/ }).first().click()

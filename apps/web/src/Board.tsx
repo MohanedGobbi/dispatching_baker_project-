@@ -7,7 +7,7 @@ import {
   Search, Truck, UserPlus, Users, Wrench, X,
 } from 'lucide-react'
 import { api, ApiError, subscribeChanges } from './api'
-import type { BoardData, Person, PlanSummary, SeatCard, UnitCardData, Violation } from './types'
+import type { BoardData, Person, SeatCard, UnitCardData, Violation } from './types'
 import { PersonChip, SeverityBadge, STATUS_META, useToast } from './ui'
 import { AssignDialog, RuleDialog, addDaysIso } from './dialogs'
 import { AssignPicker } from './assign'
@@ -47,8 +47,6 @@ export default function Board() {
   const [lane, setLane] = useState('')
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
-  const [planId, setPlanId] = useState('')
-  const [plans, setPlans] = useState<PlanSummary[]>([])
   const [data, setData] = useState<BoardData | null>(null)
   const [error, setError] = useState('')
   const [tv, setTv] = useState(() => { try { return localStorage.getItem('crewboard.board.tv') === 'on' } catch { return false } })
@@ -73,9 +71,8 @@ export default function Board() {
   const load = useCallback(async () => {
     const p = new URLSearchParams({ date, view: 'all' })
     if (q) p.set('q', q)
-    if (planId) p.set('planId', planId)
     try { setData(await api<BoardData>(`/board?${p}`)); setError('') } catch (e) { setError(e instanceof ApiError ? e.message : String(e)) }
-  }, [date, q, planId])
+  }, [date, q])
 
   useEffect(() => { void load() }, [load])
   useEffect(() => {
@@ -84,9 +81,6 @@ export default function Board() {
     return () => { stop(); clearTimeout(timer) }
   }, [load])
   useEffect(() => { const h = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(h) }, [search])
-  useEffect(() => {
-    api<PlanSummary[]>('/planning/plans?status=DRAFT').then(setPlans).catch(() => setPlans([]))
-  }, [data?.layer])
   useEffect(() => { try { localStorage.setItem('crewboard.board.overview', overview ? 'shown' : 'hidden') } catch { /* private mode */ } }, [overview])
 
   useEffect(() => {
@@ -219,12 +213,6 @@ export default function Board() {
               <button type="button" onClick={() => setDate(todayIso())}>{t('today', 'Today')}</button>
               <button type="button" onClick={() => setDate(addDaysIso(todayIso(), 7))}>{t('nextWeek', 'In a week')}</button>
             </span>
-            {plans.length > 0 && (
-              <select value={planId} onChange={e => setPlanId(e.target.value)} aria-label="Layer">
-                <option value="">{t('liveLayer', 'Live board')}</option>
-                {plans.map(p => <option key={p.id} value={p.id}>{t('draftPlan', 'Draft plan')} v{p.version}</option>)}
-              </select>
-            )}
             <span className="spacer" />
             <span className="search"><Search size={14} aria-hidden /><input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder={`${t('search', 'Find a person or unit')} (Ctrl+K)`} aria-label="Search" /></span>
           </div>
@@ -347,7 +335,7 @@ export default function Board() {
                 return (
                   <section key={b.id} aria-label={b.name}>
                     {shownBases.length > 1 && <h2 className="wb-base" style={{ ['--c' as string]: colorOf(b.code) }}>{b.name}</h2>}
-                    <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={boardHits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until, openEnded: seat.holder.openEnded })} />)}</div>
+                    <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={boardHits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until, openEnded: seat.holder.openEnded, endPassed: seat.holder.endPassed })} />)}</div>
                   </section>
                 )
               })}
@@ -377,7 +365,7 @@ export default function Board() {
                   <em>{all.filter(u => !isIdle(u)).reduce((n, u) => n + u.crew.filled, 0)}/{all.filter(u => !isIdle(u)).reduce((n, u) => n + u.crew.required, 0)} {t('seatsFilled', 'seats filled')}</em>
                 </span>
               </div>
-              {units.length ? <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={hits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until, openEnded: seat.holder.openEnded })} />)}</div>
+              {units.length ? <div className="unit-grid">{units.map(u => <UnitCard key={u.id} unit={u} editable={!readOnly} hits={hits} onOpen={setDrawer} onUnit={() => openUnit(u.id)} onAssign={seat => setPicking({ seat, unit: u })} onAct={seat => seat.holder && setActing({ assignmentId: seat.holder.assignmentId, person: seat.holder, seat, unit: u, until: seat.holder.until, openEnded: seat.holder.openEnded, endPassed: seat.holder.endPassed })} />)}</div>
                 : <p className="empty-note">{t('noUnits', 'No units based here.')}</p>}
             </section>
           )

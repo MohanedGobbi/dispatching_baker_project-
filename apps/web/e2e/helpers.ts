@@ -10,7 +10,7 @@ export async function openApp(page: Page) {
 /** Fold every page guide so screens look the same on every run. */
 export async function foldGuides(page: Page) {
   await page.evaluate(() => {
-    for (const id of ['board', 'units', 'replacements', 'crew-changes', 'plans', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']) localStorage.setItem(`crewboard.guide.${id}`, 'closed')
+    for (const id of ['board', 'units', 'replacements', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']) localStorage.setItem(`crewboard.guide.${id}`, 'closed')
   })
 }
 

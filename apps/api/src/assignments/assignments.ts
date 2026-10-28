@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, ConflictException, Controller, Get, HttpException, HttpStatus,
-  Inject, Injectable, Module, NotFoundException, Param, Post, Put, Query,
+  Inject, Injectable, Module, NotFoundException, OnModuleDestroy, OnModuleInit, Param, Post, Put, Query,
 } from '@nestjs/common';
 import type { Prisma } from '../db';
 import { PrismaService } from '../prisma/prisma.service';
@@ -207,14 +207,43 @@ export class AssignmentsService {
   }
 }
 
-/** End an assignment from `from` (cancel it if it has not started) and open a replacement task for a required seat. */
+/**
+ * Nobody leaves a unit on their own: a crew stay whose end date has passed, with nobody lined up after it on the seat and
+ * nothing else planned for the person, is kept on the seat with no date yet. `endPassed` keeps the missed date so the
+ * board warns until the manager unassigns the person or sets a new date. Runs at start, hourly and when the board loads.
+ */
+export async function holdPassedStays(prisma: PrismaService) {
+  const today = startOfDay(new Date());
+  const passed = await prisma.assignment.findMany({
+    where: { status: { in: [...LIVE] }, openEnded: false, actualEnd: null, plannedEnd: { lt: today }, seat: { holderType: 'UNIT' } },
+  });
+  let held = 0;
+  for (const a of passed) {
+    const next = await prisma.assignment.findFirst({
+      where: { id: { not: a.id }, status: { in: [...COUNTS] }, start: { gt: a.plannedEnd }, OR: [{ seatId: a.seatId }, { employeeId: a.employeeId }] },
+      select: { id: true },
+    });
+    if (next) continue; // a planned crew change or a next stay: this one ends as planned
+    const after = await prisma.assignment.update({
+      where: { id: a.id }, data: { openEnded: true, plannedEnd: parkEnd(startOfDay(a.start)), endPassed: a.plannedEnd, status: 'ACTIVE' },
+    });
+    await audit(prisma, 'Assignment', a.id, 'held_after_end', a, after, 'End date passed: kept on the seat until the manager unassigns');
+    held++;
+  }
+  return held;
+}
+
+/**
+ * End an assignment from `from` (cancel it if it has not started) and open a replacement task for a required seat.
+ * actualEnd marks the end as the manager's decision, so holdPassedStays does not keep the person on the seat after it.
+ */
 async function releaseAssignment(
   tx: Prisma.TransactionClient, a: { id: string; seatId: string; start: Date; plannedEnd: Date; openEnded: boolean; seat: { requiredFlag: boolean } }, from: Date, today: Date,
 ) {
   const cancelled = from <= startOfDay(a.start);
   const upd = cancelled
     ? await tx.assignment.update({ where: { id: a.id }, data: { status: 'CANCELLED' } })
-    : await tx.assignment.update({ where: { id: a.id }, data: { plannedEnd: new Date(from.getTime() - DAY), openEnded: false } });
+    : await tx.assignment.update({ where: { id: a.id }, data: { plannedEnd: new Date(from.getTime() - DAY), actualEnd: new Date(from.getTime() - DAY), openEnded: false, endPassed: null } });
   const gapFrom = cancelled ? startOfDay(a.start) : from;
   const gapTo = a.openEnded ? new Date(gapFrom.getTime() + (OPEN_GAP_DAYS - 1) * DAY) : a.plannedEnd;
   let task = null;
@@ -359,7 +388,7 @@ class AssignmentsController {
     await this.svc.assertSeatFree(seatId, r.start, r.end, [id]);
     const ev = await this.svc.evaluate([{ employeeId: a.employeeId, seatId, ...r, open }], [id]);
     await this.svc.requireOverride(ev, body.overrideReason);
-    const after = await this.prisma.assignment.update({ where: { id }, data: { seatId, start: r.start, plannedEnd: r.end, openEnded: open } });
+    const after = await this.prisma.assignment.update({ where: { id }, data: { seatId, start: r.start, plannedEnd: r.end, openEnded: open, actualEnd: null, ...(open ? {} : { endPassed: null }) } });
     await audit(this.prisma, 'Assignment', id, 'move', a, after, body.overrideReason);
     return { assignment: after, violations: ev.violations, crews: ev.crews };
   }
@@ -406,7 +435,7 @@ class AssignmentsController {
     const out = await this.prisma.$transaction(async tx => {
       const old = start <= startOfDay(a.start)
         ? await tx.assignment.update({ where: { id }, data: { status: 'CANCELLED' } })
-        : await tx.assignment.update({ where: { id }, data: { plannedEnd: new Date(start.getTime() - DAY), openEnded: false } });
+        : await tx.assignment.update({ where: { id }, data: { plannedEnd: new Date(start.getTime() - DAY), openEnded: false, endPassed: null } });
       const created = await tx.assignment.create({
         data: {
           employeeId: body.employeeId!, seatId: a.seatId, start, plannedEnd: end, openEnded: a.openEnded, type: 'REPLACEMENT', replacesId: id,
@@ -496,7 +525,7 @@ class AssignmentsController {
       await this.svc.requireOverride(ev, body.overrideReason);
     }
     const result = await this.prisma.$transaction(async tx => {
-      const head = await tx.assignment.update({ where: { id }, data: { plannedEnd: new Date(at.getTime() - DAY), openEnded: false } });
+      const head = await tx.assignment.update({ where: { id }, data: { plannedEnd: new Date(at.getTime() - DAY), openEnded: false, endPassed: null } });
       if (body.employeeId) {
         const tail = await tx.assignment.create({
           data: { employeeId: body.employeeId, seatId: a.seatId, start: at, plannedEnd: tailEnd, openEnded: a.openEnded, type: 'REPLACEMENT', replacesId: id, status: at <= today ? 'ACTIVE' : 'CONFIRMED' },
@@ -558,7 +587,7 @@ class AssignmentsController {
         const arriving = m.start.getTime() === to.getTime();
         await tx.assignment.update({
           where: { id: m.a.id },
-          data: arriving ? { start: m.start, status: m.start <= today ? 'ACTIVE' : 'CONFIRMED' } : { plannedEnd: m.end, openEnded: false },
+          data: arriving ? { start: m.start, status: m.start <= today ? 'ACTIVE' : 'CONFIRMED' } : { plannedEnd: m.end, openEnded: false, endPassed: null },
         });
       }
       // The seat is uncovered from the new date instead: move the task that was waiting for the old one.
@@ -573,4 +602,15 @@ class AssignmentsController {
 }
 
 @Module({ imports: [SettingsModule, InsightsModule, AbsenceModule], controllers: [AssignmentsController], providers: [AssignmentsService], exports: [AssignmentsService] })
-export class AssignmentsModule {}
+export class AssignmentsModule implements OnModuleInit, OnModuleDestroy {
+  private timer?: ReturnType<typeof setInterval>;
+  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+  onModuleInit() {
+    if (process.env.JOBS === 'off') return;
+    const tick = () => { holdPassedStays(this.prisma).catch(e => console.error('holding passed stays failed', e)); };
+    tick();
+    this.timer = setInterval(tick, 60 * 60 * 1000);
+    this.timer.unref();
+  }
+  onModuleDestroy() { clearInterval(this.timer); }
+}

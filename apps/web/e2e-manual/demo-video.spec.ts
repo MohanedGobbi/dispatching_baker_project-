@@ -52,7 +52,7 @@ test('the demo video', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => {
     localStorage.setItem('crewboard.theme', 'light')
-    for (const id of ['board', 'units', 'replacements', 'crew-changes', 'plans', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']) localStorage.setItem(`crewboard.guide.${id}`, 'closed')
+    for (const id of ['board', 'units', 'replacements', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']) localStorage.setItem(`crewboard.guide.${id}`, 'closed')
   })
   await page.reload()
   await expect(page.locator('.side-brand')).toBeVisible()
@@ -97,25 +97,6 @@ test('the demo video', async ({ page }) => {
   }
   await expect(page.getByText(/^Fixed: /).first()).toBeVisible()
   await pause(page, 3200)
-
-  // 4. a plan: draft, review, approved, published
-  await say(page, 'Plans: the planner fills the coming weeks and explains every choice')
-  await nav(page, 'plans')
-  await pause(page, 1500)
-  await tap(page, page.getByRole('button', { name: 'New plan' }))
-  await pause(page, 1200)
-  await tap(page, page.getByRole('button', { name: 'Suggest a plan' }))
-  await expect(page.getByRole('button', { name: /Send for review/ })).toBeVisible({ timeout: 60_000 })
-  await pause(page, 3500)
-  await say(page, 'Draft, review, approved, published: nothing changes until you publish')
-  await tap(page, page.getByRole('button', { name: /Send for review/ }))
-  await pause(page, 1500)
-  await tap(page, page.getByRole('button', { name: 'Approve', exact: true }))
-  await pause(page, 1500)
-  await tap(page, page.getByRole('button', { name: 'Publish', exact: true }))
-  const valid = page.getByRole('button', { name: 'Publish the valid ones' })
-  if (await valid.waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false)) await tap(page, valid)
-  await pause(page, 3000)
 
   // 5. timeline and forecast
   await say(page, 'Timeline: everyone, day by day')

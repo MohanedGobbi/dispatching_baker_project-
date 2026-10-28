@@ -6,7 +6,7 @@ export interface Person {
   seniority: Seniority; tags: string[]; restrictions: string[]; label?: string
   rank?: string | null // the person's rank tag, e.g. Specialist, OP2
 }
-export interface Holder extends Person { assignmentId: string; until: string; openEnded?: boolean; draft: boolean }
+export interface Holder extends Person { assignmentId: string; until: string; openEnded?: boolean; endPassed?: string | null; draft: boolean }
 export interface Issue { code: string; severity: Severity; text: string }
 export interface SeatCard {
   seatId: string; position: string; index: number; required: boolean
@@ -46,4 +46,3 @@ export interface PersonalCalendar {
   employee: { id: string; firstName: string; lastName: string; employeeNo: string; homeBase: { code: string } }
   days: DayCell[]; summary: { today: DayCell | null; nextDaysOff: string | null; nextBackOn: string | null }
 }
-export interface PlanSummary { id: string; version: number; status: string; periodStart: string; periodEnd: string }

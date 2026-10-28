@@ -8,6 +8,7 @@ import { EmployeeInsightsService, InsightsModule } from '../employees/insights';
 import { addDays, CalendarCoreModule, CalendarService, DayCell, iso, MANAGER_VIEW } from '../calendar/calendar.service';
 import { parseDate, strings } from '../common/validate';
 import { computeUnitStatus } from '../domain/derived';
+import { holdPassedStays } from '../assignments/assignments';
 import { crewEnough, seniorityAtLeast } from '../domain/rules';
 import { Seniority, startOfDay } from '../domain/status';
 
@@ -52,6 +53,7 @@ class BoardController {
 
     const bases = await this.prisma.base.findMany({ where: { active: true, ...(q.baseId ? { id: q.baseId } : {}) }, orderBy: { name: 'asc' } });
     const baseIds = bases.map(b => b.id);
+    if (!past) await holdPassedStays(this.prisma);
     const statuses = past ? ['CONFIRMED', 'ACTIVE', 'COMPLETED'] : [...LIVE];
     const covering = { start: { lte: D }, plannedEnd: { gte: D } };
 
@@ -123,10 +125,12 @@ class BoardController {
         const p = holderRow ? byId.get(holderRow.employeeId) : undefined;
         const req_ = (s.requirements ?? {}) as { qualification?: string; minSeniority?: Seniority };
         const issues: { code: string; severity: Severity; text: string }[] = [];
-        let holder = null as null | (ReturnType<typeof person> & { assignmentId: string; until: string; openEnded: boolean; draft: boolean });
+        let holder = null as null | (ReturnType<typeof person> & { assignmentId: string; until: string; openEnded: boolean; endPassed: string | null; draft: boolean });
         if (holderRow) {
           const info = person(holderRow.employeeId);
-          holder = info ? { ...info, assignmentId: holderRow.id, until: iso(holderRow.plannedEnd), openEnded: holderRow.openEnded, draft: !!draft } : null;
+          holder = info ? { ...info, assignmentId: holderRow.id, until: iso(holderRow.plannedEnd), openEnded: holderRow.openEnded, endPassed: holderRow.endPassed ? iso(holderRow.endPassed) : null, draft: !!draft } : null;
+          // The planned end passed and the person is still kept on the seat: the manager has to unassign them or set a date.
+          if (holderRow.endPassed && !past) issues.push({ code: 'end_passed', severity: 'warn', text: `Stay ended ${iso(holderRow.endPassed)}: unassign or set a date` });
           if (p) {
             if (req_.qualification && !p.qualifications.some(x => x.qualification.name === req_.qualification)) {
               issues.push({ code: 'qualification', severity: 'bad', text: `Missing ${SHORT_QUAL[req_.qualification] ?? req_.qualification} qualification` });
@@ -157,6 +161,8 @@ class BoardController {
         badges.push({ code: 'no_experienced', severity: opsFilled.length === ops.length ? 'bad' : 'warn', text: 'No experienced' });
       }
       if (deployed && chiefRequired && opsFilled.length > 0 && !hasChief) badges.push({ code: 'no_chief', severity: 'warn', text: 'No chief of unit' });
+      const passed = seatCards.filter(s => s.issues.some(i => i.code === 'end_passed')).length;
+      if (passed) badges.push({ code: 'end_passed', severity: 'warn', text: `${passed} stay${passed === 1 ? '' : 's'} ended: unassign` });
       for (const code of ['qualification', 'seniority', 'cert']) {
         const hit = seatCards.flatMap(s => s.issues).find(i => i.code === code);
         if (hit) badges.push({ code, severity: 'bad', text: hit.text });

@@ -302,7 +302,7 @@ function PersonProfile({ id }: { id: string }) {
 interface UnitD {
   id: string; code: string; status: string; plate: string | null; model: string | null; year: number | null; notes: string | null
   unitType: { name: string; colorKey: string }; homeBase: { code: string; name: string }
-  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string; openEnded?: boolean } | null }[]
+  seats: { id: string; position: string; index: number; required: boolean; requirements: SeatHolderRef['seat']['requirements'] | null; holder: { id: string; employeeNo: string; firstName: string; lastName: string; assignmentId: string; until: string; openEnded?: boolean; endPassed?: string | null } | null }[]
   deployments: { id: string; start: string; end: string; job: { id: string; ref: string; wellName: string; rigName: string | null; client: string | null; status: string } }[]
   workOrders: { id: string; type: string; priority: string; description: string | null; plannedStart: string; expectedReturn: string; status: string }[]
   crewHistory: { id: string; start: string; plannedEnd: string; openEnded?: boolean; actualEnd: string | null; status: string; employee: { id: string; firstName: string; lastName: string }; seat: { index: number; position: { name: string } } }[]
@@ -396,7 +396,7 @@ function UnitProfile({ id }: { id: string }) {
             <ul className="hist">{x.seats.map(s => (
               <li key={s.id} style={{ ['--c' as string]: s.holder ? 'var(--st-unit)' : s.required && short ? 'var(--bad)' : 'var(--pal-slate-400)' }}>
                 <span><b>{s.position} #{s.index}</b>{!s.required && <small> · {t('optional', 'optional')}</small>}<br /><small>{s.holder ? <PersonLink id={s.holder.id}>{s.holder.firstName} {s.holder.lastName}</PersonLink> : t('emptySeat', 'Nobody')}</small></span>
-                {s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, openEnded: h.openEnded, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
+                {s.holder && <SeatActionsButton name={`${s.holder.firstName} ${s.holder.lastName}`} onClick={() => { const h = s.holder!; setActing({ assignmentId: h.assignmentId, until: h.until, openEnded: h.openEnded, endPassed: h.endPassed, person: { id: h.id, name: `${h.firstName} ${h.lastName}` }, seat: { seatId: s.id, position: s.position, index: s.index, requirements: s.requirements ?? {} }, unit: { code: x.code, colorKey: x.unitType.colorKey } }) }} />}
               </li>
             ))}</ul>
           </section>

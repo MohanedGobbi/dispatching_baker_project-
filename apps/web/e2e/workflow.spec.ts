@@ -1,19 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { foldGuides, openApp } from './helpers'
 
-test('a plan goes draft, review, approved, published', async ({ page }) => {
-  await openApp(page)
-  await page.goto('/#/plans')
-  await page.getByRole('button', { name: 'New plan' }).click()
-  await page.getByRole('button', { name: 'Suggest a plan' }).click()
-  // A draft cannot be published straight away: it is sent for review first, then approved.
-  await expect(page.getByRole('button', { name: /Send for review|Submit/ })).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: /Send for review|Submit/ }).click()
-  await page.getByRole('button', { name: 'Approve', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible()
-})
-
 test('putting someone on an empty seat shows the problem as fixed', async ({ page }) => {
   await openApp(page)
   await foldGuides(page)
