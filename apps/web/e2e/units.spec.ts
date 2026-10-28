@@ -75,9 +75,8 @@ test('unit page: service plan, paper with a file, side panel link', async ({ pag
   await page.getByRole('button', { name: `Download ${paper}` }).click()
   expect((await download).suggestedFilename()).toMatch(/\.pdf$/)
 
-  await page.goto('/#/replacements')
+  await page.goto('/#/units')
   await page.locator('.name-link.unit').first().click()
-  await page.getByRole('link', { name: 'Full page' }).click()
   await expect(page.getByRole('heading', { name: 'The last 12 months' })).toBeVisible()
   await expect(page.locator('.pp')).toHaveCount(0)
 })

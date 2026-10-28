@@ -52,7 +52,7 @@ test('the demo video', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => {
     localStorage.setItem('crewboard.theme', 'light')
-    for (const id of ['board', 'units', 'replacements', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']) localStorage.setItem(`crewboard.guide.${id}`, 'closed')
+    for (const id of ['board', 'units', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']) localStorage.setItem(`crewboard.guide.${id}`, 'closed')
   })
   await page.reload()
   await expect(page.locator('.side-brand')).toBeVisible()
@@ -76,27 +76,6 @@ test('the demo video', async ({ page }) => {
   await pause(page, 3500)
   await page.keyboard.press('Escape')
   await pause(page, 600)
-
-  // 3. fix an empty seat from the replacement centre
-  await say(page, 'Replacements: every empty seat, with the best people for it and why')
-  await nav(page, 'replacements')
-  await expect(page.locator('.tcard').first()).toBeVisible()
-  await pause(page, 2200)
-  const cards = page.locator('.rc-list .tcard')
-  const n = await cards.count()
-  let placed = false
-  for (let i = 0; i < n && !placed; i++) {
-    await tap(page, cards.nth(i))
-    const put = page.getByRole('button', { name: 'Put on this seat' }).first()
-    if (await put.waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false)) {
-      await pause(page, 3200)
-      await say(page, 'One click puts the best match on the seat, and every rule is checked')
-      await tap(page, put)
-      placed = true
-    }
-  }
-  await expect(page.getByText(/^Fixed: /).first()).toBeVisible()
-  await pause(page, 3200)
 
   // 5. timeline and forecast
   await say(page, 'Timeline: everyone, day by day')

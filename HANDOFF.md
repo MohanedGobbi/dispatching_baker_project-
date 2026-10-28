@@ -18,8 +18,8 @@ version. So:
 - Never run `npm run seed`, `npm run demo`, `npm run smoke`, `npm run e2e` or the screenshot/video scripts against it. They wipe
   or change data. Always point `DATA_DIR` at a throwaway folder first (the README shows how).
 - Without `DATA_DIR` the engine uses `%APPDATA%\CrewBoard\data`, so an unprepared command **will** hit the real data.
-- Do not click around in the installed app "to test": opening the Replacements screen, for example, marks near-due tasks as
-  escalated. Test on a copy (`CREWBOARD_USER_DATA=<folder>` points the desktop app at another folder).
+- Do not click around in the installed app "to test": opening the board, for example, holds stays whose end has passed
+  (and changes the data). Test on a copy (`CREWBOARD_USER_DATA=<folder>` points the desktop app at another folder).
 - Never commit data. `.gitignore` covers `data/`, `data.*/`, `apps/api/storage/`, `apps/api/prisma/real/`, `.env`, `logs/`, installers.
 - `data.moved-to-appdata-2026-10-23/` (in the project folder) is a safe copy from before the move; the old Postgres dump is in
   `%APPDATA%\CrewBoard\data\backups`. Both can be deleted when the manager is happy.
@@ -68,7 +68,7 @@ Summary of data tools: `npx tsx scripts/db-summary.ts` (read-only: every table's
 - **One validator** (`assignments/facts.ts` → `domain/rules.ts`) serves manual assignments, the planner, publishing and replacements. A hard rule needs an override reason (audited); the Settings switch `rules.overrideReasonRequired` turns it into a warning.
 - **Plans**: the Plans screen was removed (2026-10-28); the planner stays in the engine (`planning.ts`) without a screen. `workflow.requireApproval` (default **on**) still makes extensions request-then-approve.
 - **Nobody leaves a unit on their own** (2026-10-28): a crew stay whose end date passes with nobody lined up is kept on the seat with no date (`holdPassedStays` in `assignments.ts`: at start, hourly, on each board load). `endPassed` keeps the missed date and the board warns until the manager unassigns or sets a date. An unassign (or a leave that ends the stay) sets `actualEnd`, which makes the end final.
-- **Escalation** of near-due replacement tasks happens when the task list is read (`replacements.ts`, `escalateDue`); there is no background job. Only two timers remain: preventive maintenance (hourly, `fleet.ts`) and the daily backup (`backup.ts`); `JOBS=off` disables both (use it in tests).
+- **Replacement tasks** are still opened by the engine (unassign, leave, archiving) but the Replacements screen was removed (2026-10-28): empty seats are handled from the board. Escalation (`replacements.ts`, `escalateDue`) only runs when the API task list is read. Timers: preventive maintenance and holding passed stays (hourly, `fleet.ts`, `assignments.ts`) and the daily backup (`backup.ts`); `JOBS=off` disables them (use it in tests).
 - **Backups**: `VACUUM INTO` (consistent while the app runs) + the uploaded files; 14 newest kept, then one per month. A folder named `before-…` is never pruned (names must match `crewboard-YYYY-MM-DD-HHMM`).
 - **Moving a unit to the base it is already at is a deliberate no-op** (bulk moves send whole selections).
 - **Seniority** comes from field days (`Employee.priorFieldDays` + history) unless the rank sets it. Ranks are a setting (`people.ranks`), edited on the People screen; the rank is the first entry of `Employee.tags`.

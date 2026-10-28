@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, LayoutGrid, MapPin, Menu, Moon, PanelLeftClose, PanelLeftOpen, Repeat, Settings as SettingsIcon, Sun, Timer, Truck, Users, X } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ClipboardList, FileSpreadsheet, History, LayoutGrid, MapPin, Menu, Moon, PanelLeftClose, PanelLeftOpen, Settings as SettingsIcon, Sun, Timer, Truck, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useRoute } from './hooks'
 import { currentTheme, setTheme } from './theme'
@@ -13,7 +13,6 @@ const Units = lazy(() => import('./Units'))
 const People = lazy(() => import('./People'))
 const Rotations = lazy(() => import('./Rotations'))
 const Locations = lazy(() => import('./Locations'))
-const Replacements = lazy(() => import('./Replacements'))
 const Timeline = lazy(() => import('./Timeline'))
 const CrewChanges = lazy(() => import('./CrewChanges'))
 const Analytics = lazy(() => import('./Analytics'))
@@ -30,7 +29,6 @@ const PAGES: Page[] = [
   { group: 'today', path: 'units', key: 'nav_units', label: 'Units', Icon: Truck, color: 'var(--pal-sky-700)', hint: 'The fleet: status, jobs, details' },
   { group: 'today', path: 'people', key: 'nav_people', label: 'People', Icon: Users, color: 'var(--pal-indigo-600)', hint: 'Everyone, their rank and partner' },
   { group: 'admin', path: 'locations', key: 'nav_locations', label: 'Locations', Icon: MapPin, color: 'var(--pal-teal-700)', hint: 'Bases and sites' },
-  { group: 'today', path: 'replacements', key: 'nav_replacements', label: 'Replacements', Icon: Repeat, color: 'var(--pal-red-600)', hint: 'Seats that need someone' },
   { group: 'today', path: 'crew-changes', key: 'nav_changes', label: 'Crew changes', Icon: ClipboardList, color: 'var(--pal-teal-600)', hint: 'Who goes out and comes back' },
   { group: 'planning', path: 'rotations', key: 'nav_rotations', label: 'Work & days off', Icon: CalendarDays, color: 'var(--pal-cyan-700)', hint: 'Rotations and first day of work' },
   { group: 'planning', path: 'timeline', key: 'nav_timeline', label: 'Timeline', Icon: CalendarRange, color: 'var(--pal-cyan-600)', hint: 'Everyone day by day' },
@@ -96,7 +94,6 @@ export default function Shell() {
         {current.path === 'people' && <People />}
         {current.path === 'rotations' && <Rotations />}
         {current.path === 'locations' && <Locations />}
-        {current.path === 'replacements' && <Replacements />}
         {current.path === 'timeline' && <Timeline />}
         {current.path === 'crew-changes' && <CrewChanges />}
         {current.path === 'analytics' && <Analytics />}

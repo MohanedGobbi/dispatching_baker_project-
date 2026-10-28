@@ -143,7 +143,7 @@ function LeaveDialog({ person, medical, onClose }: { person: QuickPerson; medica
         </div>
         <div className="quick-days">{[1, 3, 7, 14, 28].map(n => <button key={n} type="button" onClick={() => setTo(plus(from, n - 1))}>{n} {t('daysLc', 'days')}</button>)}</div>
         <label>{t('notes', 'Notes')}<input value={notes} onChange={e => setNotes(e.target.value)} placeholder={medical ? t('medNotePh', 'Private: only you see it') : ''} /></label>
-        <p className="muted" style={{ margin: 0 }}>{t('leaveFrees', 'If they are on a seat in these days, the seat is freed and shows up in the replacement center.')}</p>
+        <p className="muted" style={{ margin: 0 }}>{t('leaveFrees', 'If they are on a seat in these days, the seat is freed and shows as empty on the board.')}</p>
         <footer>
           <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
           <button type="button" className="primary" disabled={busy || !typeId || to < from} onClick={() => void save()}>{t('save', 'Save')}</button>

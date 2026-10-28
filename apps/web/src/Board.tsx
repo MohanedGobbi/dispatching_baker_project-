@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import {
-  AlertTriangle, CalendarClock, Plus, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, LayoutGrid, Monitor, PieChart, Repeat,
+  AlertTriangle, CalendarClock, Plus, CheckCircle2, ChevronLeft, ChevronRight, Eye, EyeOff, LayoutGrid, Monitor, PieChart,
   Search, Truck, UserPlus, Users, Wrench, X,
 } from 'lucide-react'
 import { api, ApiError, subscribeChanges } from './api'
@@ -168,8 +168,9 @@ export default function Board() {
   const s = data?.summary
   const deployed = data?.units.filter(u => !isIdle(u)) ?? []
   const attention = deployed.filter(u => u.state === 'warn' || u.state === 'bad').length
-  const openTasks = s ? Object.values(s.openReplacementTasks).reduce((a, b) => a + b, 0) : 0
-  const critical = s?.openReplacementTasks.CRITICAL ?? 0
+  // Empty seats on units at work whose crew is too small (a full crew may leave its spare seat empty).
+  const emptySeats = deployed.filter(u => u.badges.some(b => b.code === 'crew' && b.severity !== 'ok'))
+    .reduce((n, u) => n + u.seats.filter(x => x.issues.some(i => i.code === 'empty')).length, 0)
   const peopleSlices = s ? Object.entries(s.headcount).filter(([, v]) => v > 0).map(([k, v]) => ({ key: k, value: v, color: STATUS_META[k]?.color ?? 'var(--muted)', label: STATUS_META[k]?.label ?? k })) : []
   // Whiteboard: everyone on the board, the rank highlight, and who sits in which column.
   const everyone: Person[] = data ? [...data.units.flatMap(u => u.seats.flatMap(x => (x.holder ? [x.holder] : []))), ...Object.values(data.columns).flat()] : []
@@ -257,8 +258,8 @@ export default function Board() {
               {attention ? <AlertTriangle size={22} className="k-icon" aria-hidden /> : <CheckCircle2 size={22} className="k-icon" aria-hidden />}
               <strong>{attention}</strong><span>{t('kpiAttention', 'Crews needing attention')}</span><small>{attention ? t('clickToSee', 'click to show them') : t('allCrewsOk', 'every crew follows the rules')}</small>
             </button>
-            <button type="button" className={`kpi2${critical ? ' alert' : ''}`} style={{ ['--c' as string]: critical ? 'var(--pal-red-700)' : openTasks ? 'var(--pal-orange-600)' : 'var(--pal-green-600)' }} onClick={() => go('replacements')}>
-              <Repeat size={22} className="k-icon" aria-hidden /><strong>{openTasks}</strong><span>{t('kpiTasks', 'Seats waiting for someone')}</span><small>{critical ? `${critical} ${t('critical', 'critical')} · ` : ''}{t('openCenter', 'open the replacement center')}</small>
+            <button type="button" className={`kpi2${emptySeats ? ' alert' : ''}`} style={{ ['--c' as string]: emptySeats ? 'var(--pal-red-700)' : 'var(--pal-green-600)' }} onClick={() => setStateF(emptySeats ? 'attention' : 'all')}>
+              <UserPlus size={22} className="k-icon" aria-hidden /><strong>{emptySeats}</strong><span>{t('kpiTasks', 'Seats waiting for someone')}</span><small>{emptySeats ? t('clickToSee', 'click to show them') : t('allSeatsFilled', 'every crew seat is filled')}</small>
             </button>
             <button type="button" className="kpi2" style={{ ['--c' as string]: 'var(--pal-teal-600)' }} onClick={() => go('crew-changes')}>
               <CalendarClock size={22} className="k-icon" aria-hidden /><strong>{s.crewChangesNext7Days}</strong><span>{t('kpiChanges', 'Crew changes this week')}</span><small>{t('seeList', 'see the list')}</small>

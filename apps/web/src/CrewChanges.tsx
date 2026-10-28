@@ -39,7 +39,7 @@ export default function CrewChanges() {
         purpose={t('changesPurpose', 'Every handover in the coming days: who leaves a seat, who arrives, and whether someone is actually coming.')}
         steps={[
           t('ccStep1', 'Green rows are settled: someone is coming. Red rows have nobody to take over yet.'),
-          t('ccStep2', 'Open the replacement center from a red row to find someone in time.'),
+          t('ccStep2', 'For a red row, open the board on that day and use Assign someone on the empty seat.'),
           t('ccStep3', 'The calendar button on a row moves that crew change to another day, for one seat or the whole unit.'),
         ]} />
       <div className="filters">
@@ -68,7 +68,7 @@ export default function CrewChanges() {
                   <ArrowRight size={14} aria-hidden />
                   <span>{r.incoming ? <PersonLink id={r.incoming.id}>{r.incoming.name}</PersonLink> : <em className="gap-text">{t('nobody', 'nobody yet')}</em>}</span>
                 </td>
-                <td>{status(r.status)}{r.status === 'missing' && <a className="inline-link" href="#/replacements">{t('openCenter', 'Open replacement center')}</a>}</td>
+                <td>{status(r.status)}</td>
                 <td className="muted">{r.travel ? `${r.travel.site}${r.travel.hours ? ` · ${r.travel.hours} h` : ''}` : '—'}</td>
                 <td className="row-actions"><button type="button" onClick={() => setMoving(r)} title={t('ccChangeDate', 'Change the crew change date')} aria-label={`${t('ccChangeDate', 'Change the crew change date')} ${r.seat}`}><CalendarClock size={14} aria-hidden /></button></td>
               </tr>

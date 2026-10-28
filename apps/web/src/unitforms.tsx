@@ -111,7 +111,7 @@ export function NewJobDialog({ unitId, onClose, onDone }: { unitId?: string; onC
         </div>
         <label className="check"><input type="checkbox" checked={openEnded} onChange={e => setOpenEnded(e.target.checked)} /> {t('openEnded', 'No end date: keep it running until I end it')}</label>
         <label>{t('sendUnit', 'Unit to send')}<select value={f.unitId} onChange={set('unitId')}><option value="">{t('noUnitYet', 'Decide later')}</option>{fit.map(u => <option key={u.id} value={u.id}>{u.code} · {u.type} · {u.home.code}</option>)}</select></label>
-        <p className="muted" style={{ margin: 0 }}>{t('jobHint', 'Once a unit is on a job, its empty crew seats appear in the replacement center and the planner fills them.')}</p>
+        <p className="muted" style={{ margin: 0 }}>{t('jobHint', 'Once a unit is on a job, its empty crew seats show as needing someone on the board.')}</p>
         <footer>
           <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
           <button type="button" className="primary" disabled={busy || !f.siteId || (f.siteId === 'new' && !newSite.trim()) || !f.serviceType || (!openEnded && f.end < f.start)} onClick={save}>{f.unitId ? t('createDeploy', 'Create and send unit') : t('createJob', 'Create job')}</button>
@@ -165,7 +165,7 @@ export function EditJobDialog({ jobId, onClose, onDone }: { jobId: string; onClo
           <label>{t('end', 'End')} {!f.openEnded && '*'}<input type="date" value={f.openEnded ? '' : f.end} min={f.start} disabled={f.openEnded} onChange={set('end')} /></label>
         </div>
         <label className="check"><input type="checkbox" checked={f.openEnded} onChange={e => setF({ ...f, openEnded: e.target.checked })} /> {t('openEnded', 'No end date: keep it running until I end it')}</label>
-        <p className="muted" style={{ margin: 0 }}>{t('editJobHint', 'Units sent for the whole job move with the new dates; the crews on them are checked on the board and in the replacement center.')}</p>
+        <p className="muted" style={{ margin: 0 }}>{t('editJobHint', 'Units sent for the whole job move with the new dates; the crews on them are checked on the board.')}</p>
         <footer>
           <button type="button" onClick={onClose}>{t('cancel', 'Cancel')}</button>
           <button type="button" className="primary" disabled={busy || !f.siteId || !f.serviceType || (!f.openEnded && f.end < f.start)} onClick={() => void save()}>{t('save', 'Save')}</button>

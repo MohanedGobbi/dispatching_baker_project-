@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 import { openApp } from '../e2e/helpers'
 
 const OUT = '../../docs/manual/img'
-const ALL = ['board', 'units', 'replacements', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']
+const ALL = ['board', 'units', 'crew-changes', 'timeline', 'extensions', 'analytics', 'settings', 'data', 'audit']
 const GUIDE_IDS = [...ALL, 'changes', 'workorders']
 
 async function snap(page: Page, name: string, fullPage = false) {
@@ -91,28 +91,6 @@ test('staff screens', async ({ page }) => {
     await open(page, 'units')
     const href = await page.locator('a[href*="#/units/"]').first().getAttribute('href')
     if (href) { await page.goto(href); await page.waitForTimeout(1500); await snap(page, '13-unit-page', true) }
-  })
-  await step('replacement-detail', async () => {
-    await open(page, 'replacements')
-    await page.locator('.tcard').first().click()
-    await snap(page, '14-replacement-detail', true)
-  })
-  await step('replacement-fixed', async () => {
-    await open(page, 'replacements')
-    const cards = page.locator('.tcard')
-    const n = await cards.count()
-    for (let i = 0; i < n; i++) {
-      await cards.nth(i).click()
-      const put = page.getByRole('button', { name: 'Put on this seat' }).first()
-      if (await put.waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false)) {
-        await snap(page, '14-replacement-candidates', true)
-        await put.click()
-        await page.waitForTimeout(1500)
-        await page.evaluate(() => window.scrollTo(0, 0))
-        await snap(page, '14-replacement-fixed', true)
-        return
-      }
-    }
   })
   await step('timeline-person', async () => {
     await open(page, 'timeline')

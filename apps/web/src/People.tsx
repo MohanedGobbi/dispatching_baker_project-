@@ -103,7 +103,7 @@ export default function People() {
         steps={[
           t('peStep1', 'The rank sets whether someone takes chief or operator seats and how experienced they count for the crew rules. "Ranks" lets you rename, add or reorder them.'),
           t('peStep2', 'Back-to-back partners share a seat: one is on while the other is off. Setting a partner links both people.'),
-          t('peStep3', 'Archive someone who leaves: their seats are freed and appear in the replacement center.'),
+          t('peStep3', 'Archive someone who leaves: their seats are freed and show as empty on the board.'),
         ]}>
         <button type="button" onClick={() => setRanking(true)}><ListOrdered size={15} aria-hidden /> {t('manageRanks', 'Ranks')}</button>
         <button type="button" className="primary" onClick={() => setEditing('new')}><Plus size={15} aria-hidden /> {t('addPerson', 'Add a person')}</button>
@@ -192,7 +192,7 @@ export default function People() {
       {ranking && <ManageRanks onClose={() => setRanking(false)} onDone={() => { setRanking(false); setRank(''); void reloadRanks(); void list.reload() }} />}
       {leaving && (
         <Modal title={`${t('archive', 'Archive')} ${leaving.firstName} ${leaving.lastName}?`} onClose={() => setLeaving(null)}>
-          <p>{t('archiveText', 'Use this when someone leaves the company. Their current and future seats are freed (they show up in the replacement center) and their partner link is removed. Their history stays.')}</p>
+          <p>{t('archiveText', 'Use this when someone leaves the company. Their current and future seats are freed (they show as empty on the board) and their partner link is removed. Their history stays.')}</p>
           <footer>
             <button type="button" onClick={() => setLeaving(null)}>{t('cancel', 'Cancel')}</button>
             <button type="button" className="primary danger-fill" onClick={async () => {
