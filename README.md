@@ -4,14 +4,14 @@
 
 CrewBoard answers the question a dispatch manager asks every morning: *who is on which unit today, who is missing, and who
 can cover?* It knows each person's rotation, qualifications and rest days, checks every assignment against the crew
-rules, and proposes the best replacement when a seat empties.
+rules, and ranks the best people for any empty seat. It never moves anyone on its own: the manager decides.
 
 It installs like any Windows program, opens in its own window, keeps all its data in one file on the computer and never
 needs the internet.
 
 ![The CrewBoard dispatch board](docs/manual/img/10-board-hero.png)
 
-> **[Watch the 2-minute demo video](docs/media/crewboard-demo.mp4)** · [User manual](docs/manual/index.html) · [PDF manual](docs/manual/CrewBoard-manual.pdf)
+> **[Watch the 2-minute demo video](docs/media/crewboard-demo.mp4)** (recorded before the Plans and Replacements screens were removed) · [User manual](docs/manual/index.html) · [PDF manual](docs/manual/CrewBoard-manual.pdf)
 >
 > All screenshots show generated demo data, not real people.
 
@@ -24,8 +24,7 @@ Made by **Mohaned Gobbi**.
 | | |
 |---|---|
 | **Dispatch board** | Every unit with its crew (a chief and three operators), grouped by base, with a map, today's headcount and a red flag wherever a rule is broken or a seat is empty. Drag a person onto a seat, or press *Assign someone* to see the best matches. Look at any past or future day, or show it on a wall screen (TV mode). |
-| **Replacement center** | Every uncovered seat as a task, most urgent first. For each one: the best candidates ranked, *why* each fits, and why the others were ruled out. One click puts someone on the seat; the task shows as *Fixed*. Tasks close to their date are escalated automatically. |
-| **Planner** | Proposes who works where for the coming weeks, hardest seats first, scored on rest, fairness, qualifications and distance. Every choice is explained and unfillable seats come with ways to fix them. Plans go **draft, review, approved, published** and change nothing until published. |
+| **Seats and crew changes** | Assign, replace or unassign from the seat, with the best people ranked and the reason for each. A crew change date can be set or left *not decided yet*. When a stay's end date passes, the person stays on the seat and the unit is flagged until the manager acts: nobody leaves a unit on their own. |
 | **Units and jobs** | The fleet with computed status (on a job, at base, in the workshop), jobs with open-ended dates, preventive maintenance that schedules itself, unit papers with expiry dates and a crew history. |
 | **People** | Rank, partner, rotation pattern and first day of work. Status is *computed* from rotation, leave and assignments, never typed in. |
 | **Crew changes, timeline, extensions** | Who leaves and who arrives in the next days, a day-by-day timeline of everyone, and extra days on a unit with limits, a balance of rest days owed and an approval step. |
@@ -34,8 +33,8 @@ Made by **Mohaned Gobbi**.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/manual/img/14-replacement-candidates.png" alt="Replacement center with ranked candidates"><br><sub><b>Replacement center:</b> the best people for an empty seat, and why.</sub></td>
-<td width="50%"><img src="docs/manual/img/16-plans.png" alt="The planner"><br><sub><b>Planner:</b> a proposed plan with the reason for every choice.</sub></td>
+<td width="50%"><img src="docs/manual/img/11-board-assign.png" alt="Assign someone with ranked best matches"><br><sub><b>Assign someone:</b> the best people for an empty seat, and why.</sub></td>
+<td width="50%"><img src="docs/manual/img/11-stay-ended-dialog.png" alt="A stay that ended, waiting for the manager"><br><sub><b>Stay ended:</b> the person stays on the seat until the manager acts.</sub></td>
 </tr>
 <tr>
 <td><img src="docs/manual/img/13-unit-page.png" alt="A unit page"><br><sub><b>Unit page:</b> crew, jobs, maintenance and papers.</sub></td>
@@ -49,11 +48,10 @@ Made by **Mohaned Gobbi**.
 
 ## How it works
 
-- **The rules are code, and the numbers are settings.** Crew size, the experience each crew needs, the longest stretch on a unit, extension limits and the weights of the planner all live in *Settings*, are applied to the next calculation and are logged when changed. The rules themselves are a pure TypeScript library (`apps/api/src/domain`) with no database access, covered by unit tests.
-- **One validator for everyone.** Manual assignments, the planner, plan publishing and replacements all go through the same rule check, so they cannot disagree. Breaking a hard rule needs a written reason, which goes in the audit log.
+- **The rules are code, and the numbers are settings.** Crew size, the experience each crew needs, the longest stretch on a unit, extension limits and the weights used to rank the best matches all live in *Settings*, are applied to the next calculation and are logged when changed. The rules themselves are a pure TypeScript library (`apps/api/src/domain`) with no database access, covered by unit tests.
+- **One validator for everyone.** Assigning, replacing, swapping, crew change dates and extensions all go through the same rule check, so they cannot disagree. Breaking a hard rule needs a written reason, which goes in the audit log.
 - **Status is computed, never stored.** Whether someone is on a unit, on days off, on leave, on standby or awaiting clearance comes from their rotation, leave and assignments for that day.
-- **Leave frees seats by itself.** When a person cannot work, their seat is released and a replacement task is opened with the right urgency; filling the seat closes the task.
-- **Plans are drafts until published.** Publishing re-checks every assignment against today's facts and turns anything that no longer fits into a replacement task.
+- **Nobody leaves a unit on their own.** A crew stay whose end date passes with nobody lined up is kept on the seat with no date, and the board warns until the manager unassigns the person or sets a new date.
 
 ## Offline, private, one computer
 

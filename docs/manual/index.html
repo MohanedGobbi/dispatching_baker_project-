@@ -63,15 +63,16 @@
   <div class="grp">Today</div>
   <a href="#board">Board</a>
   <a href="#units">Units</a>
-  <a href="#replacements">Replacements</a>
+  <a href="#people">People</a>
   <a href="#changes">Crew changes</a>
   <div class="grp">Planning</div>
-  <a href="#plans">Plans</a>
+  <a href="#rotations">Work &amp; days off</a>
   <a href="#timeline">Timeline</a>
   <a href="#extensions">Extensions</a>
   <div class="grp">Insights</div>
   <a href="#analytics">Analytics</a>
   <div class="grp">Administration</div>
+  <a href="#locations">Locations</a>
   <a href="#settings">Settings</a>
   <a href="#data">Import / export</a>
   <a href="#audit">Audit</a>
@@ -95,8 +96,8 @@
 <h3>What it does</h3>
 <ul>
   <li><strong>Shows the day.</strong> Every unit (truck / rig) with its crew, every base, and everyone who is free.</li>
-  <li><strong>Plans.</strong> The planner proposes who works where for the coming weeks, following the crew rules; you review and publish.</li>
-  <li><strong>Covers gaps.</strong> When a seat is left empty, a replacement task opens with the best people ranked. Put one on the seat and the task turns green: fixed.</li>
+  <li><strong>Shows what needs you.</strong> An empty seat, a broken crew rule or a stay whose end date has passed is flagged on the board. <em>Assign someone</em> ranks the best people for a seat.</li>
+  <li><strong>Never moves people on its own.</strong> Nobody is taken off a unit until you unassign them.</li>
   <li><strong>Keeps the fleet in order.</strong> Unit status, jobs, the workshop, preventive maintenance, papers (registration, insurance, inspection).</li>
   <li><strong>Shows where you will be short.</strong> A few key numbers and the coverage of the next 12 weeks, base by base.</li>
 </ul>
@@ -117,10 +118,10 @@
 <p>Screens are grouped by what you do with them. Each entry has a short description under its name.</p>
 <table>
   <tr><th>Group</th><th>Screens</th></tr>
-  <tr><td><strong>Today</strong></td><td>Board, Units, Replacements, Crew changes</td></tr>
-  <tr><td><strong>Planning</strong></td><td>Plans, Timeline, Extensions</td></tr>
+  <tr><td><strong>Today</strong></td><td>Board, Units, People, Crew changes</td></tr>
+  <tr><td><strong>Planning</strong></td><td>Work &amp; days off, Timeline, Extensions</td></tr>
   <tr><td><strong>Insights</strong></td><td>Analytics</td></tr>
-  <tr><td><strong>Administration</strong></td><td>Settings, Import / export, Audit</td></tr>
+  <tr><td><strong>Administration</strong></td><td>Locations, Settings, Import / export, Audit</td></tr>
 </table>
 <p>Use the small button at the top of the sidebar to collapse it to icons. On a phone the sidebar becomes a menu you open with the menu button.</p>
 
@@ -140,17 +141,18 @@
 <p>On the board, press <kbd>Ctrl</kbd> + <kbd>K</kbd> or click the search box to find a person or a unit by name or code.</p>
 
 <h3>Live updates</h3>
-<p>Screens refresh by themselves when something changes (a plan is published, a task is fixed). You do not need to reload.</p>
+<p>Screens refresh by themselves when something changes (someone is assigned, a unit is sent on a job). You do not need to reload.</p>
 
 <h2 id="day">3. A day with CrewBoard</h2>
 <p>A typical morning for the manager:</p>
 <ol class="steps">
   <li><strong>Open the Board.</strong> Look at the red tiles first. They tell you how many crews need attention and how many seats are waiting for someone.</li>
-  <li><strong>Open Replacements</strong> if seats are waiting. Work from the most urgent task down: pick the best person and press <strong>Put on this seat</strong>. The task turns green and moves to "Fixed this week".</li>
+  <li><strong>Fill empty seats</strong> with <strong>Assign someone</strong> on the seat: the best people are ranked for you.</li>
+  <li><strong>Look for "stay ended" warnings.</strong> Those people are still on their seat because nobody has taken them off. Unassign them or set a new crew change date.</li>
   <li><strong>Someone cannot work today?</strong> Click them on the board and press <strong>Unassign</strong> (or <strong>Replace</strong> to put someone else in straight away).</li>
   <li><strong>Look at Crew changes</strong> for the coming days: green rows are settled, red rows have nobody coming yet.</li>
   <li><strong>Glance at Units</strong> for services due and papers expiring, and for units in the workshop.</li>
-  <li><strong>Once a week or month</strong> open Plans to generate and publish the next stretch, and Analytics to see where you will be short of people.</li>
+  <li><strong>Once a week</strong> open Analytics to see where you will be short of people.</li>
 </ol>
 <p class="tip">The thing that needs action today is always the loudest thing on screen. Red solid tiles mean "act now"; everything else is quiet on purpose.</p>
 
@@ -169,8 +171,8 @@
 <table>
   <tr><th>Tile</th><th>Meaning</th><th>Click to</th></tr>
   <tr><td>Units on a job</td><td>How many units are working today</td><td>Show units in the field</td></tr>
-  <tr><td>Crews needing attention</td><td>Crews that break a rule or have an empty required seat. Turns solid red when above zero.</td><td>Filter to those crews</td></tr>
-  <tr><td>Seats waiting for someone</td><td>Open replacement tasks, with how many are critical</td><td>Open the Replacement center</td></tr>
+  <tr><td>Crews needing attention</td><td>Crews that break a rule, have an empty required seat or have a stay that ended. Turns solid red when above zero.</td><td>Filter to those crews</td></tr>
+  <tr><td>Seats waiting for someone</td><td>Empty seats on units whose crew is too small</td><td>Filter to those crews</td></tr>
   <tr><td>Crew changes this week</td><td>Handovers in the next seven days</td><td>Open Crew changes</td></tr>
 </table>
 
@@ -180,6 +182,7 @@
   <li><strong>Header colour:</strong> green = Open Hole (OH), amber = Cased Hole (CH), grey = at base without a job. The ring shows seats filled (for example 3/4).</li>
   <li><strong>Status line:</strong> "Crew complete and compliant", or the number of issues, or "At base, no job", or "Under maintenance". Also the next crew change ("crew change in 14 d").</li>
   <li><strong>Seats:</strong> Chief and Operator 1 to 3 (a field operator is also the driver). The star on Operator 1 marks the seat that needs an experienced person. Each person shows initials, name, position and a small dot for their state today.</li>
+  <li><strong>Warning chips:</strong> each problem in words, for example "No chief of unit", "Missing OH qualification" or "1 stay ended: unassign".</li>
   <li><strong>Red outline:</strong> the crew breaks a rule. Click the card header to read the issues in the unit panel.</li>
   <li><strong>"Assign someone":</strong> an empty seat. A solid red-tinted one is an empty required seat.</li>
 </ul>
@@ -188,8 +191,8 @@
 <figure><img src="img/11-board-assign.png" alt="Who should take this seat?"><figcaption>Press "Assign someone" and CrewBoard ranks the people who can take the seat.</figcaption></figure>
 <ol class="steps">
   <li>Press <strong>Assign someone</strong> on an empty seat.</li>
-  <li>Choose how long the person is needed (3, 7, 14 or 28 days).</li>
-  <li><strong>Best matches</strong> lists people the planner recommends: qualified, rested, fair and close to this base. Each line says why ("Experienced, no rest owed, same base, covers 7 days"). <strong>Everyone free today</strong> lists everybody available.</li>
+  <li>At the top, pick the crew change date (the first day they are off the seat), or tick <strong>not decided yet</strong> when it is not known.</li>
+  <li><strong>Best matches</strong> lists the people CrewBoard recommends: qualified, rested, fair and close to this base. Each line says why ("Experienced, no rest owed, same base, covers 7 days"). <strong>Everyone free today</strong> lists everybody available.</li>
   <li>Press <strong>Choose</strong>. CrewBoard checks every crew rule before it saves.</li>
   <li>"Why others were ruled out" explains who cannot take the seat and why.</li>
 </ol>
@@ -202,10 +205,24 @@
 <ol class="steps">
   <li><strong>From:</strong> the first day the change applies. It is today unless you pick another day, up to the end of the person's stretch on this seat.</li>
   <li><strong>Reason</strong> (optional): written to the audit log with the change.</li>
-  <li><strong>Unassign</strong> takes the person off the seat from that day. If the seat is required, a replacement task opens for the empty days so the gap shows up in Replacements.</li>
-  <li><strong>Replace…</strong> opens the same ranked list as "Assign someone", for the rest of the stretch. Pick someone, check what would happen, and confirm. The person leaves the seat and the new one takes it the same day, in one step, so the seat is never left empty and no replacement task is opened.</li>
+  <li><strong>Unassign</strong> takes the person off the seat from that day. If the seat is required, it shows as empty on the board.</li>
+  <li><strong>Replace…</strong> opens the same ranked list as "Assign someone", for the rest of the stretch. Pick someone, check what would happen, and confirm. The person leaves the seat and the new one takes it the same day, in one step, so the seat is never left empty.</li>
 </ol>
 <figure><img src="img/11-seat-replace-picker.png" alt="Who replaces this person?"><figcaption>Choosing who replaces someone. When nobody fits every rule for the whole stretch, pick from "Everyone free that day" and give an override reason.</figcaption></figure>
+<h3>Crew change dates and "not decided yet"</h3>
+<p>The same window sets the crew change: pick a date and press <strong>Set date</strong>, or press <strong>Not decided yet</strong> to remove the date. A person with no date shows "no crew change date yet" and stays on the seat until you set one or unassign them.</p>
+
+<h3>When a stay's end date passes</h3>
+<p>CrewBoard <strong>never takes anyone off a unit by itself</strong>. When the end date of a stay passes and nobody is lined up to take over the seat:</p>
+<ol class="steps">
+  <li>The person stays on the seat, with no date.</li>
+  <li>The unit shows an orange warning, "1 stay ended: unassign", and a warning sign on the seat. The crew counts as needing attention.</li>
+  <li>You decide: <strong>Unassign</strong>, <strong>Replace</strong>, or <strong>Set date</strong> for a new crew change. The warning goes away as soon as you do.</li>
+</ol>
+<figure><img src="img/11-stay-ended-card.png" alt="A unit card with the warning 1 stay ended: unassign" style="max-width:360px"><figcaption>The warning on the unit card.</figcaption></figure>
+<figure><img src="img/11-stay-ended-dialog.png" alt="Replace or unassign window explaining that the stay was planned to end"><figcaption>The person's window says when the stay was planned to end.</figcaption></figure>
+<p class="note">If someone was already lined up for the seat after that date, or the person's next stay is planned elsewhere, the crew change happens as planned and no warning is shown.</p>
+
 <p>The same actions are available wherever a person sits on a seat: in the <strong>unit panel</strong> (Crew today), on the <strong>unit page</strong> (Crew today table) and in the <strong>person's profile panel</strong> under "Seats now and coming up", which you can open from any name in CrewBoard.</p>
 
 <h3>The unit panel</h3>
@@ -216,7 +233,7 @@
 
 <h3>New job</h3>
 <figure><img src="img/12-new-job.png" alt="New job dialog"><figcaption>Create a job and, optionally, deploy a unit on it straight away.</figcaption></figure>
-<p>A job is a piece of work at a site (a well and rig) with start and end dates. If you deploy a unit with it, the unit's seats open for the job's dates and, if nobody covers them, replacement tasks appear.</p>
+<p>A job is a piece of work at a site (a well and rig) with start and end dates. If you deploy a unit with it, the unit's seats are needed for the job's dates and any empty one shows as needing someone on the board.</p>
 
 <h3>TV mode</h3>
 <figure><img src="img/18-tv-mode.png" alt="TV mode"><figcaption>TV mode: a large, read-only wall display of the day. Press <kbd>Esc</kbd> to leave it.</figcaption></figure>
@@ -272,55 +289,33 @@
   <li>When the work is finished, press <strong>Repaired</strong> on the unit (in its panel or on its page): the unit becomes available again.</li>
 </ol>
 
-<h2 id="replacements">Replacements</h2>
-<p class="lead">Every seat that has lost its person or never had one, most urgent first, with the best people to fill it.</p>
-<figure><img src="img/10-replacements.png" alt="Replacement center"><figcaption>The replacement center: urgency tiles, a four-week chart of open gaps and the task list.</figcaption></figure>
-
-<h3>Where tasks come from</h3>
-<p>You do not create these tasks. One appears by itself when a seat is left empty: you take someone off it, a unit gets a job without a full crew, or a crew change has nobody coming. <strong>Scan next 4 weeks</strong> checks the coming weeks for anything missed.</p>
-
-<h3>Urgency</h3>
-<table>
-  <tr><th>Level</th><th>Meaning</th></tr>
-  <tr><td><strong>Critical</strong></td><td>The seat is empty today or tomorrow</td></tr>
-  <tr><td><strong>High</strong></td><td>Within the week</td></tr>
-  <tr><td><strong>Normal</strong></td><td>Time to plan</td></tr>
-  <tr><td><strong>Fixed this week</strong></td><td>Solved: someone was put on the seat. These stay listed, in green, for a week.</td></tr>
-</table>
-
-<h3>Working a task</h3>
-<figure><img src="img/14-replacement-candidates.png" alt="Replacement task with ranked candidates"><figcaption>A selected task: the days to cover, then the ranked people.</figcaption></figure>
-<ol class="steps">
-  <li>Pick a task in the list (grouped by how soon it starts).</li>
-  <li>On the right, adjust <strong>From / Until</strong> if only part of the gap must be covered.</li>
-  <li>Read <strong>Best people for this seat</strong>: each person has a fit bar and the reasons ("no rest owed", "from HRM (travel)", "covers 21 days").</li>
-  <li>Press <strong>Put on this seat</strong> next to the person you choose. CrewBoard checks every crew rule first.</li>
-  <li>Open <strong>Why others cannot take it</strong> to see who was ruled out and which rule stopped them.</li>
-  <li>Nobody suitable? Use <strong>Assign someone</strong> on the board to pick anyone free (with an override reason), or press <strong>Close without a replacement</strong> and give a reason.</li>
-</ol>
-
-<h3>The problem is fixed</h3>
-<figure><img src="img/14-replacement-fixed.png" alt="A fixed task"><figcaption>After the person is placed the task turns green and says who now covers the seat.</figcaption></figure>
-<p>You get a message ("Fixed: ... now covers ..."), the task moves to <strong>Fixed this week</strong>, the "Fixed" tile goes up and the board shows the seat filled. <strong>Next problem</strong> jumps to the next open task; <strong>See the board</strong> opens the board. If you covered only some of the days, the rest stays open as a new part of the task.</p>
-<p class="note">Filling a seat by any route (board, transfer, plan, replacement) closes the task it was for.</p>
+<h2 id="people">People</h2>
+<p class="lead">Everyone in the crews: their rank, back-to-back partner and details. Add or change anyone by hand.</p>
+<ul>
+  <li><strong>Add a person</strong>: first and last name, employee number, home base, rank, back-to-back partner, and optional contact details, hire date, contract and notes.</li>
+  <li><strong>Rank</strong> decides whether someone takes chief or operator seats and how experienced they count for the crew rules. <strong>Ranks</strong> lets you rename, add or reorder them. Without a rank, the level is worked out from the hire date.</li>
+  <li><strong>Back-to-back partners</strong> share a seat: one is on while the other is off. Setting a partner links both people.</li>
+  <li><strong>Archive (left the company)</strong> when someone leaves: their current and future seats are freed (they show as empty on the board) and their partner link is removed. Their history stays.</li>
+</ul>
 
 <h2 id="changes">Crew changes</h2>
 <p class="lead">Every handover in the coming days: who leaves a seat, who arrives, and whether someone is actually coming.</p>
 <figure><img src="img/10-crew-changes.png" alt="Crew changes"><figcaption>Green rows are settled: someone is coming. Red rows have nobody to take over yet.</figcaption></figure>
-<p>From a red row, open the replacement center to find someone in time. Click a name to see the person's schedule.</p>
+<ul>
+  <li>For a red row, open the board on that day and use <strong>Assign someone</strong> on the empty seat.</li>
+  <li>The calendar button on a row moves that crew change to another day, for one seat or the whole unit.</li>
+  <li>Click a name to see the person's schedule.</li>
+</ul>
+<p class="note">People with no crew change date yet are not listed: there is no handover planned. Set a date from the seat to bring them onto this list.</p>
 
 <!-- ============ PLANNING ============ -->
-<h2 id="plans">Plans</h2>
-<p class="lead">Let the planner propose who works where for the coming weeks, check it, then publish it to everyone.</p>
-<figure><img src="img/10-plans.png" alt="Plans"><figcaption>The list of plans with their status, period, bases, coverage and creation time.</figcaption></figure>
-<ol class="steps">
-  <li>Press <strong>New plan</strong>, choose the weeks and the bases (or all bases). The planner fills every seat it can while following every rule: hardest seats first, then scored on rest, fairness, qualifications and distance.</li>
-  <li>Open the draft (v1, v2...). Each assignment says <strong>why</strong> that person was chosen. Seats it could not fill are listed as gaps with ways to fix them.</li>
-  <li>Change anything by hand.</li>
-  <li><strong>Submit for review</strong>, then <strong>Approve</strong> and <strong>Publish</strong>. The plan becomes live on the board.</li>
-</ol>
-<p class="warn">A draft changes nothing until published. Publishing re-checks every assignment against today's facts (someone may have been taken off a seat since); any assignment it has to skip opens a replacement task.</p>
-<p class="note">Plans go draft, review, approved, published. The setting <code>workflow.requireApproval</code> in Settings turns the review steps off: a plan then goes straight from draft to published, and extensions apply in one go instead of being requested then approved.</p>
+<h2 id="rotations">Work &amp; days off</h2>
+<p class="lead">When each person works and when they are off. Set the rotation and the first day of one work stretch; CrewBoard works out every stretch after it.</p>
+<ul>
+  <li><strong>Starting out</strong>, nobody has a rotation yet. Under <strong>Right now</strong>, mark whether each person is working or on days off, so the board is right today.</li>
+  <li><strong>Starts today</strong> on the day someone goes back to work; <strong>Off today</strong> on the day they finish. Counting starts from there.</li>
+  <li><strong>First day on</strong> takes any date, past or future. Back-to-back partners are listed together and <strong>&#8644;</strong> gives the partner the opposite stretches.</li>
+</ul>
 
 <h2 id="timeline">Timeline</h2>
 <p class="lead">Everyone's next weeks at a glance: one line per person, one colour per kind of day.</p>
@@ -337,8 +332,9 @@
 <p class="lead">Keeping someone on a unit past the planned end. Every extra day is owed back to them as rest.</p>
 <figure><img src="img/10-extensions.png" alt="Extensions"><figcaption>Extensions with the guide open.</figcaption></figure>
 <ol class="steps">
-  <li>Press <strong>Extend</strong>, pick the person, the number of extra days and the reason. It applies at once.</li>
+  <li>Press <strong>Extend</strong>, pick the person, the number of extra days and the reason. With approvals on (<code>workflow.requireApproval</code>, the default) it is requested, then approved; otherwise it applies at once.</li>
   <li>Beyond the limits (days per rotation, days per quarter, longest stretch) a reason is required and the override is audited.</li>
+  <li>A stay with no crew change date yet cannot be extended: set a date instead.</li>
   <li>Extra days are added to the person's balance of rest owed, unless the setting <code>shiftNextRotationOnExtension</code> is on, in which case the next rotation starts later instead.</li>
 </ol>
 
@@ -346,18 +342,26 @@
 <p class="lead">How the company stands today and where it will be short of people in the coming weeks. One page, no tabs.</p>
 <figure><img src="img/10-analytics.png" alt="Analytics"><figcaption>The whole Analytics page.</figcaption></figure>
 <ul>
-  <li><strong>Key numbers</strong> at the top: people, units on a job, crews that follow the rules, seats waiting for someone (critical ones shown). A red edge means something needs you.</li>
+  <li><strong>Key numbers</strong> at the top: people, units on a job, crews that follow the rules, seats waiting for someone. A red edge means something needs you.</li>
   <li><strong>Everyone today</strong> and <strong>The fleet</strong>: simple bars showing what people and units are doing, and the units of each base.</li>
   <li><strong>Needs attention</strong>: the crews that are incomplete or break a rule. Click a unit code to open it.</li>
   <li><strong>Coverage, next 12 weeks</strong>: one row per base, one cell per week, showing how many people are available compared with what is needed on the worst day of that week. Green is covered (100% or more), amber 70 to 99%, red under 70%. The warning above the table names the biggest shortages and when they start.</li>
 </ul>
-<p class="tip">Red weeks far ahead are your cue to publish a plan or recall someone early, before they turn into replacement tasks.</p>
+<p class="tip">Red weeks far ahead are your cue to line someone up or recall someone early, before seats go empty.</p>
+
+<h2 id="locations">Locations</h2>
+<p class="lead">Your bases and the sites (wells, rigs) your units are sent to.</p>
+<ul>
+  <li>A <strong>base</strong> is where trucks and people are based. A base with units or people on it cannot be removed; move them first.</li>
+  <li>A <strong>site</strong> belongs to a base and can carry the client, travel time and access notes. Jobs are created at a site.</li>
+</ul>
 
 <h2 id="settings">Settings</h2>
 <p class="lead">The rules and numbers behind every calculation. Nothing is hard-coded.</p>
-<figure><img src="img/10-settings.png" alt="Settings"><figcaption>Crew rules at the top, then the planning engine weights and more.</figcaption></figure>
+<figure><img src="img/10-settings.png" alt="Settings"><figcaption>Crew rules at the top, then the weights used to rank best matches, and more.</figcaption></figure>
 <table>
   <tr><th>Setting</th><th>What it does</th></tr>
+  <tr><td><code>minCrewOnUnit</code></td><td>The smallest crew a unit on a job may go out with</td></tr>
   <tr><td><code>minExperiencedPerCrew</code></td><td>Experienced people required in every crew</td></tr>
   <tr><td><code>chiefRequired</code></td><td>Whether every crew needs a Chief of Unit</td></tr>
   <tr><td><code>maxConsecutiveDays</code></td><td>Longest stretch on a unit, in days</td></tr>
@@ -365,8 +369,9 @@
   <tr><td><code>clearanceRequiredAfterDays</code></td><td>Medical absence longer than this needs clearance before returning</td></tr>
   <tr><td><code>longTermAbsenceDays</code></td><td>A medical absence this long counts as long-term</td></tr>
   <tr><td><code>shiftNextRotationOnExtension</code></td><td>On: the next rotation starts later. Off: extra days are owed as rest.</td></tr>
-  <tr><td><code>weight.*</code></td><td>How much each factor counts when the planner scores a candidate</td></tr>
-  <tr><td><code>workflow.requireApproval</code></td><td>Turn on the draft, review, approved, published pipeline for plans and extensions</td></tr>
+  <tr><td><code>weight.*</code></td><td>How much each factor counts when CrewBoard ranks the best matches</td></tr>
+  <tr><td><code>overrideReasonRequired</code></td><td>On: breaking a hard rule needs a written reason. Off: it is only a warning.</td></tr>
+  <tr><td><code>workflow.requireApproval</code></td><td>On: extensions are requested, then approved. Off: they apply at once.</td></tr>
 </table>
 <p class="warn">Changes apply immediately to all future calculations and are audited. Change one number at a time and look at the board afterwards.</p>
 <p><strong>Backups</strong> at the top of Settings: a copy of all data and files is made every day (the 14 newest are kept, then one per month), and <strong>Back up now</strong> makes one straight away. Copy the folder it names to a USB drive from time to time. <strong>About</strong> at the bottom shows the version.</p>
@@ -404,15 +409,15 @@
 <h3>Hard and soft rules</h3>
 <ul>
   <li><strong>Hard rules</strong> (qualification, double booking, longest stretch, a crew without a Chief or an experienced member...) stop an assignment unless you give an <strong>override reason</strong>.</li>
-  <li><strong>Soft rules</strong> (rest, fairness, distance, back-to-back stretches) show as warnings and as lower scores when the planner ranks people.</li>
-  <li>The same rule check is used by manual assignment, the planner, plan publishing, replacements and swaps, so screens never disagree about what is allowed.</li>
+  <li><strong>Soft rules</strong> (rest, fairness, distance, back-to-back stretches) show as warnings and as a lower place in Best matches.</li>
+  <li>The same rule check is used by assigning, replacing, swapping, crew change dates and extensions, so screens never disagree about what is allowed.</li>
 </ul>
 
 <h3>Rest owed and extensions</h3>
-<p>An extension adds days to a stretch. Each extra day is owed back to the person as rest, and it counts when the planner ranks candidates ("rest owed").</p>
+<p>An extension adds days to a stretch. Each extra day is owed back to the person as rest, and it counts when Best matches ranks candidates ("rest owed").</p>
 
-<h3>Plans are drafts until published</h3>
-<p>Draft assignments never count as live. Only publishing changes the board.</p>
+<h3>Nobody leaves a unit on their own</h3>
+<p>A stay ends only when you unassign or replace the person, or when someone you lined up takes over. A stay whose end date passes with nobody lined up is kept on the seat and flagged until you act (see Board, "When a stay's end date passes").</p>
 
 <h3>Certificates</h3>
 <p>A certificate is held or not. Certificates do not expire in CrewBoard (a decision made for this deployment), so there are no expiry warnings for them. Unit <em>papers</em> (registration, insurance, inspection) do have expiry dates.</p>
@@ -442,6 +447,8 @@
 <table>
   <tr><th>Problem</th><th>What to do</th></tr>
   <tr><td>Someone is sick or away and cannot work.</td><td>Click them on the board (or in the unit or their profile), then Unassign, or Replace to put someone else in straight away. Add the reason if you like; it goes in the audit log.</td></tr>
+  <tr><td>A unit shows "1 stay ended: unassign".</td><td>The person's end date passed and they are still on the seat. Unassign or Replace them, or Set date for a new crew change.</td></tr>
+  <tr><td>Someone with no crew change date is not in Crew changes.</td><td>Expected: no handover is planned. Set a date from the seat.</td></tr>
   <tr><td>I cannot assign someone to a seat.</td><td>Read the reason shown: a hard rule stops it (qualification, already booked, longest stretch...). Choose someone else, or give an override reason if you accept the risk.</td></tr>
   <tr><td>A person is missing from "Best matches".</td><td>Open <em>Why others were ruled out</em>. They may be on days off, already on another seat, unqualified, or would break a rule.</td></tr>
   <tr><td>A unit shows "In the workshop" and I did not do that.</td><td>A preventive service came due and opened a workshop visit. Press Repaired on the unit when it is back.</td></tr>
@@ -461,7 +468,8 @@
   <tr><td>Crew change</td><td>The day one person leaves a seat and another arrives</td></tr>
   <tr><td>Standby</td><td>Available at base, not assigned to a unit</td></tr>
   <tr><td>Override</td><td>Allowing an action that breaks a hard rule, with a reason that is recorded</td></tr>
-  <tr><td>Fixed</td><td>A replacement task that was solved by putting someone on the seat</td></tr>
+  <tr><td>Not decided yet</td><td>A stay with no crew change date; the person stays until you set one or unassign them</td></tr>
+  <tr><td>Stay ended</td><td>A stay whose end date passed while the person is still on the seat; waits for you to act</td></tr>
   <tr><td>Rest owed</td><td>Days a person is owed after extensions</td></tr>
 </table>
 <p style="margin-top:40px">CrewBoard is made by <strong>Mohaned Gobbi</strong>. © 2026 Mohaned Gobbi.</p>
