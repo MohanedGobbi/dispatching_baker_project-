@@ -11,7 +11,7 @@ needs the internet.
 
 ![The CrewBoard dispatch board](docs/manual/img/10-board-hero.png)
 
-> **[Watch the 2-minute demo video](docs/media/crewboard-demo.mp4)** (recorded before the Plans and Replacements screens were removed) · [User manual](docs/manual/index.html) · [PDF manual](docs/manual/CrewBoard-manual.pdf)
+> **[Watch the demo video (1:44, with sound)](docs/media/crewboard-demo.mp4)** · [User manual](docs/manual/index.html) · [PDF manual](docs/manual/CrewBoard-manual.pdf)
 >
 > All screenshots show generated demo data, not real people.
 
