@@ -96,6 +96,7 @@ export default function Settings() {
         <h2>{t('set_about', 'About')}</h2>
         <p>CrewBoard {__APP_VERSION__} · {t('aboutWhat', 'Crew rotation and dispatch')}</p>
         <p>{t('madeBy', 'Made by')} <strong>Mohaned Gobbi</strong> <span className="muted">· © 2026 Mohaned Gobbi</span></p>
+        <p>{t('contact', 'Contact')}: <span style={{ userSelect: 'all' }}>gobbimouhaned@gmail.com</span> · <span style={{ userSelect: 'all' }}>+213 666 22 47 05</span></p>
       </section>
     </main>
   )

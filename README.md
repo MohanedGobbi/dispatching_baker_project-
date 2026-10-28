@@ -15,7 +15,7 @@ needs the internet.
 >
 > All screenshots show generated demo data, not real people.
 
-Made by **Mohaned Gobbi**.
+Made by **Mohaned Gobbi** · [gobbimouhaned@gmail.com](mailto:gobbimouhaned@gmail.com) · +213 666 22 47 05
 
 ---
 
@@ -170,3 +170,6 @@ docs/           manual (HTML and PDF), desktop-plan.md, original-plan.md, perfor
 ## Author
 
 Made by **Mohaned Gobbi** · © 2026 Mohaned Gobbi
+
+- Email: [gobbimouhaned@gmail.com](mailto:gobbimouhaned@gmail.com)
+- Phone: +213 666 22 47 05

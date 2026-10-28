@@ -3,7 +3,7 @@
   "productName": "CrewBoard",
   "version": "1.0.0",
   "description": "Crew rotation and dispatch",
-  "author": "Mohaned Gobbi",
+  "author": "Mohaned Gobbi <gobbimouhaned@gmail.com>",
   "private": true,
   "scripts": {
     "stage": "node scripts/stage.cjs",
